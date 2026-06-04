@@ -57,3 +57,14 @@ EXTRACTION_RATE_LIMIT_RETRIES: int = int(
 EXTRACTION_RETRY_BASE_DELAY: float = float(
     _optional("EXTRACTION_RETRY_BASE_DELAY", "2.0")
 )
+JIRA_MAX_CONCURRENT: int = int(_optional("JIRA_MAX_CONCURRENT", "4"))
+REDHAT_DOCS_DELAY_SEC: float = float(_optional("REDHAT_DOCS_DELAY_SEC", "2.0"))
+
+
+def _parse_bool_flag(raw: str) -> bool:
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
+JBOSS_SKIP_PRERELEASE: bool = _parse_bool_flag(
+    _optional("JBOSS_SKIP_PRERELEASE", "1")
+)

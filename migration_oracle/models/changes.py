@@ -1,13 +1,5 @@
-"""Input contract from framework extractors."""
+"""Input contract from framework extractors (re-exported from entities)."""
 
-from dataclasses import dataclass
+from migration_oracle.models.entities import DocumentedChange, ExtractionResult
 
-
-@dataclass(frozen=True)
-class DocumentedChange:
-    """One raw upstream change record before LLM filtering."""
-
-    change_type: str
-    confidence: str
-    source_url: str
-    statement: str
+__all__ = ["DocumentedChange", "ExtractionResult"]

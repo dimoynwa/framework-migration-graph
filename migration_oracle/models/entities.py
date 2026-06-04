@@ -1,9 +1,29 @@
 """Pydantic models for migration entity extraction batches."""
 
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+
+
+@dataclass(frozen=True)
+class DocumentedChange:
+    """One raw upstream change record before LLM filtering."""
+
+    type: str
+    confidence: str
+    source_url: str
+    statement: str
+    metadata: dict | None = None
+
+
+@dataclass
+class ExtractionResult:
+    """Output of a framework HTTP extractor for one or more version hops."""
+
+    changes: list[DocumentedChange]
+    metadata: dict = field(default_factory=dict)
 
 
 class EntityKind(str, Enum):

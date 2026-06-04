@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 import click
 
 from migration_oracle import config
-from migration_oracle.extractors import get_extractor, render_raw_markdown
+from migration_oracle.pipeline.extractors import (
+    FRAMEWORK_DISPLAY_NAMES,
+    get_extractor,
+    render_raw_markdown,
+)
 from migration_oracle.graph.queries import pipeline as pipeline_queries
 from migration_oracle.pipeline._cache import resolve_cache_flags
 from migration_oracle.pipeline._paths import (
@@ -17,7 +22,7 @@ from migration_oracle.pipeline._paths import (
     ensure_runs_directories,
 )
 from migration_oracle.pipeline.extractor import run_extraction
-from migration_oracle.pipeline.filters import run_filter
+from migration_oracle.pipeline.filters import emit_stale_warnings, run_filter
 from migration_oracle.pipeline.populator import populate_graph
 
 
@@ -37,7 +42,7 @@ def main() -> None:
 app = main
 
 
-@click.command("pipeline")
+@click.command("export-extract-populate-framework")
 @click.option("--framework", required=True, help="Registered framework extractor key.")
 @click.argument("from_version")
 @click.argument("to_version")
@@ -49,6 +54,11 @@ app = main
     "--skip-existing",
     is_flag=True,
     help="Skip when raw MD, filtered MD, and Version node all exist.",
+)
+@click.option(
+    "--extract-only",
+    is_flag=True,
+    help="Run upstream HTTP extraction only; skip filter LLM, entity LLM, and graph.",
 )
 @click.option("--output-md", type=click.Path(path_type=Path), default=None)
 @click.option("--output-filtered-md", type=click.Path(path_type=Path), default=None)
@@ -62,16 +72,19 @@ def pipeline(
     force_llm: bool,
     dry_run: bool,
     skip_existing: bool,
+    extract_only: bool,
     output_md: Path | None,
     output_filtered_md: Path | None,
     output_json: Path | None,
 ) -> None:
     """Extract, filter, entity-extract, and optionally populate the graph."""
     try:
-        spec = get_extractor(framework)
+        extractor = get_extractor(framework)
     except ValueError as exc:
         click.echo(str(exc), err=True)
         raise SystemExit(1) from exc
+
+    display_name = FRAMEWORK_DISPLAY_NAMES.get(framework, framework)
 
     ensure_runs_directories()
 
@@ -88,7 +101,7 @@ def pipeline(
         if (
             raw_path.exists()
             and filtered_path.exists()
-            and pipeline_queries.version_exists(spec.display_name, to_version)
+            and pipeline_queries.version_exists(display_name, to_version)
         ):
             click.echo(
                 f"Skipping {framework} {from_version} → {to_version}: "
@@ -109,31 +122,55 @@ def pipeline(
     if needs_llm:
         _validate_model_provider()
 
+    emit_stale_warnings(flags)
+
     if flags.skip_extraction:
         raw_md = raw_path.read_text(encoding="utf-8")
     else:
-        changes = spec.extract(framework, from_version, to_version)
-        raw_md = render_raw_markdown(
-            framework_key=framework,
-            framework_display=spec.display_name,
-            from_version=from_version,
-            to_version=to_version,
-            changes=changes,
-        )
+
+        async def _run_extraction() -> str:
+            async with extractor:
+                result, hop_changes = await extractor.extract_range(
+                    from_version, to_version
+                )
+                return render_raw_markdown(
+                    framework_key=framework,
+                    framework_display=display_name,
+                    from_version=from_version,
+                    to_version=to_version,
+                    hop_changes=hop_changes,
+                    metadata=result.metadata,
+                )
+
+        try:
+            raw_md = asyncio.run(_run_extraction())
+        except NotImplementedError as exc:
+            click.echo(str(exc), err=True)
+            raise SystemExit(1) from exc
+        except (RuntimeError, ValueError) as exc:
+            click.echo(str(exc), err=True)
+            raise SystemExit(1) from exc
         raw_path.parent.mkdir(parents=True, exist_ok=True)
         raw_path.write_text(raw_md, encoding="utf-8")
+
+    if extract_only:
+        click.echo(
+            f"Extract-only complete — raw Markdown written to {raw_path} "
+            f"({len(raw_md.splitlines())} lines). Filter and entity LLM steps skipped."
+        )
+        return
 
     filter_result = run_filter(raw_md, output_path=filtered_path, flags=flags)
     extraction_result = run_extraction(
         filter_result.filtered_md,
-        framework_display=spec.display_name,
+        framework_display=display_name,
         output_path=json_path,
         flags=flags,
     )
 
     result = populate_graph(
         batch=extraction_result.batch,
-        framework_display=spec.display_name,
+        framework_display=display_name,
         to_version=to_version,
         raw_md_path=str(raw_path),
         filtered_md_path=str(filtered_path),
@@ -154,4 +191,5 @@ def pipeline(
 
 export_extract_populate_framework = pipeline
 
-main.add_command(pipeline)
+main.add_command(pipeline, name="export-extract-populate-framework")
+main.add_command(pipeline, name="pipeline")
