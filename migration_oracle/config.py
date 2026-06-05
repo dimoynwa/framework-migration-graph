@@ -66,5 +66,8 @@ def _parse_bool_flag(raw: str) -> bool:
 
 
 JBOSS_SKIP_PRERELEASE: bool = _parse_bool_flag(
-    _optional("JBOSS_SKIP_PRERELEASE", "1")
+    _optional("JBOSS_SKIP_PRERELEASE", "0")
+)
+SPRING_INCLUDE_PRERELEASE: bool = _parse_bool_flag(
+    _optional("SPRING_INCLUDE_PRERELEASE", "1")
 )

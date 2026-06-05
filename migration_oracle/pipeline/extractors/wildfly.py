@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from migration_oracle import config
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, is_jboss_ga_version
 from migration_oracle.pipeline.extractors.parsing import (
     apply_cli_hints,
     filter_release_versions,
@@ -35,7 +35,7 @@ class WildFlyExtractor(BaseExtractor):
         xml = await self.fetch(MAVEN_METADATA_URL)
         raw = parse_maven_metadata_versions(xml)
         if config.JBOSS_SKIP_PRERELEASE:
-            raw = [v for v in raw if v.endswith(".Final")]
+            raw = [v for v in raw if is_jboss_ga_version(v)]
         normalized = [normalize_wildfly_maven_version(v) for v in raw]
         return filter_release_versions(normalized, final_only=False)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from migration_oracle import config
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, is_jboss_ga_version
 from migration_oracle.pipeline.extractors.parsing import (
     filter_release_versions,
     parse_asciidoc_migration_guide,
@@ -27,9 +27,11 @@ class HibernateExtractor(BaseExtractor):
 
     async def discover_versions(self) -> list[str]:
         xml = await self.fetch(MAVEN_METADATA_URL)
-        versions = parse_maven_metadata_versions(xml)
+        raw_versions = parse_maven_metadata_versions(xml)
         if config.JBOSS_SKIP_PRERELEASE:
-            versions = [v for v in versions if v.endswith(".Final")]
+            versions = [v for v in raw_versions if is_jboss_ga_version(v)]
+        else:
+            versions = raw_versions
         from migration_oracle.pipeline.extractors.parsing import (
             normalize_wildfly_maven_version,
         )
