@@ -663,8 +663,10 @@ async def main():
         if bullet_n < t["min_bullets"]:
             errs.append(f"bullets={bullet_n} < min {t['min_bullets']}")
 
-        # Noise check: dependency upgrade library names must be absent
-        dep_noise = [lib for lib in ("HikariCP", "Testcontainers", "Kafka 3.")
+        # Noise check: bare dependency-upgrade version lines must be absent.
+        # Use version-suffixed patterns — "Testcontainers" alone appears in legitimate
+        # feature prose (e.g. "Testcontainers and Docker Compose integrations").
+        dep_noise = [lib for lib in ("HikariCP", "Testcontainers 1.", "Kafka 3.")
                      if lib in wiki_text]
         if dep_noise:
             errs.append(f"dep-upgrade noise present: {dep_noise}")
@@ -769,7 +771,7 @@ VERSIONS = [
     ("3.4", "3.4.0",     "3.4.1",   True,  True),
     ("3.5", "3.5.0",     "3.5.1",   True,  True),
     ("4.0", "4.0.0",     "4.0.1",   True,  False),  # wiki bullets expected, prose=0
-    ("4.1", "4.0.6",     "4.1.0",   False, False),  # 4.1 wiki is placeholder — wiki URL may be absent
+    ("4.1", "4.0.6",     "4.1.0-RC1", False, False),  # 4.1 GA not released; RC1 is latest
 ]
 
 RELEASE_URL_FRAG = "/releases/tag/"
