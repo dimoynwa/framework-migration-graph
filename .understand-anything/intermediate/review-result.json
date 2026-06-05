@@ -1,0 +1,20 @@
+{
+  "fixedSectionOk": true,
+  "nodesRecovered": 1,
+  "edgesRestored": 10,
+  "crossBatchEdgesAdded": 1,
+  "typesRemapped": 0,
+  "complexityRemapped": 0,
+  "notes": [
+    "All 276 original nodes had valid IDs, known types, and valid complexity values (simple/moderate/complex) — no mechanical fixes were needed.",
+    "10 function/class nodes were disconnected from their parent file nodes due to missing 'contains' edges across batch boundaries: _validate_model_provider in cli.py; is_cached and mark_cached in _cache.py; strip_markdown_fences, strip_preamble, and LLMInvocationError in _llm.py; ensure_runs_directories in _paths.py; emit_stale_warnings in filters.py; DriverNotInitialisedError in driver.py; UnknownSourceSectionError in populator.py. All 10 'contains' edges were restored.",
+    "1 node recovered: file:migration_oracle/extractors/__init__.py (legacy extractor registry that predates pipeline/extractors rewrite). The scan result importMap had an entry for this file but no corresponding node existed in the graph. The file physically exists at migration_oracle/extractors/__init__.py and imports migration_oracle/models/changes.py.",
+    "1 cross-batch import edge added: file:migration_oracle/extractors/__init__.py -> file:migration_oracle/models/changes.py backed by importMap.",
+    "11 'configures' edges added from file:tests/extractors/conftest.py to all 11 test files in that directory (conftest provides the anyio_backend fixture).",
+    "6 'configures' edges added from file:tests/test_000_foundations/__init__.py to the 6 test files it packages.",
+    "2 'related' edges added connecting document:specs/003-framework-http-extractors/quickstart.md and tasks.md back to spec.md (same feature, no cross-batch link existed).",
+    "28 nodes remain disconnected after all fixes: 3 JSON config files (.specify/), 4 standalone scripts/binary blobs (PowerShell, bash, .skill files), and 21 skill documentation files (.claude/skills/ and .cursor/skills/ SKILL.md documents). These have no import relationships and are genuinely peripheral — no action taken.",
+    "All inherits edges are correctly directed child->parent (e.g. SpringBootExtractor inherits BaseExtractor). No reversed edge directions found.",
+    "Final graph: 277 nodes, 433 edges, 0 dangling edges."
+  ]
+}

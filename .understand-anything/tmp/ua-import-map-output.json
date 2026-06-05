@@ -1,0 +1,372 @@
+{
+  "scriptCompleted": true,
+  "stats": {
+    "filesScanned": 188,
+    "filesWithImports": 48,
+    "totalEdges": 126
+  },
+  "importMap": {
+    ".claude/settings.json": [],
+    ".claude/skills/changelog-migration-extractor/SKILL.md": [],
+    ".claude/skills/migration-filter/SKILL.md": [],
+    ".claude/skills/speckit-agent-context-update/SKILL.md": [],
+    ".claude/skills/speckit-analyze/SKILL.md": [],
+    ".claude/skills/speckit-checklist/SKILL.md": [],
+    ".claude/skills/speckit-clarify/SKILL.md": [],
+    ".claude/skills/speckit-constitution/SKILL.md": [],
+    ".claude/skills/speckit-git-commit/SKILL.md": [],
+    ".claude/skills/speckit-git-feature/SKILL.md": [],
+    ".claude/skills/speckit-git-initialize/SKILL.md": [],
+    ".claude/skills/speckit-git-remote/SKILL.md": [],
+    ".claude/skills/speckit-git-validate/SKILL.md": [],
+    ".claude/skills/speckit-implement/SKILL.md": [],
+    ".claude/skills/speckit-plan/SKILL.md": [],
+    ".claude/skills/speckit-sdd-buddy/SKILL.md": [],
+    ".claude/skills/speckit-specify/SKILL.md": [],
+    ".claude/skills/speckit-tasks/SKILL.md": [],
+    ".claude/skills/speckit-taskstoissues/SKILL.md": [],
+    ".claude/skills/verification-protocol-writer/references/level-design-rationale.md": [],
+    ".claude/skills/verification-protocol-writer/SKILL.md": [],
+    ".cursor/rules/specify-rules.mdc": [],
+    ".cursor/skills/speckit-agent-context-update/SKILL.md": [],
+    ".cursor/skills/speckit-analyze/SKILL.md": [],
+    ".cursor/skills/speckit-checklist/SKILL.md": [],
+    ".cursor/skills/speckit-clarify/SKILL.md": [],
+    ".cursor/skills/speckit-constitution/SKILL.md": [],
+    ".cursor/skills/speckit-git-commit/SKILL.md": [],
+    ".cursor/skills/speckit-git-feature/SKILL.md": [],
+    ".cursor/skills/speckit-git-initialize/SKILL.md": [],
+    ".cursor/skills/speckit-git-remote/SKILL.md": [],
+    ".cursor/skills/speckit-git-validate/SKILL.md": [],
+    ".cursor/skills/speckit-implement/SKILL.md": [],
+    ".cursor/skills/speckit-plan/SKILL.md": [],
+    ".cursor/skills/speckit-specify/SKILL.md": [],
+    ".cursor/skills/speckit-tasks/SKILL.md": [],
+    ".cursor/skills/speckit-taskstoissues/SKILL.md": [],
+    ".specify/extensions.yml": [],
+    ".specify/extensions/.registry": [],
+    ".specify/extensions/agent-context/agent-context-config.yml": [],
+    ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": [],
+    ".specify/extensions/agent-context/extension.yml": [],
+    ".specify/extensions/agent-context/README.md": [],
+    ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": [],
+    ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": [],
+    ".specify/extensions/git/commands/speckit.git.commit.md": [],
+    ".specify/extensions/git/commands/speckit.git.feature.md": [],
+    ".specify/extensions/git/commands/speckit.git.initialize.md": [],
+    ".specify/extensions/git/commands/speckit.git.remote.md": [],
+    ".specify/extensions/git/commands/speckit.git.validate.md": [],
+    ".specify/extensions/git/config-template.yml": [],
+    ".specify/extensions/git/extension.yml": [],
+    ".specify/extensions/git/git-config.yml": [],
+    ".specify/extensions/git/README.md": [],
+    ".specify/extensions/git/scripts/bash/auto-commit.sh": [],
+    ".specify/extensions/git/scripts/bash/create-new-feature.sh": [],
+    ".specify/extensions/git/scripts/bash/git-common.sh": [],
+    ".specify/extensions/git/scripts/bash/initialize-repo.sh": [],
+    ".specify/extensions/git/scripts/powershell/auto-commit.ps1": [],
+    ".specify/extensions/git/scripts/powershell/create-new-feature.ps1": [],
+    ".specify/extensions/git/scripts/powershell/git-common.ps1": [],
+    ".specify/extensions/git/scripts/powershell/initialize-repo.ps1": [],
+    ".specify/feature.json": [],
+    ".specify/init-options.json": [],
+    ".specify/integration.json": [],
+    ".specify/integrations/claude-code.manifest.json": [],
+    ".specify/integrations/cursor-agent.manifest.json": [],
+    ".specify/integrations/speckit.manifest.json": [],
+    ".specify/memory/constitution.md": [],
+    ".specify/scripts/bash/check-prerequisites.sh": [],
+    ".specify/scripts/bash/common.sh": [],
+    ".specify/scripts/bash/create-new-feature.sh": [],
+    ".specify/scripts/bash/setup-plan.sh": [],
+    ".specify/scripts/bash/setup-tasks.sh": [],
+    ".specify/templates/checklist-template.md": [],
+    ".specify/templates/constitution-template.md": [],
+    ".specify/templates/plan-template.md": [],
+    ".specify/templates/spec-template.md": [],
+    ".specify/templates/tasks-template.md": [],
+    ".specify/workflows/speckit/workflow.yml": [],
+    ".specify/workflows/workflow-registry.json": [],
+    ".understand-anything/.understandignore": [],
+    "CLAUDE.md": [],
+    "contracts/003-framework-http-extractors.md": [],
+    "docs/export-extract-populate-framework-pipeline.md": [],
+    "docs/extractor-research-report.md": [],
+    "docs/graph-mcp-skills-and-paysafe-resolution.md": [],
+    "docs/legacy_graph_structure.md": [],
+    "docs/migration-oracle-redesign.md": [],
+    "docs/SPEC_ORGANIZATION.md": [],
+    "migration_oracle/__init__.py": [],
+    "migration_oracle/cli.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py",
+      "migration_oracle/graph/queries/__init__.py",
+      "migration_oracle/pipeline/_cache.py",
+      "migration_oracle/pipeline/_paths.py",
+      "migration_oracle/pipeline/extractor.py",
+      "migration_oracle/pipeline/extractors/__init__.py",
+      "migration_oracle/pipeline/filters.py",
+      "migration_oracle/pipeline/populator.py"
+    ],
+    "migration_oracle/config.py": [],
+    "migration_oracle/extractors/__init__.py": [
+      "migration_oracle/models/changes.py"
+    ],
+    "migration_oracle/graph/__init__.py": [],
+    "migration_oracle/graph/driver.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py"
+    ],
+    "migration_oracle/graph/indexes.py": [],
+    "migration_oracle/graph/queries/__init__.py": [],
+    "migration_oracle/graph/queries/pipeline.py": [
+      "migration_oracle/graph/driver.py",
+      "migration_oracle/models/graph.py"
+    ],
+    "migration_oracle/models/__init__.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/models/graph.py"
+    ],
+    "migration_oracle/models/changes.py": [
+      "migration_oracle/models/entities.py"
+    ],
+    "migration_oracle/models/entities.py": [],
+    "migration_oracle/models/graph.py": [],
+    "migration_oracle/pipeline/__init__.py": [],
+    "migration_oracle/pipeline/_cache.py": [],
+    "migration_oracle/pipeline/_llm.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py"
+    ],
+    "migration_oracle/pipeline/_paths.py": [],
+    "migration_oracle/pipeline/extractor.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/_cache.py",
+      "migration_oracle/pipeline/_llm.py"
+    ],
+    "migration_oracle/pipeline/extractors/__init__.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/angular.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/eap.py",
+      "migration_oracle/pipeline/extractors/elytron.py",
+      "migration_oracle/pipeline/extractors/hibernate.py",
+      "migration_oracle/pipeline/extractors/infinispan.py",
+      "migration_oracle/pipeline/extractors/jakarta_ee.py",
+      "migration_oracle/pipeline/extractors/resteasy.py",
+      "migration_oracle/pipeline/extractors/spring_boot.py",
+      "migration_oracle/pipeline/extractors/stub_framework.py",
+      "migration_oracle/pipeline/extractors/wildfly.py"
+    ],
+    "migration_oracle/pipeline/extractors/angular.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/base.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py",
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/eap.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/elytron.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/filters.py",
+      "migration_oracle/pipeline/extractors/parsing.py",
+      "migration_oracle/pipeline/extractors/stubs.py"
+    ],
+    "migration_oracle/pipeline/extractors/filters.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py",
+      "migration_oracle/pipeline/extractors/base.py"
+    ],
+    "migration_oracle/pipeline/extractors/hibernate.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/filters.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/infinispan.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/filters.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/jakarta_ee.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/parsing.py": [
+      "migration_oracle/models/entities.py"
+    ],
+    "migration_oracle/pipeline/extractors/resteasy.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/filters.py",
+      "migration_oracle/pipeline/extractors/parsing.py",
+      "migration_oracle/pipeline/extractors/stubs.py"
+    ],
+    "migration_oracle/pipeline/extractors/spring_boot.py": [
+      "migration_oracle/__init__.py",
+      "migration_oracle/config.py",
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "migration_oracle/pipeline/extractors/stub_framework.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py"
+    ],
+    "migration_oracle/pipeline/extractors/stubs.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py"
+    ],
+    "migration_oracle/pipeline/extractors/wildfly_jira.py": [],
+    "migration_oracle/pipeline/extractors/wildfly.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/base.py",
+      "migration_oracle/pipeline/extractors/filters.py",
+      "migration_oracle/pipeline/extractors/parsing.py",
+      "migration_oracle/pipeline/extractors/wildfly_jira.py"
+    ],
+    "migration_oracle/pipeline/filters.py": [
+      "migration_oracle/pipeline/_cache.py",
+      "migration_oracle/pipeline/_llm.py"
+    ],
+    "migration_oracle/pipeline/populator.py": [
+      "migration_oracle/graph/driver.py",
+      "migration_oracle/graph/indexes.py",
+      "migration_oracle/graph/queries/__init__.py",
+      "migration_oracle/models/entities.py",
+      "migration_oracle/models/graph.py"
+    ],
+    "pyproject.toml": [],
+    "scripts/run_003b_verification.py": [],
+    "scripts/run_raw_extractions.sh": [],
+    "scripts/split_wildfly_raw.py": [],
+    "skills/changelog-migration-extractor.skill": [],
+    "skills/migration-filter.skill": [],
+    "skills/speckit-sdd-buddy.skill": [],
+    "skills/verification-protocol-writer.skill": [],
+    "specs/001-foundations/000-foundations.md": [],
+    "specs/001-foundations/data-model.md": [],
+    "specs/001-foundations/plan.md": [],
+    "specs/001-foundations/quickstart.md": [],
+    "specs/001-foundations/runbook.md": [],
+    "specs/001-foundations/spec.md": [],
+    "specs/001-foundations/tasks.md": [],
+    "specs/002-pipeline-core/checklists/requirements.md": [],
+    "specs/002-pipeline-core/contracts/002-pipeline-core.md": [],
+    "specs/002-pipeline-core/data-model.md": [],
+    "specs/002-pipeline-core/plan.md": [],
+    "specs/002-pipeline-core/quickstart.md": [],
+    "specs/002-pipeline-core/spec.md": [],
+    "specs/002-pipeline-core/tasks.md": [],
+    "specs/002-pipeline-core/verification-protocol.md": [],
+    "specs/003-framework-http-extractors/checklists/requirements.md": [],
+    "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md": [],
+    "specs/003-framework-http-extractors/data-model.md": [],
+    "specs/003-framework-http-extractors/plan.md": [],
+    "specs/003-framework-http-extractors/quickstart.md": [],
+    "specs/003-framework-http-extractors/research.md": [],
+    "specs/003-framework-http-extractors/spec.md": [],
+    "specs/003-framework-http-extractors/tasks.md": [],
+    "specs/003-framework-http-extractors/verification-protocol.md": [],
+    "specs/003a-extractors-prerelease-filter/spec.md": [],
+    "specs/003a-extractors-prerelease-filter/verification-protocol.md": [],
+    "specs/003b-extractors-improvements/spec.md": [],
+    "specs/003b-extractors-improvements/verification-protocol.md": [],
+    "tests/__init__.py": [],
+    "tests/extractors/conftest.py": [],
+    "tests/extractors/test_angular.py": [
+      "migration_oracle/pipeline/extractors/angular.py"
+    ],
+    "tests/extractors/test_eap.py": [
+      "migration_oracle/pipeline/extractors/eap.py"
+    ],
+    "tests/extractors/test_elytron.py": [
+      "migration_oracle/pipeline/extractors/elytron.py"
+    ],
+    "tests/extractors/test_hibernate.py": [
+      "migration_oracle/pipeline/extractors/hibernate.py"
+    ],
+    "tests/extractors/test_infinispan.py": [
+      "migration_oracle/pipeline/extractors/infinispan.py"
+    ],
+    "tests/extractors/test_jakarta_ee.py": [
+      "migration_oracle/pipeline/extractors/jakarta_ee.py"
+    ],
+    "tests/extractors/test_registry.py": [
+      "migration_oracle/pipeline/extractors/__init__.py",
+      "migration_oracle/pipeline/extractors/stubs.py"
+    ],
+    "tests/extractors/test_resteasy.py": [
+      "migration_oracle/pipeline/extractors/resteasy.py"
+    ],
+    "tests/extractors/test_spring_boot.py": [
+      "migration_oracle/pipeline/extractors/spring_boot.py"
+    ],
+    "tests/extractors/test_wildfly_jira.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractors/wildfly_jira.py",
+      "migration_oracle/pipeline/extractors/wildfly.py"
+    ],
+    "tests/extractors/test_wildfly.py": [
+      "migration_oracle/pipeline/extractors/wildfly.py"
+    ],
+    "tests/test_000_foundations/__init__.py": [],
+    "tests/test_000_foundations/conftest.py": [
+      "migration_oracle/config.py"
+    ],
+    "tests/test_000_foundations/test_config.py": [
+      "migration_oracle/config.py"
+    ],
+    "tests/test_000_foundations/test_driver.py": [
+      "migration_oracle/graph/__init__.py"
+    ],
+    "tests/test_000_foundations/test_indexes.py": [
+      "migration_oracle/graph/indexes.py"
+    ],
+    "tests/test_000_foundations/test_models.py": [
+      "migration_oracle/models/__init__.py"
+    ],
+    "tests/test_000_foundations/test_smoke.py": [
+      "migration_oracle/config.py",
+      "migration_oracle/graph/driver.py",
+      "migration_oracle/graph/indexes.py"
+    ],
+    "tests/test_002_pipeline_core/conftest.py": [
+      "migration_oracle/config.py"
+    ],
+    "tests/test_002_pipeline_core/test_cache.py": [
+      "migration_oracle/pipeline/_cache.py"
+    ],
+    "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py": [
+      "migration_oracle/cli.py",
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/_cache.py"
+    ],
+    "tests/test_002_pipeline_core/test_populator_helpers.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/populator.py"
+    ],
+    "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/__init__.py",
+      "migration_oracle/pipeline/populator.py"
+    ],
+    "tests/test_002_pipeline_core/test_quickstart.py": [
+      "migration_oracle/cli.py",
+      "migration_oracle/models/entities.py",
+      "migration_oracle/pipeline/extractor.py",
+      "migration_oracle/pipeline/filters.py"
+    ]
+  }
+}

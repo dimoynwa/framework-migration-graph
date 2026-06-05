@@ -1,0 +1,240 @@
+batchIndex: 2
+files:
+1. `migration_oracle/config.py` (73 lines, language: `python`, fileCategory: `code`)
+2. `migration_oracle/graph/driver.py` (59 lines, language: `python`, fileCategory: `code`)
+3. `migration_oracle/graph/indexes.py` (50 lines, language: `python`, fileCategory: `code`)
+4. `migration_oracle/graph/queries/__init__.py` (1 lines, language: `python`, fileCategory: `code`)
+5. `migration_oracle/graph/queries/pipeline.py` (101 lines, language: `python`, fileCategory: `code`)
+6. `migration_oracle/models/__init__.py` (49 lines, language: `python`, fileCategory: `code`)
+7. `migration_oracle/models/graph.py` (76 lines, language: `python`, fileCategory: `code`)
+8. `migration_oracle/pipeline/__init__.py` (1 lines, language: `python`, fileCategory: `code`)
+9. `migration_oracle/pipeline/populator.py` (405 lines, language: `python`, fileCategory: `code`)
+10. `tests/test_000_foundations/conftest.py` (24 lines, language: `python`, fileCategory: `code`)
+11. `tests/test_000_foundations/test_config.py` (69 lines, language: `python`, fileCategory: `code`)
+12. `tests/test_000_foundations/test_indexes.py` (46 lines, language: `python`, fileCategory: `code`)
+13. `tests/test_000_foundations/test_models.py` (105 lines, language: `python`, fileCategory: `code`)
+14. `tests/test_000_foundations/test_smoke.py` (41 lines, language: `python`, fileCategory: `code`)
+15. `tests/test_002_pipeline_core/conftest.py` (19 lines, language: `python`, fileCategory: `code`)
+16. `tests/test_002_pipeline_core/test_populator_helpers.py` (57 lines, language: `python`, fileCategory: `code`)
+17. `tests/test_002_pipeline_core/test_populator_idempotency.py` (233 lines, language: `python`, fileCategory: `code`)
+
+batchImportData:
+{
+  "migration_oracle/config.py": [],
+  "migration_oracle/graph/driver.py": [
+    "migration_oracle/__init__.py",
+    "migration_oracle/config.py"
+  ],
+  "migration_oracle/graph/indexes.py": [],
+  "migration_oracle/graph/queries/__init__.py": [],
+  "migration_oracle/graph/queries/pipeline.py": [
+    "migration_oracle/graph/driver.py",
+    "migration_oracle/models/graph.py"
+  ],
+  "migration_oracle/models/__init__.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/models/graph.py"
+  ],
+  "migration_oracle/models/graph.py": [],
+  "migration_oracle/pipeline/__init__.py": [],
+  "migration_oracle/pipeline/populator.py": [
+    "migration_oracle/graph/driver.py",
+    "migration_oracle/graph/indexes.py",
+    "migration_oracle/graph/queries/__init__.py",
+    "migration_oracle/models/entities.py",
+    "migration_oracle/models/graph.py"
+  ],
+  "tests/test_000_foundations/conftest.py": [
+    "migration_oracle/config.py"
+  ],
+  "tests/test_000_foundations/test_config.py": [
+    "migration_oracle/config.py"
+  ],
+  "tests/test_000_foundations/test_indexes.py": [
+    "migration_oracle/graph/indexes.py"
+  ],
+  "tests/test_000_foundations/test_models.py": [
+    "migration_oracle/models/__init__.py"
+  ],
+  "tests/test_000_foundations/test_smoke.py": [
+    "migration_oracle/config.py",
+    "migration_oracle/graph/driver.py",
+    "migration_oracle/graph/indexes.py"
+  ],
+  "tests/test_002_pipeline_core/conftest.py": [
+    "migration_oracle/config.py"
+  ],
+  "tests/test_002_pipeline_core/test_populator_helpers.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/populator.py"
+  ],
+  "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/__init__.py",
+    "migration_oracle/pipeline/populator.py"
+  ]
+}
+
+neighborMap:
+{
+  "migration_oracle/config.py": [
+    {
+      "path": "migration_oracle/cli.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_validate_model_provider",
+        "main",
+        "pipeline"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/_llm.py",
+      "batchIndex": 3,
+      "symbols": [
+        "LLMInvocationError",
+        "get_llm",
+        "_is_rate_limit_error",
+        "invoke_with_retry",
+        "strip_markdown_fences",
+        "strip_preamble"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/base.py",
+      "batchIndex": 1,
+      "symbols": [
+        "is_jboss_ga_version",
+        "is_infinispan_ga_version",
+        "is_spring_boot_ga_version",
+        "BaseExtractor"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/filters.py",
+      "batchIndex": 1,
+      "symbols": [
+        "_skip_prerelease"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/spring_boot.py",
+      "batchIndex": 1,
+      "symbols": [
+        "_strip_dependency_upgrades",
+        "parse_github_release_text",
+        "SpringBootExtractor"
+      ]
+    }
+  ],
+  "migration_oracle/graph/driver.py": [
+    {
+      "path": "migration_oracle/__init__.py",
+      "batchIndex": 3,
+      "symbols": []
+    }
+  ],
+  "migration_oracle/graph/queries/__init__.py": [
+    {
+      "path": "migration_oracle/cli.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_validate_model_provider",
+        "main",
+        "pipeline"
+      ]
+    }
+  ],
+  "migration_oracle/models/__init__.py": [
+    {
+      "path": "migration_oracle/models/entities.py",
+      "batchIndex": 1,
+      "symbols": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/populator.py": [
+    {
+      "path": "migration_oracle/models/entities.py",
+      "batchIndex": 1,
+      "symbols": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ]
+    },
+    {
+      "path": "migration_oracle/cli.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_validate_model_provider",
+        "main",
+        "pipeline"
+      ]
+    }
+  ],
+  "tests/test_002_pipeline_core/test_populator_helpers.py": [
+    {
+      "path": "migration_oracle/models/entities.py",
+      "batchIndex": 1,
+      "symbols": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ]
+    }
+  ],
+  "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+    {
+      "path": "migration_oracle/models/entities.py",
+      "batchIndex": 1,
+      "symbols": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ]
+    }
+  ]
+}

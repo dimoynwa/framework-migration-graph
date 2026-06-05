@@ -1,0 +1,15 @@
+batchIndex: 6
+files:
+1. `.specify/extensions/agent-context/README.md` (57 lines, language: `markdown`, fileCategory: `docs`)
+2. `.specify/extensions/agent-context/agent-context-config.yml` (4 lines, language: `yaml`, fileCategory: `config`)
+3. `.specify/extensions/agent-context/extension.yml` (34 lines, language: `yaml`, fileCategory: `config`)
+
+batchImportData:
+{
+  ".specify/extensions/agent-context/README.md": [],
+  ".specify/extensions/agent-context/agent-context-config.yml": [],
+  ".specify/extensions/agent-context/extension.yml": []
+}
+
+neighborMap:
+{}

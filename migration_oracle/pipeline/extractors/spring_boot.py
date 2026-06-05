@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 import re
 
-from packaging.version import Version
-
 from migration_oracle import config
 from migration_oracle.models.entities import ExtractionResult
 from migration_oracle.pipeline.extractors.base import (
@@ -20,6 +18,7 @@ from migration_oracle.pipeline.extractors.parsing import (
     parse_github_release_text as _parse_github_release_text,
     parse_maven_metadata_versions,
     parse_pom_dependencies,
+    parse_version,
     version_key,
 )
 
@@ -88,8 +87,8 @@ class SpringBootExtractor(BaseExtractor):
 
     async def _fetch_wiki_release_notes(self, to_version: str) -> str:
         """Fetch wiki release notes for the minor series of to_version."""
-        v = Version(to_version)
-        url = _WIKI_URL_TEMPLATE.format(major=v.major, minor=v.minor)
+        major, minor, _, _ = parse_version(to_version)
+        url = _WIKI_URL_TEMPLATE.format(major=major, minor=minor)
         try:
             html = await self.fetch(url, accept_status={200})
         except RuntimeError as exc:

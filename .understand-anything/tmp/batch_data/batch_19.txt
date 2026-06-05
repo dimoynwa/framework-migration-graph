@@ -1,0 +1,101 @@
+batchIndex: 19
+files:
+1. `.cursor/skills/speckit-clarify/SKILL.md` (283 lines, language: `markdown`, fileCategory: `docs`)
+2. `.cursor/skills/speckit-constitution/SKILL.md` (154 lines, language: `markdown`, fileCategory: `docs`)
+3. `.cursor/skills/speckit-git-commit/SKILL.md` (52 lines, language: `markdown`, fileCategory: `docs`)
+4. `.cursor/skills/speckit-git-feature/SKILL.md` (71 lines, language: `markdown`, fileCategory: `docs`)
+5. `.cursor/skills/speckit-git-initialize/SKILL.md` (53 lines, language: `markdown`, fileCategory: `docs`)
+6. `.cursor/skills/speckit-git-remote/SKILL.md` (49 lines, language: `markdown`, fileCategory: `docs`)
+7. `.cursor/skills/speckit-git-validate/SKILL.md` (53 lines, language: `markdown`, fileCategory: `docs`)
+8. `.cursor/skills/speckit-implement/SKILL.md` (221 lines, language: `markdown`, fileCategory: `docs`)
+9. `.cursor/skills/speckit-plan/SKILL.md` (161 lines, language: `markdown`, fileCategory: `docs`)
+10. `.cursor/skills/speckit-specify/SKILL.md` (342 lines, language: `markdown`, fileCategory: `docs`)
+11. `.cursor/skills/speckit-tasks/SKILL.md` (212 lines, language: `markdown`, fileCategory: `docs`)
+12. `.cursor/skills/speckit-taskstoissues/SKILL.md` (104 lines, language: `markdown`, fileCategory: `docs`)
+13. `.specify/extensions/.registry` (36 lines, language: `unknown`, fileCategory: `code`)
+14. `.specify/extensions/agent-context/commands/speckit.agent-context.update.md` (26 lines, language: `markdown`, fileCategory: `docs`)
+15. `.specify/extensions/agent-context/scripts/bash/update-agent-context.sh` (200 lines, language: `shell`, fileCategory: `script`)
+16. `.specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1` (237 lines, language: `powershell`, fileCategory: `script`)
+17. `.specify/memory/constitution.md` (50 lines, language: `markdown`, fileCategory: `docs`)
+18. `.specify/workflows/speckit/workflow.yml` (77 lines, language: `yaml`, fileCategory: `config`)
+19. `.specify/workflows/workflow-registry.json` (12 lines, language: `json`, fileCategory: `config`)
+20. `.understand-anything/.understandignore` (36 lines, language: `unknown`, fileCategory: `code`)
+21. `CLAUDE.md` (5 lines, language: `markdown`, fileCategory: `docs`)
+22. `contracts/003-framework-http-extractors.md` (10 lines, language: `markdown`, fileCategory: `docs`)
+23. `migration_oracle/extractors/__init__.py` (98 lines, language: `python`, fileCategory: `code`)
+24. `migration_oracle/graph/__init__.py` (0 lines, language: `python`, fileCategory: `code`)
+25. `migration_oracle/models/changes.py` (5 lines, language: `python`, fileCategory: `code`)
+
+batchImportData:
+{
+  ".cursor/skills/speckit-clarify/SKILL.md": [],
+  ".cursor/skills/speckit-constitution/SKILL.md": [],
+  ".cursor/skills/speckit-git-commit/SKILL.md": [],
+  ".cursor/skills/speckit-git-feature/SKILL.md": [],
+  ".cursor/skills/speckit-git-initialize/SKILL.md": [],
+  ".cursor/skills/speckit-git-remote/SKILL.md": [],
+  ".cursor/skills/speckit-git-validate/SKILL.md": [],
+  ".cursor/skills/speckit-implement/SKILL.md": [],
+  ".cursor/skills/speckit-plan/SKILL.md": [],
+  ".cursor/skills/speckit-specify/SKILL.md": [],
+  ".cursor/skills/speckit-tasks/SKILL.md": [],
+  ".cursor/skills/speckit-taskstoissues/SKILL.md": [],
+  ".specify/extensions/.registry": [],
+  ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": [],
+  ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": [],
+  ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": [],
+  ".specify/memory/constitution.md": [],
+  ".specify/workflows/speckit/workflow.yml": [],
+  ".specify/workflows/workflow-registry.json": [],
+  ".understand-anything/.understandignore": [],
+  "CLAUDE.md": [],
+  "contracts/003-framework-http-extractors.md": [],
+  "migration_oracle/extractors/__init__.py": [
+    "migration_oracle/models/changes.py"
+  ],
+  "migration_oracle/graph/__init__.py": [],
+  "migration_oracle/models/changes.py": [
+    "migration_oracle/models/entities.py"
+  ]
+}
+
+neighborMap:
+{
+  "migration_oracle/graph/__init__.py": [
+    {
+      "path": "tests/test_000_foundations/test_driver.py",
+      "batchIndex": 20,
+      "symbols": [
+        "_reset_driver",
+        "_make_mock_driver",
+        "mock_graph_database",
+        "test_singleton",
+        "test_close_driver_resets_singleton",
+        "test_read_session_context_manager",
+        "test_write_session_context_manager",
+        "test_read_session_lazy_inits_after_close"
+      ]
+    }
+  ],
+  "migration_oracle/models/changes.py": [
+    {
+      "path": "migration_oracle/models/entities.py",
+      "batchIndex": 1,
+      "symbols": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+batchIndex: 20
+files:
+1. `pyproject.toml` (46 lines, language: `toml`, fileCategory: `config`)
+2. `scripts/run_003b_verification.py` (678 lines, language: `python`, fileCategory: `code`)
+3. `scripts/run_raw_extractions.sh` (59 lines, language: `shell`, fileCategory: `script`)
+4. `scripts/split_wildfly_raw.py` (103 lines, language: `python`, fileCategory: `code`)
+5. `skills/changelog-migration-extractor.skill` (12 lines, language: `skill`, fileCategory: `code`)
+6. `skills/migration-filter.skill` (13 lines, language: `skill`, fileCategory: `code`)
+7. `skills/speckit-sdd-buddy.skill` (26 lines, language: `skill`, fileCategory: `code`)
+8. `skills/verification-protocol-writer.skill` (38 lines, language: `skill`, fileCategory: `code`)
+9. `specs/002-pipeline-core/checklists/requirements.md` (34 lines, language: `markdown`, fileCategory: `docs`)
+10. `specs/002-pipeline-core/contracts/002-pipeline-core.md` (18 lines, language: `markdown`, fileCategory: `docs`)
+11. `specs/003-framework-http-extractors/checklists/requirements.md` (34 lines, language: `markdown`, fileCategory: `docs`)
+12. `specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md` (17 lines, language: `markdown`, fileCategory: `docs`)
+13. `specs/003a-extractors-prerelease-filter/spec.md` (204 lines, language: `markdown`, fileCategory: `docs`)
+14. `specs/003a-extractors-prerelease-filter/verification-protocol.md` (492 lines, language: `markdown`, fileCategory: `docs`)
+15. `specs/003b-extractors-improvements/spec.md` (955 lines, language: `markdown`, fileCategory: `docs`)
+16. `specs/003b-extractors-improvements/verification-protocol.md` (1525 lines, language: `markdown`, fileCategory: `docs`)
+17. `tests/__init__.py` (0 lines, language: `python`, fileCategory: `code`)
+18. `tests/extractors/conftest.py` (10 lines, language: `python`, fileCategory: `code`)
+19. `tests/test_000_foundations/__init__.py` (0 lines, language: `python`, fileCategory: `code`)
+20. `tests/test_000_foundations/test_driver.py` (77 lines, language: `python`, fileCategory: `code`)
+
+batchImportData:
+{
+  "pyproject.toml": [],
+  "scripts/run_003b_verification.py": [],
+  "scripts/run_raw_extractions.sh": [],
+  "scripts/split_wildfly_raw.py": [],
+  "skills/changelog-migration-extractor.skill": [],
+  "skills/migration-filter.skill": [],
+  "skills/speckit-sdd-buddy.skill": [],
+  "skills/verification-protocol-writer.skill": [],
+  "specs/002-pipeline-core/checklists/requirements.md": [],
+  "specs/002-pipeline-core/contracts/002-pipeline-core.md": [],
+  "specs/003-framework-http-extractors/checklists/requirements.md": [],
+  "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md": [],
+  "specs/003a-extractors-prerelease-filter/spec.md": [],
+  "specs/003a-extractors-prerelease-filter/verification-protocol.md": [],
+  "specs/003b-extractors-improvements/spec.md": [],
+  "specs/003b-extractors-improvements/verification-protocol.md": [],
+  "tests/__init__.py": [],
+  "tests/extractors/conftest.py": [],
+  "tests/test_000_foundations/__init__.py": [],
+  "tests/test_000_foundations/test_driver.py": [
+    "migration_oracle/graph/__init__.py"
+  ]
+}
+
+neighborMap:
+{
+  "tests/test_000_foundations/test_driver.py": [
+    {
+      "path": "migration_oracle/graph/__init__.py",
+      "batchIndex": 19,
+      "symbols": []
+    }
+  ]
+}

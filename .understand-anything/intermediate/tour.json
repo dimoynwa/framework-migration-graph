@@ -1,0 +1,108 @@
+[
+  {
+    "order": 1,
+    "title": "Pipeline Reference & Design Intent",
+    "description": "Before touching any code, read the pipeline reference document to understand what the tool does and why it exists. It covers all seven pipeline phases — version resolution, upstream HTTP extraction, Jira enrichment, raw Markdown rendering, LLM filtering, LLM entity extraction, and Neo4j population — giving you the full mental model before you see a single line of Python. The redesign spec alongside it introduces the current node schema (MigrationRule, MigrationStep, BreakingScope) and explains why the architecture moved from a flat rule graph to a richly typed one.",
+    "nodeIds": [
+      "document:docs/export-extract-populate-framework-pipeline.md",
+      "document:docs/migration-oracle-redesign.md"
+    ]
+  },
+  {
+    "order": 2,
+    "title": "Project Manifest & Entry Points",
+    "description": "pyproject.toml declares all 13 runtime dependencies — neo4j, pydantic, httpx, langchain, click, and friends — and registers two CLI entry points: migration-oracle and mo. Reading this file tells you the exact library versions the pipeline relies on and how the tool is installed. It also exposes the dev toolchain (pytest, pytest-asyncio, respx) that underpins every test you will encounter in later steps.",
+    "nodeIds": ["config:pyproject.toml"],
+    "languageLesson": "Python packaging with hatchling uses [project.scripts] to register CLI entry points. Each entry maps a shell command name to a Python callable (e.g. 'migration-oracle = migration_oracle.cli:main'), so pip install makes that command available on PATH without any wrapper scripts."
+  },
+  {
+    "order": 3,
+    "title": "CLI Entry Point & Pipeline Orchestration",
+    "description": "cli.py is the single entry point that wires the entire pipeline together. The main Click command accepts framework, from-version, to-version, and a matrix of cache/force flags, then calls — in order — the extractor registry, run_filter, run_extraction, and populate_graph. Reading this file gives you a bird's-eye view of how the three stages are sequenced, how errors propagate, and how the cache flags short-circuit work that has already been done. The config.py imported here loads all Neo4j credentials and LLM provider settings from environment variables at import time.",
+    "nodeIds": [
+      "file:migration_oracle/cli.py",
+      "file:migration_oracle/config.py"
+    ],
+    "languageLesson": "Click decorates a plain Python function with @click.command() and @click.option() to generate a fully featured CLI with --help, type validation, and default handling. The function signature becomes the command's interface, making the code both the implementation and the documentation."
+  },
+  {
+    "order": 4,
+    "title": "Core Data Model",
+    "description": "entities.py is the most heavily imported file in the codebase (fan-in of 23) — every stage reads or produces one of its types. DocumentedChange is the raw unit emitted by extractors; ExtractionResult wraps a list of them. MigrationEntity is the LLM-extracted structured record, and MigrationEntitiesBatch is the full payload written to Neo4j. The enums (EntityKind, Severity, Effort, ScopeLevel, StepType) define the controlled vocabulary shared across all pipeline stages. graph.py complements this with the read-model dataclasses (VersionNode, MigrationRuleNode, MigrationContextNode) used when querying the graph.",
+    "nodeIds": [
+      "file:migration_oracle/models/entities.py",
+      "file:migration_oracle/models/graph.py"
+    ],
+    "languageLesson": "Pydantic v2 model_validator and field_validator replace v1's @validator. Using model_config = ConfigDict(use_enum_values=True) means enum members are serialized as their string values in JSON output, which matters when writing Cypher parameters to Neo4j."
+  },
+  {
+    "order": 5,
+    "title": "Extractor Base & Registry",
+    "description": "base.py defines BaseExtractor, the abstract async class every framework extractor inherits. It provides the shared httpx client, GA-version filtering helpers (is_spring_boot_ga_version, is_jboss_ga_version, is_infinispan_ga_version), GitHub release fetching, and URL-level caching. The __init__.py extractor registry wraps all concrete classes behind a get_extractor() factory and a render_raw_markdown() helper, so the CLI never imports a framework class directly — it only knows about the registry key string.",
+    "nodeIds": [
+      "file:migration_oracle/pipeline/extractors/base.py",
+      "file:migration_oracle/pipeline/extractors/__init__.py"
+    ],
+    "languageLesson": "Python ABCs (abstract base classes) use @abstractmethod to enforce that subclasses implement required methods. Combined with async def, this pattern gives you a polymorphic, awaitable interface where each extractor can have a completely different HTTP strategy while the orchestrator treats them identically."
+  },
+  {
+    "order": 6,
+    "title": "A Concrete Extractor: Spring Boot",
+    "description": "spring_boot.py is the reference implementation of BaseExtractor. It discovers available versions from Maven Central's XML metadata, fetches release notes from GitHub releases and a wiki page, strips Dependency Upgrades sections that add noise, and generates BOM diff metadata via the Spring Boot initializr API. Comparing SpringBootExtractor to parsing.py — which supplies the shared version-range arithmetic, Maven XML parsing, and Markdown statement parsing it relies on — shows exactly how concerns are divided between the base infrastructure and a framework-specific extractor.",
+    "nodeIds": [
+      "file:migration_oracle/pipeline/extractors/spring_boot.py",
+      "file:migration_oracle/pipeline/extractors/parsing.py"
+    ],
+    "languageLesson": "Python's async with httpx.AsyncClient() creates a shared connection pool for all requests within one extraction run. Using respx in tests patches the client at the transport level, so tests can assert on exact URL matches and headers without any real network calls."
+  },
+  {
+    "order": 7,
+    "title": "LLM Infrastructure & Filter Step",
+    "description": "_llm.py is the shared LLM service layer: it provides get_llm() (a LangChain provider factory that supports OpenAI, Anthropic, and Google Vertex), invoke_with_retry() with exponential back-off, and response-cleaning helpers that strip markdown fences and prose preambles from model output. filters.py sits one level above it — it takes the raw Markdown table of changes produced by extractors and issues a structured LangChain prompt that returns a severity-categorized Markdown document, which is the input to the next stage.",
+    "nodeIds": [
+      "file:migration_oracle/pipeline/_llm.py",
+      "file:migration_oracle/pipeline/filters.py"
+    ],
+    "languageLesson": "LangChain's .with_structured_output(schema) instructs a capable model to return JSON that conforms to a Pydantic schema rather than free text. The pipeline falls back to text-based output with regex cleaning when structured output is unavailable, making it resilient across model providers."
+  },
+  {
+    "order": 8,
+    "title": "Entity Extraction Step",
+    "description": "extractor.py is the second LLM stage: it takes the filtered Markdown from filters.py and issues a structured LangChain call that returns a validated MigrationEntitiesBatch JSON. The _invoke_structured helper handles the two-pass strategy — structured output first, text-based fallback with JSON repair second — and validates the result against the Pydantic schema. This stage bridges the human-readable filter output and the typed graph payload that populate_graph consumes.",
+    "nodeIds": ["file:migration_oracle/pipeline/extractor.py"],
+    "languageLesson": "Two-pass LLM invocation (structured output -> text fallback) is a reliability pattern for production pipelines. Structured output uses model-native JSON mode when available; the fallback strips markdown fences and attempts json.loads with incremental repair, tolerating models that prefix JSON with explanation prose."
+  },
+  {
+    "order": 9,
+    "title": "Graph Population Layer",
+    "description": "populator.py writes a MigrationEntitiesBatch to Neo4j using idempotent Cypher MERGE statements. It ensures indexes via indexes.py, then for each MigrationEntity merges a Version pair, a MigrationRule node, one MigrationStep per step, and BreakingScope nodes for each affected entity. driver.py underneath it implements a lazy singleton Neo4j driver with context-manager helpers (read_session, write_session) that open and close transactions safely. indexes.py centralizes all DDL — CONSTRAINT ON and CREATE INDEX statements — applied once at startup.",
+    "nodeIds": [
+      "file:migration_oracle/pipeline/populator.py",
+      "file:migration_oracle/graph/driver.py",
+      "file:migration_oracle/graph/indexes.py"
+    ],
+    "languageLesson": "Neo4j MERGE is idempotent: it matches an existing node/edge by the ON MATCH/ON CREATE clauses and only creates it when absent. Writing the entire population step as MERGE calls means you can safely re-run the pipeline for any framework hop without creating duplicate nodes or edges."
+  },
+  {
+    "order": 10,
+    "title": "Cache & Artifact Path Management",
+    "description": "_cache.py and _paths.py together implement the pipeline's incremental execution model. _paths.py defines the runs/<framework>/<from>-<to>/ directory structure and exposes typed path generators for each artifact (raw Markdown, filtered Markdown, entities JSON). _cache.py's resolve_cache_flags() inspects which artifact files exist on disk and which force flags were passed, returning a CacheFlags dataclass that tells the orchestrator in cli.py exactly which stages to skip. This is why a second run of the same framework hop is near-instant.",
+    "nodeIds": [
+      "file:migration_oracle/pipeline/_cache.py",
+      "file:migration_oracle/pipeline/_paths.py"
+    ],
+    "languageLesson": "Separating path generation (_paths.py) from cache-flag resolution (_cache.py) keeps each module single-purpose and testable in isolation. The CacheFlags dataclass is a plain data object with no side effects, so tests can construct any combination of skip/reuse flags without touching the filesystem."
+  },
+  {
+    "order": 11,
+    "title": "Tests & Verification",
+    "description": "The test suite is organized in three layers: test_000_foundations/ verifies models, config, indexes, and the Neo4j driver in isolation; test_002_pipeline_core/ covers the full pipeline helpers including populator idempotency (using a FakeSession that replicates Cypher MERGE semantics without a real database) and cache-flag logic; tests/extractors/ tests each HTTP extractor against mocked HTTP responses using respx. test_spring_boot.py is the best concrete example — it mocks Maven metadata, GitHub release API, and wiki responses to assert on change-type classification.",
+    "nodeIds": [
+      "file:tests/test_000_foundations/test_models.py",
+      "file:tests/test_002_pipeline_core/test_populator_idempotency.py",
+      "file:tests/test_002_pipeline_core/test_cache.py",
+      "file:tests/extractors/test_spring_boot.py"
+    ],
+    "languageLesson": "pytest-asyncio's @pytest.mark.asyncio decorator runs coroutine test functions inside an event loop without any explicit loop management. Combining this with respx.mock as a context manager gives fully hermetic async HTTP tests: the mock intercepts at the transport layer and raises if any unmocked URL is requested."
+  }
+]

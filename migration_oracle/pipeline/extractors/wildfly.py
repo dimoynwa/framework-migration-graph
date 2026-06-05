@@ -17,6 +17,7 @@ from migration_oracle.pipeline.extractors.parsing import (
     parse_github_release_text,
     parse_maven_metadata_versions,
     parse_version,
+    version_key,
 )
 from migration_oracle.pipeline.extractors.wildfly_jira import (
     BROWSE_TEMPLATE,
@@ -51,7 +52,16 @@ class WildFlyExtractor(BaseExtractor):
         if _skip_prerelease():
             raw = [v for v in raw if is_jboss_ga_version(v)]
         normalized = [normalize_wildfly_maven_version(v) for v in raw]
-        return filter_release_versions(normalized, final_only=False)
+        if _skip_prerelease():
+            return filter_release_versions(normalized, final_only=False)
+        seen: set[str] = set()
+        result: list[str] = []
+        for v in normalized:
+            if v and v not in seen:
+                seen.add(v)
+                result.append(v)
+        result.sort(key=version_key)
+        return result
 
     def enrich_with_jira(
         self,

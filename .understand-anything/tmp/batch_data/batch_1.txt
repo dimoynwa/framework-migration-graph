@@ -1,0 +1,338 @@
+batchIndex: 1
+files:
+1. `migration_oracle/models/entities.py` (129 lines, language: `python`, fileCategory: `code`)
+2. `migration_oracle/pipeline/extractors/__init__.py` (136 lines, language: `python`, fileCategory: `code`)
+3. `migration_oracle/pipeline/extractors/angular.py` (111 lines, language: `python`, fileCategory: `code`)
+4. `migration_oracle/pipeline/extractors/base.py` (334 lines, language: `python`, fileCategory: `code`)
+5. `migration_oracle/pipeline/extractors/eap.py` (84 lines, language: `python`, fileCategory: `code`)
+6. `migration_oracle/pipeline/extractors/elytron.py` (45 lines, language: `python`, fileCategory: `code`)
+7. `migration_oracle/pipeline/extractors/filters.py` (25 lines, language: `python`, fileCategory: `code`)
+8. `migration_oracle/pipeline/extractors/hibernate.py` (77 lines, language: `python`, fileCategory: `code`)
+9. `migration_oracle/pipeline/extractors/infinispan.py` (56 lines, language: `python`, fileCategory: `code`)
+10. `migration_oracle/pipeline/extractors/jakarta_ee.py` (83 lines, language: `python`, fileCategory: `code`)
+11. `migration_oracle/pipeline/extractors/parsing.py` (366 lines, language: `python`, fileCategory: `code`)
+12. `migration_oracle/pipeline/extractors/resteasy.py` (47 lines, language: `python`, fileCategory: `code`)
+13. `migration_oracle/pipeline/extractors/spring_boot.py` (126 lines, language: `python`, fileCategory: `code`)
+14. `migration_oracle/pipeline/extractors/stub_framework.py` (34 lines, language: `python`, fileCategory: `code`)
+15. `migration_oracle/pipeline/extractors/stubs.py` (29 lines, language: `python`, fileCategory: `code`)
+16. `tests/extractors/test_angular.py` (40 lines, language: `python`, fileCategory: `code`)
+17. `tests/extractors/test_eap.py` (25 lines, language: `python`, fileCategory: `code`)
+18. `tests/extractors/test_elytron.py` (14 lines, language: `python`, fileCategory: `code`)
+19. `tests/extractors/test_hibernate.py` (37 lines, language: `python`, fileCategory: `code`)
+20. `tests/extractors/test_infinispan.py` (40 lines, language: `python`, fileCategory: `code`)
+21. `tests/extractors/test_jakarta_ee.py` (30 lines, language: `python`, fileCategory: `code`)
+22. `tests/extractors/test_registry.py` (49 lines, language: `python`, fileCategory: `code`)
+23. `tests/extractors/test_resteasy.py` (14 lines, language: `python`, fileCategory: `code`)
+24. `tests/extractors/test_spring_boot.py` (44 lines, language: `python`, fileCategory: `code`)
+
+batchImportData:
+{
+  "migration_oracle/models/entities.py": [],
+  "migration_oracle/pipeline/extractors/__init__.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/angular.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/eap.py",
+    "migration_oracle/pipeline/extractors/elytron.py",
+    "migration_oracle/pipeline/extractors/hibernate.py",
+    "migration_oracle/pipeline/extractors/infinispan.py",
+    "migration_oracle/pipeline/extractors/jakarta_ee.py",
+    "migration_oracle/pipeline/extractors/resteasy.py",
+    "migration_oracle/pipeline/extractors/spring_boot.py",
+    "migration_oracle/pipeline/extractors/stub_framework.py",
+    "migration_oracle/pipeline/extractors/wildfly.py"
+  ],
+  "migration_oracle/pipeline/extractors/angular.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/base.py": [
+    "migration_oracle/__init__.py",
+    "migration_oracle/config.py",
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/eap.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/elytron.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/filters.py",
+    "migration_oracle/pipeline/extractors/parsing.py",
+    "migration_oracle/pipeline/extractors/stubs.py"
+  ],
+  "migration_oracle/pipeline/extractors/filters.py": [
+    "migration_oracle/__init__.py",
+    "migration_oracle/config.py",
+    "migration_oracle/pipeline/extractors/base.py"
+  ],
+  "migration_oracle/pipeline/extractors/hibernate.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/filters.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/infinispan.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/filters.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/jakarta_ee.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/parsing.py": [
+    "migration_oracle/models/entities.py"
+  ],
+  "migration_oracle/pipeline/extractors/resteasy.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/filters.py",
+    "migration_oracle/pipeline/extractors/parsing.py",
+    "migration_oracle/pipeline/extractors/stubs.py"
+  ],
+  "migration_oracle/pipeline/extractors/spring_boot.py": [
+    "migration_oracle/__init__.py",
+    "migration_oracle/config.py",
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py",
+    "migration_oracle/pipeline/extractors/parsing.py"
+  ],
+  "migration_oracle/pipeline/extractors/stub_framework.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py"
+  ],
+  "migration_oracle/pipeline/extractors/stubs.py": [
+    "migration_oracle/models/entities.py",
+    "migration_oracle/pipeline/extractors/base.py"
+  ],
+  "tests/extractors/test_angular.py": [
+    "migration_oracle/pipeline/extractors/angular.py"
+  ],
+  "tests/extractors/test_eap.py": [
+    "migration_oracle/pipeline/extractors/eap.py"
+  ],
+  "tests/extractors/test_elytron.py": [
+    "migration_oracle/pipeline/extractors/elytron.py"
+  ],
+  "tests/extractors/test_hibernate.py": [
+    "migration_oracle/pipeline/extractors/hibernate.py"
+  ],
+  "tests/extractors/test_infinispan.py": [
+    "migration_oracle/pipeline/extractors/infinispan.py"
+  ],
+  "tests/extractors/test_jakarta_ee.py": [
+    "migration_oracle/pipeline/extractors/jakarta_ee.py"
+  ],
+  "tests/extractors/test_registry.py": [
+    "migration_oracle/pipeline/extractors/__init__.py",
+    "migration_oracle/pipeline/extractors/stubs.py"
+  ],
+  "tests/extractors/test_resteasy.py": [
+    "migration_oracle/pipeline/extractors/resteasy.py"
+  ],
+  "tests/extractors/test_spring_boot.py": [
+    "migration_oracle/pipeline/extractors/spring_boot.py"
+  ]
+}
+
+neighborMap:
+{
+  "migration_oracle/models/entities.py": [
+    {
+      "path": "migration_oracle/models/__init__.py",
+      "batchIndex": 2,
+      "symbols": []
+    },
+    {
+      "path": "migration_oracle/models/changes.py",
+      "batchIndex": 19,
+      "symbols": []
+    },
+    {
+      "path": "migration_oracle/pipeline/extractor.py",
+      "batchIndex": 3,
+      "symbols": [
+        "ExtractionResult",
+        "_parse_json_response",
+        "_invoke_structured",
+        "run_extraction"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/wildfly.py",
+      "batchIndex": 4,
+      "symbols": [
+        "WildFlyExtractor"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/populator.py",
+      "batchIndex": 2,
+      "symbols": [
+        "UnknownSourceSectionError",
+        "PopulationResult",
+        "derive_entity_classification",
+        "rule_type_for",
+        "_entity_label",
+        "_edge_type",
+        "_replacement_pairs",
+        "populate_graph",
+        "_write_entity",
+        "_write_step",
+        "_write_affected_entity"
+      ]
+    },
+    {
+      "path": "tests/extractors/test_wildfly_jira.py",
+      "batchIndex": 4,
+      "symbols": [
+        "test_collect_jira_keys_from_body",
+        "test_enrich_with_jira_merges_description"
+      ]
+    },
+    {
+      "path": "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_minimal_entities_json",
+        "test_cache_flags_skip_filter_when_nodes_artifact_exists",
+        "test_cache_flags_skip_both_llm_when_json_exists",
+        "test_extract_only_skips_filter_and_entity_llm",
+        "test_cli_skips_filter_llm_when_nodes_file_exists",
+        "test_cli_skips_both_llm_when_json_exists"
+      ]
+    },
+    {
+      "path": "tests/test_002_pipeline_core/test_populator_helpers.py",
+      "batchIndex": 2,
+      "symbols": [
+        "test_actionable_when_steps_present",
+        "test_incomplete_when_entities_only",
+        "test_informational_when_empty"
+      ]
+    },
+    {
+      "path": "tests/test_002_pipeline_core/test_populator_idempotency.py",
+      "batchIndex": 2,
+      "symbols": [
+        "GraphState",
+        "FakeResult",
+        "FakeSession",
+        "sample_batch",
+        "_count_nodes",
+        "_count_edges",
+        "test_populator_is_idempotent"
+      ]
+    },
+    {
+      "path": "tests/test_002_pipeline_core/test_quickstart.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_sample_batch",
+        "test_quickstart_dry_run_creates_artifacts"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/extractors/__init__.py": [
+    {
+      "path": "migration_oracle/pipeline/extractors/wildfly.py",
+      "batchIndex": 4,
+      "symbols": [
+        "WildFlyExtractor"
+      ]
+    },
+    {
+      "path": "migration_oracle/cli.py",
+      "batchIndex": 3,
+      "symbols": [
+        "_validate_model_provider",
+        "main",
+        "pipeline"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/extractors/base.py": [
+    {
+      "path": "migration_oracle/__init__.py",
+      "batchIndex": 3,
+      "symbols": []
+    },
+    {
+      "path": "migration_oracle/config.py",
+      "batchIndex": 2,
+      "symbols": [
+        "ConfigurationError",
+        "_require",
+        "_optional",
+        "_parse_ssl_verify",
+        "_parse_bool_flag"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/wildfly.py",
+      "batchIndex": 4,
+      "symbols": [
+        "WildFlyExtractor"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/extractors/filters.py": [
+    {
+      "path": "migration_oracle/__init__.py",
+      "batchIndex": 3,
+      "symbols": []
+    },
+    {
+      "path": "migration_oracle/config.py",
+      "batchIndex": 2,
+      "symbols": [
+        "ConfigurationError",
+        "_require",
+        "_optional",
+        "_parse_ssl_verify",
+        "_parse_bool_flag"
+      ]
+    },
+    {
+      "path": "migration_oracle/pipeline/extractors/wildfly.py",
+      "batchIndex": 4,
+      "symbols": [
+        "WildFlyExtractor"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/extractors/parsing.py": [
+    {
+      "path": "migration_oracle/pipeline/extractors/wildfly.py",
+      "batchIndex": 4,
+      "symbols": [
+        "WildFlyExtractor"
+      ]
+    }
+  ],
+  "migration_oracle/pipeline/extractors/spring_boot.py": [
+    {
+      "path": "migration_oracle/__init__.py",
+      "batchIndex": 3,
+      "symbols": []
+    },
+    {
+      "path": "migration_oracle/config.py",
+      "batchIndex": 2,
+      "symbols": [
+        "ConfigurationError",
+        "_require",
+        "_optional",
+        "_parse_ssl_verify",
+        "_parse_bool_flag"
+      ]
+    }
+  ]
+}

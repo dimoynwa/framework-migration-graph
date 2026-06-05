@@ -1,0 +1,17 @@
+batchIndex: 10
+files:
+1. `.specify/extensions/git/scripts/powershell/auto-commit.ps1` (169 lines, language: `powershell`, fileCategory: `script`)
+2. `.specify/extensions/git/scripts/powershell/create-new-feature.ps1` (403 lines, language: `powershell`, fileCategory: `script`)
+3. `.specify/extensions/git/scripts/powershell/git-common.ps1` (51 lines, language: `powershell`, fileCategory: `script`)
+4. `.specify/extensions/git/scripts/powershell/initialize-repo.ps1` (69 lines, language: `powershell`, fileCategory: `script`)
+
+batchImportData:
+{
+  ".specify/extensions/git/scripts/powershell/auto-commit.ps1": [],
+  ".specify/extensions/git/scripts/powershell/create-new-feature.ps1": [],
+  ".specify/extensions/git/scripts/powershell/git-common.ps1": [],
+  ".specify/extensions/git/scripts/powershell/initialize-repo.ps1": []
+}
+
+neighborMap:
+{}

@@ -1,0 +1,19 @@
+batchIndex: 13
+files:
+1. `.specify/templates/checklist-template.md` (40 lines, language: `markdown`, fileCategory: `docs`)
+2. `.specify/templates/constitution-template.md` (50 lines, language: `markdown`, fileCategory: `docs`)
+3. `.specify/templates/plan-template.md` (113 lines, language: `markdown`, fileCategory: `docs`)
+4. `.specify/templates/spec-template.md` (131 lines, language: `markdown`, fileCategory: `docs`)
+5. `.specify/templates/tasks-template.md` (252 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  ".specify/templates/checklist-template.md": [],
+  ".specify/templates/constitution-template.md": [],
+  ".specify/templates/plan-template.md": [],
+  ".specify/templates/spec-template.md": [],
+  ".specify/templates/tasks-template.md": []
+}
+
+neighborMap:
+{}

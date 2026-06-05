@@ -1,0 +1,17 @@
+batchIndex: 7
+files:
+1. `.specify/extensions/git/README.md` (100 lines, language: `markdown`, fileCategory: `docs`)
+2. `.specify/extensions/git/config-template.yml` (62 lines, language: `yaml`, fileCategory: `config`)
+3. `.specify/extensions/git/extension.yml` (140 lines, language: `yaml`, fileCategory: `config`)
+4. `.specify/extensions/git/git-config.yml` (62 lines, language: `yaml`, fileCategory: `config`)
+
+batchImportData:
+{
+  ".specify/extensions/git/README.md": [],
+  ".specify/extensions/git/config-template.yml": [],
+  ".specify/extensions/git/extension.yml": [],
+  ".specify/extensions/git/git-config.yml": []
+}
+
+neighborMap:
+{}
