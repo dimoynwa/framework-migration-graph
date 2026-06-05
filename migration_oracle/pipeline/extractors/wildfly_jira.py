@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import re
 from typing import TypedDict
-
-from migration_oracle.models.entities import DocumentedChange
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +42,7 @@ class WildFlyJiraEntry(TypedDict):
     source_url: str
     issue_type: str
     description: str
+    priority: str
 
 
 def normalize_jira_url(url: str) -> str:
@@ -65,6 +63,7 @@ def build_release_index(body: str) -> dict[str, WildFlyJiraEntry]:
             "source_url": BROWSE_TEMPLATE.format(key=key),
             "issue_type": "",
             "description": "",
+            "priority": "",
         }
     for match in _HTML_EXPORT_RE.finditer(body):
         key = match.group(1).upper()
@@ -75,6 +74,7 @@ def build_release_index(body: str) -> dict[str, WildFlyJiraEntry]:
                 "source_url": BROWSE_TEMPLATE.format(key=key),
                 "issue_type": "",
                 "description": "",
+                "priority": "",
             },
         )
     return index
@@ -85,6 +85,20 @@ def collect_jira_keys(body: str, statements: list[str]) -> set[str]:
     for stmt in statements:
         keys.update(m.group(1).upper() for m in JIRA_KEY_RE.finditer(stmt))
     return keys
+
+
+def parse_jira_fields(fields: dict) -> WildFlyJiraEntry:
+    """Build a cache entry from Jira REST API fields."""
+    description = fields.get("description") or ""
+    if isinstance(description, dict):
+        description = str(description)
+    return {
+        "summary": fields.get("summary") or "",
+        "source_url": "",
+        "issue_type": (fields.get("issuetype") or {}).get("name", ""),
+        "description": description.strip(),
+        "priority": (fields.get("priority") or {}).get("name", ""),
+    }
 
 
 async def fetch_jira_entry(
@@ -105,15 +119,10 @@ async def fetch_jira_entry(
 
         parsed = json.loads(data) if isinstance(data, str) else data
         fields = parsed.get("fields", {})
-        description = fields.get("description") or ""
-        if isinstance(description, dict):
-            description = str(description)
-        return {
-            "summary": fields.get("summary") or key,
-            "source_url": BROWSE_TEMPLATE.format(key=key),
-            "issue_type": (fields.get("issuetype") or {}).get("name", ""),
-            "description": description.strip(),
-        }
+        entry = parse_jira_fields(fields)
+        entry["source_url"] = BROWSE_TEMPLATE.format(key=key)
+        entry["summary"] = entry["summary"] or key
+        return entry
     except Exception:
         pass
 
@@ -140,6 +149,7 @@ async def fetch_jira_entry(
             "source_url": browse_url,
             "issue_type": "",
             "description": desc_tag["content"].strip() if desc_tag else "",
+            "priority": "",
         }
     except Exception as exc:
         logger.warning("Jira fetch failed for %s: %s", key, exc)
@@ -149,55 +159,10 @@ async def fetch_jira_entry(
 async def enrich_with_jira(
     extractor,
     body: str,
-    changes: list[DocumentedChange],
-) -> list[DocumentedChange]:
-    statements = [c.statement for c in changes]
-    keys = sorted(collect_jira_keys(body, statements))
-    if not keys:
-        return changes
-
-    index = build_release_index(body)
-    cache: dict[str, WildFlyJiraEntry] = {}
-    semaphore = asyncio.Semaphore(extractor.jira_max_concurrent)
-
-    async def load_key(key: str) -> None:
-        async with semaphore:
-            entry = await fetch_jira_entry(extractor.fetch, key)
-            if entry:
-                cache[key] = entry
-
-    await asyncio.gather(*(load_key(key) for key in keys))
-
-    enriched: list[DocumentedChange] = []
-    for change in changes:
-        match = JIRA_KEY_RE.search(change.statement)
-        if not match:
-            enriched.append(change)
-            continue
-        key = match.group(1).upper()
-        jira = cache.get(key)
-        release_line = index.get(key, {}).get("summary") or change.statement
-        if jira and jira.get("description"):
-            statement = (
-                f"Title: {jira['summary']}\n"
-                f"Jira: {jira['description']}\n"
-                f"Release: {release_line}"
-            )
-            source_url = jira["source_url"]
-            meta = dict(change.metadata or {})
-            if jira.get("issue_type"):
-                meta["issue_type"] = jira["issue_type"]
-        else:
-            statement = change.statement
-            source_url = BROWSE_TEMPLATE.format(key=key)
-            meta = change.metadata
-        enriched.append(
-            DocumentedChange(
-                type=change.type,
-                confidence=change.confidence,
-                source_url=source_url,
-                statement=statement,
-                metadata=meta,
-            )
-        )
-    return enriched
+    changes: list,
+) -> list:
+    """Async entry point used by legacy callers and tests."""
+    cache, index = await extractor._load_jira_cache(body, changes)
+    return extractor.enrich_with_jira(
+        changes, cache=cache, index=index, body=body
+    )

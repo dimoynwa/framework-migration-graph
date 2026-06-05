@@ -33,7 +33,7 @@ def test_unknown_framework_raises() -> None:
 
 
 def test_stub_extractors_raise_not_implemented() -> None:
-    for key in ("resteasy", "infinispan", "elytron"):
+    for key in ("resteasy", "elytron"):
         extractor = get_extractor(key)
         assert isinstance(extractor, StubExtractor)
         with pytest.raises(NotImplementedError, match="export-extract-populate-framework"):

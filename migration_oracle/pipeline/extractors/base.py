@@ -12,6 +12,15 @@ import httpx
 
 from migration_oracle import config
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
+
+__all__ = [
+    "BaseExtractor",
+    "DocumentedChange",
+    "ExtractionResult",
+    "is_jboss_ga_version",
+    "is_infinispan_ga_version",
+    "is_spring_boot_ga_version",
+]
 from migration_oracle.pipeline.extractors.parsing import (
     compute_hops,
     versions_in_range,
@@ -113,6 +122,44 @@ class BaseExtractor(ABC):
     @property
     def redhat_docs_delay_sec(self) -> float:
         return self._redhat_delay
+
+    def _http_get_cached(self, url: str, *, timeout: float | None = None) -> str:
+        """Sync URL fetch with instance cache; returns '' on any failure."""
+        if url in self._cache:
+            cached = self._cache[url]
+            return cached.decode() if isinstance(cached, bytes) else cached
+        try:
+            response = httpx.get(
+                url,
+                timeout=timeout or self.default_timeout,
+                verify=self._ssl_verify,
+                follow_redirects=True,
+            )
+            if response.status_code != 200:
+                return ""
+            text = response.text
+            self._cache[url] = text
+            return text
+        except Exception:
+            return ""
+
+    async def _fetch_maven_versions(self, url: str) -> list[str]:
+        xml = await self.fetch(url)
+        from migration_oracle.pipeline.extractors.parsing import (
+            parse_maven_metadata_versions,
+        )
+
+        return parse_maven_metadata_versions(xml)
+
+    def get_available_versions(self) -> list[str]:
+        """Sync wrapper for version discovery (used by tests and verification)."""
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.discover_versions())
+        raise RuntimeError("get_available_versions() cannot run inside a running event loop")
 
     async def fetch(
         self,

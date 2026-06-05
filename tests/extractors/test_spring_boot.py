@@ -32,13 +32,13 @@ async def test_extract_parses_release_body() -> None:
     respx.get(
         "https://api.github.com/repos/spring-projects/spring-boot/releases/tags/v3.4.0"
     ).mock(return_value=Response(200, json=SAMPLE_RELEASE))
-    pom = "<project><dependencyManagement><dependencies><dependency><groupId>g</groupId><artifactId>a</artifactId><version>1</version></dependency></dependencies></dependencyManagement></project>"
-    respx.get(url__regex=r".*spring-boot-dependencies/3\.[34]\.0/.*\.pom").mock(
-        return_value=Response(200, text=pom)
-    )
+    respx.get(
+        "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.4-Release-Notes"
+    ).mock(return_value=Response(404, text=""))
 
     async with SpringBootExtractor() as extractor:
         result = await extractor.extract("3.3.0", "3.4.0")
 
     assert len(result.changes) >= 1
     assert result.changes[0].type == "breaking"
+    assert "bom_diff" not in result.metadata
