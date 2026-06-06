@@ -27,7 +27,6 @@ Thumbs.db
 
 # Artifacts
 artifacts/
-runs/
 
 # Logs
 *.log

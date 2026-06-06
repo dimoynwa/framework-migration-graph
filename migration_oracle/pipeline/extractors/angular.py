@@ -7,7 +7,7 @@ import re
 
 from bs4 import BeautifulSoup
 
-from migration_oracle.models.entities import ExtractionResult
+from migration_oracle.models.entities import DocumentedChange, ExtractionResult
 from migration_oracle.pipeline.extractors.base import BaseExtractor
 from migration_oracle.pipeline.extractors.parsing import (
     filter_release_versions,
@@ -23,6 +23,8 @@ CHANGELOG_URL = (
 _BLOG_LINK_RE = re.compile(
     r"https://(?:blog\.)?angular\.dev/[^\s\)]+"
 )
+_COMMIT_HASH_RE = re.compile(r"github\.com/angular/angular/commit/([0-9a-f]+)")
+_EMBEDDED_CHANGELOG_COMMIT_OVERLAP = 0.95
 
 
 def _extract_changelog_section(changelog_text: str, version: str) -> str:
@@ -39,6 +41,59 @@ def _extract_changelog_section(changelog_text: str, version: str) -> str:
         section = changelog_text[start:next_anchor_start]
 
     return section.strip()
+
+
+def _commit_prefix(statement: str) -> str | None:
+    match = _COMMIT_HASH_RE.search(statement)
+    return match.group(1)[:10] if match else None
+
+
+def _is_badge_entry(statement: str) -> bool:
+    return "img.shields.io" in statement
+
+
+def _deduplicate_against_changelog(
+    gh_changes: list[DocumentedChange],
+    changelog_changes: list[DocumentedChange],
+) -> list[DocumentedChange]:
+    """Prefer CHANGELOG entries when GH release body repeats the same changes."""
+    cl_statements = {change.statement for change in changelog_changes}
+    cl_prefixes = {
+        prefix
+        for change in changelog_changes
+        if (prefix := _commit_prefix(change.statement))
+    }
+    gh_prefixes = {
+        prefix for change in gh_changes if (prefix := _commit_prefix(change.statement))
+    }
+    overlap_ratio = (
+        len(gh_prefixes & cl_prefixes) / len(gh_prefixes) if gh_prefixes else 0.0
+    )
+    use_hash_dedup = overlap_ratio >= _EMBEDDED_CHANGELOG_COMMIT_OVERLAP
+
+    gh_unique: list[DocumentedChange] = []
+    for change in gh_changes:
+        if change.statement in cl_statements:
+            continue
+        if use_hash_dedup:
+            prefix = _commit_prefix(change.statement)
+            if (
+                prefix
+                and prefix in cl_prefixes
+                and _is_badge_entry(change.statement)
+            ):
+                continue
+        gh_unique.append(change)
+
+    combined = gh_unique + changelog_changes
+    seen: set[str] = set()
+    deduped: list[DocumentedChange] = []
+    for change in combined:
+        if change.statement in seen:
+            continue
+        seen.add(change.statement)
+        deduped.append(change)
+    return deduped
 
 
 class AngularExtractor(BaseExtractor):
@@ -93,10 +148,13 @@ class AngularExtractor(BaseExtractor):
         )
         changelog_text = await self._get_changelog()
         changelog_section = _extract_changelog_section(changelog_text, to_version)
-        if changelog_section:
-            body = body + "\n\n" + changelog_section
 
         changes = parse_github_release_text(body, source_url)
+        if changelog_section:
+            changelog_changes = parse_github_release_text(
+                changelog_section, CHANGELOG_URL
+            )
+            changes = _deduplicate_against_changelog(changes, changelog_changes)
         raw_blog_urls = sorted(set(_BLOG_LINK_RE.findall(body)))
         blog_insights = [
             {"url": url, "summary": self._fetch_blog_summary(url)}

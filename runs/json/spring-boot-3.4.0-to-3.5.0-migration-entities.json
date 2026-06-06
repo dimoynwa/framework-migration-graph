@@ -1,0 +1,854 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Spring Boot 3.2 deprecated APIs removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "All classes, methods, and properties deprecated in Spring Boot 3.2 and marked for removal have been physically deleted. Code still referencing these APIs will fail to compile or throw NoClassDefFoundError or NoSuchMethodError at runtime. This is a hard break requiring a codebase audit before attempting the upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Scan codebase for Spring Boot 3.2 deprecation warnings",
+          "instruction": "Compile your project against Spring Boot 3.4.x with deprecation warnings enabled (`-Xlint:deprecation` for Maven / `compileJava.options.deprecation = true` for Gradle). Review every deprecation warning that originates from `org.springframework.boot.*` packages. Each warning represents an API that has been physically removed in 3.5. Fix all such usages before proceeding. Per Spring Boot 3.5 release notes, the removed APIs include (but are not limited to): `micrometer.observations.annotations.enabled` configuration property (replaced by `management.observations.annotations.enabled`), Zipkin `URLConnectionSender` support, and the default value of `OtlpMetricsProperties.url`. Specific GraphQL config keys were also reorganised: `spring.graphql.path` → `spring.graphql.http.path`, and `spring.graphql.sse.timeout` → `spring.graphql.http.sse.timeout`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles against Spring Boot 3.5 with zero deprecation warnings originating from `org.springframework.boot.*`. No `NoClassDefFoundError` or `NoSuchMethodError` at application startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Gradle minimum version raised",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Gradle versions 7.5, 8.0, 8.1, 8.2, and 8.3 are no longer supported by Spring Boot 3.5. The minimum supported versions are Gradle 7.6.4 or Gradle 8.4. Running the build with an unsupported Gradle version will cause build failures or undefined behavior.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade Gradle wrapper to 7.6.4+ or 8.4+",
+          "instruction": "Update the `distributionUrl` in `gradle/wrapper/gradle-wrapper.properties` to a supported version. Use `./gradlew wrapper --gradle-version 8.10` (or the latest 8.x patch) to regenerate the wrapper files, then commit `gradle-wrapper.properties`, `gradle-wrapper.jar`, and the updated `gradlew` scripts. Confirm the wrapper version with `./gradlew --version`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`./gradlew --version` reports Gradle 7.6.4 or higher (7.x) or 8.4 or higher (8.x). The build completes without Gradle version-compatibility errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "Security config: health groups on additional paths",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "The default Spring Security configuration now exposes health groups on additional paths such as `/livez` and `/readyz` for liveness and readiness probes. Both `EndpointRequest` classes have gained `toAdditionalPaths(…)` methods. Custom `SecurityFilterChain` configurations that restrict actuator access may inadvertently block these probe paths if not updated.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.security.servlet.EndpointRequest", "role": "mentioned" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.security.reactive.EndpointRequest", "role": "mentioned" },
+        { "kind": "class", "name": "org.springframework.security.web.SecurityFilterChain", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Update SecurityFilterChain to permit additional health probe paths",
+          "instruction": "In your `SecurityFilterChain` bean, locate any rules that restrict access to actuator health endpoints using `EndpointRequest.toAnyEndpoint()` or a specific health path matcher. Replace or supplement those rules with `EndpointRequest.toAdditionalPaths(HealthEndpoint.class)` (or the reactive equivalent from `org.springframework.boot.actuate.autoconfigure.security.reactive.EndpointRequest`) to also permit the additional probe paths (e.g. `/livez`, `/readyz`). If your intent is to allow all health-related probe paths without authentication, use `.requestMatchers(EndpointRequest.to(HealthEndpoint.class).includeAdditionalPaths()).permitAll()`. Per Spring Boot 3.5 release notes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HTTP GET `/livez` and `/readyz` (or whichever additional health-group paths are configured) return HTTP 200 without requiring authentication, and existing security rules for other actuator endpoints remain effective.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "Spring Security logout triggers audit event",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "An `AuditEvent` is now published automatically on every Spring Security logout. Applications that have an `AuditEventRepository` configured may observe unexpected event counts, increased storage usage, or audit log noise from logout operations that were previously silent.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.audit.AuditEvent", "role": "mentioned" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.audit.AuditEventRepository", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Assess impact of logout AuditEvent on AuditEventRepository",
+          "instruction": "If your application defines an `AuditEventRepository` bean (or uses `InMemoryAuditEventRepository`), check whether the increased volume of `LOGOUT_SUCCESS` audit events causes problems: review storage capacity, audit-log alerting rules, or compliance reporting logic that counts authentication events. If logout audit events should be suppressed, register a custom `AuditListener` that filters out events of type `LOGOUT_SUCCESS` before they reach the repository.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without errors. Audit log volume after upgrade is understood and accepted. If suppression was applied, `LOGOUT_SUCCESS` events no longer appear in the `AuditEventRepository`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "RestClient/RestTemplate: HTTP client selection changed",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot/how-to/http-clients.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Auto-configured `RestClient` and `RestTemplate` now resolve the underlying `ClientHttpRequestFactory` by classpath precedence (Apache HTTP Components > Jetty Client > Reactor Netty > JDK HttpClient > Simple HttpURLConnection). Applications without an explicit HTTP client library will silently switch from `SimpleClientHttpRequestFactory` to `JdkClientHttpRequestFactory`, changing TLS, redirect, and timeout behavior without any code change.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.http.client.SimpleClientHttpRequestFactory", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.http.client.JdkClientHttpRequestFactory", "role": "replacement" },
+        { "kind": "property", "name": "spring.http.client.factory", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Pin spring.http.client.factory to avoid implicit client change",
+          "instruction": "In `application.properties` or `application.yml`, set `spring.http.client.factory` to the value that matches your intended HTTP client: `http-components` (Apache HttpClient 5), `jetty`, `reactor`, `jdk`, or `simple`. If you were relying on the previous default of `SimpleClientHttpRequestFactory` and want to keep that behaviour, set `spring.http.client.factory=simple`. If no HTTP client library is on the classpath and you want to use the JDK client explicitly, set `spring.http.client.factory=jdk`. You may also set `spring.http.client.connect-timeout` and `spring.http.client.read-timeout` in the same block. Per Spring Boot 3.5 reference docs (https://docs.spring.io/spring-boot/how-to/http-clients.html).",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application starts and HTTP calls succeed. `spring.http.client.factory` is explicitly set in application config. Integration tests that exercise `RestClient` or `RestTemplate` pass without TLS, redirect, or timeout regressions.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Apache HTTP Components: TLS upgrade defaults changed",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot/api/java/org/springframework/boot/http/client/HttpComponentsClientHttpRequestFactoryBuilder.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Apache HTTP Components 5 changed the default behavior for HTTP/1.1 TLS upgrades (RFC-2817). Applications running behind Envoy or Istio sidecars may encounter connectivity failures because those proxies cannot handle the protocol upgrade handshake. A `ClientHttpRequestFactoryBuilder` customization is required to disable the upgrade and restore compatible behavior.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.http.client.HttpComponentsClientHttpRequestFactoryBuilder", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Disable TLS upgrade via HttpComponentsClientHttpRequestFactoryBuilder bean",
+          "instruction": "Define an `HttpComponentsClientHttpRequestFactoryBuilder` bean with a custom `TlsSocketStrategy` that disables HTTP/1.1 protocol upgrades. Use the fluent API: `ClientHttpRequestFactoryBuilder.httpComponents().withTlsSocketStrategyFactory(...)`. Pass a `TlsSocketStrategyFactory` that returns a `DefaultClientTlsStrategy` (from `org.apache.hc.client5.http.ssl`) without enabling `UPGRADE_INSECURE` or RFC-2817 upgrade. Alternatively, register an `HttpClientBuilderCustomizer` bean that calls `httpClientBuilder.disableContentCompression()` and configures the `TLSUpgradeStrategy` to `DISABLED`. Confirm that this is needed by reproducing the connectivity failure behind an Envoy sidecar. Per Spring Boot 3.5 release notes and `HttpComponentsClientHttpRequestFactoryBuilder` Javadoc.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HTTP and HTTPS calls through Envoy or Istio sidecar proxies succeed without connection errors. Integration test suite passes in a service-mesh test environment.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "HtmlUnit 4.5: coordinates and packages changed",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "HtmlUnit moved its artifact from `net.sourceforge.htmlunit:htmlunit` to `org.htmlunit:htmlunit`, and its Java packages from `com.gargoylesoftware.htmlunit.*` to `org.htmlunit.*`. All test code importing from the old package namespace will fail to compile.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "test", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "net.sourceforge.htmlunit:htmlunit", "role": "removed" },
+        { "kind": "dependency", "name": "org.htmlunit:htmlunit", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace net.sourceforge.htmlunit:htmlunit with org.htmlunit:htmlunit in build",
+          "instruction": "In `pom.xml`, replace `<groupId>net.sourceforge.htmlunit</groupId><artifactId>htmlunit</artifactId>` with `<groupId>org.htmlunit</groupId><artifactId>htmlunit</artifactId>`. The version is managed by Spring Boot BOM, so no explicit version is needed. For Gradle, replace `testImplementation 'net.sourceforge.htmlunit:htmlunit'` with `testImplementation 'org.htmlunit:htmlunit'`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Maven/Gradle dependency tree (`mvn dependency:tree` or `./gradlew dependencies`) shows `org.htmlunit:htmlunit` and does not contain `net.sourceforge.htmlunit:htmlunit`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "namespace",
+          "summary": "Update all imports from com.gargoylesoftware.htmlunit to org.htmlunit",
+          "instruction": "Perform a global search-and-replace across your entire test source tree: replace all occurrences of `import com.gargoylesoftware.htmlunit.` with `import org.htmlunit.`. Use your IDE's refactoring tool or a CLI command such as `find src/test -name '*.java' | xargs sed -i 's/com\\.gargoylesoftware\\.htmlunit\\./org.htmlunit./g'`. Verify that no old import references remain with `grep -r 'com.gargoylesoftware.htmlunit' src/test/`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [0],
+          "verification": "`grep -r 'com.gargoylesoftware.htmlunit' src/` returns no results. All tests compile and pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Selenium HtmlUnit: coordinates changed",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "The Selenium HtmlUnit driver artifact was renamed from `org.seleniumhq.selenium:htmlunit-driver` to `org.seleniumhq.selenium:htmlunit3-driver`. Builds that reference the old artifact ID will resolve an artifact that is no longer managed by the Spring Boot BOM and may pull in an incompatible version.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.seleniumhq.selenium:htmlunit-driver", "role": "removed" },
+        { "kind": "dependency", "name": "org.seleniumhq.selenium:htmlunit3-driver", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace htmlunit-driver with htmlunit3-driver in build",
+          "instruction": "In `pom.xml`, replace `<artifactId>htmlunit-driver</artifactId>` (under `org.seleniumhq.selenium`) with `<artifactId>htmlunit3-driver</artifactId>`. For Gradle, replace `testImplementation 'org.seleniumhq.selenium:htmlunit-driver'` with `testImplementation 'org.seleniumhq.selenium:htmlunit3-driver'`. The version is managed by the Spring Boot BOM, so no explicit version is needed.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build dependency tree shows `org.seleniumhq.selenium:htmlunit3-driver` and does not contain `org.seleniumhq.selenium:htmlunit-driver`. Selenium-based HtmlUnit tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "OkHttp dependency management removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot no longer provides a managed version for OkHttp. Any project that directly or transitively depends on OkHttp will resolve whatever version Gradle or Maven selects by default, which may be incompatible with other dependencies on the classpath.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.squareup.okhttp3:okhttp", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Pin OkHttp version explicitly in dependency management",
+          "instruction": "Add an explicit version constraint for OkHttp. In Maven, add a `<dependency>` entry inside `<dependencyManagement>`: `<groupId>com.squareup.okhttp3</groupId><artifactId>okhttp</artifactId><version>4.12.0</version>` (or the latest compatible version). In Gradle, add to `dependencies { constraints { implementation('com.squareup.okhttp3:okhttp:4.12.0') } }` or use a `resolutionStrategy.force`. Verify the resolved version with `mvn dependency:tree -Dincludes=com.squareup.okhttp3` or `./gradlew dependencies --configuration runtimeClasspath | grep okhttp`.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Build dependency tree shows a pinned, intentional OkHttp version. No `NoClassDefFoundError` or API incompatibility at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Guava dependency management removed (Prometheus upgrade)",
+      "jira_keys": ["GH-44280"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/44280",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "The upgrade to Prometheus Client 1.3.6 removed Guava as a transitive dependency of Prometheus, which in turn removed Guava from Spring Boot's managed dependency coordinates. Projects that depend on Guava directly or transitively via Prometheus must now declare an explicit version to avoid version resolution surprises.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.google.guava:guava", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.prometheus:prometheus-metrics-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add explicit Guava version to dependency management",
+          "instruction": "Check whether your project depends on Guava: run `mvn dependency:tree -Dincludes=com.google.guava` or `./gradlew dependencies | grep guava`. If Guava is present, add an explicit version pin in your dependency management block. In Maven: add `<dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>33.4.0-jre</version></dependency>` inside `<dependencyManagement>`. In Gradle: add `implementation(platform('com.google.guava:guava-bom:33.4.0-jre'))` or a constraints block. Select the latest stable Guava version that is compatible with the rest of your dependency tree.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Dependency tree shows a pinned Guava version. Build and tests pass without `NoClassDefFoundError` for Guava classes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Bean Validation: @Valid required for nested cascade",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/40345",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "`@ConfigurationProperties` classes annotated with `@Validated` no longer automatically cascade Bean Validation into nested object properties. The new behavior follows the Bean Validation specification: validation only descends into a nested object if that field is annotated with `@Valid`. This can silently mask constraint violations on nested configuration objects if `@Valid` is absent.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit @ConfigurationProperties classes for missing @Valid on nested fields",
+          "instruction": "Search your codebase for all classes annotated with both `@ConfigurationProperties` and `@Validated`: `grep -r '@ConfigurationProperties' src/main/ --include='*.java' -l`. For each such class, inspect every field whose type is another class that carries Bean Validation constraints (e.g. `@NotNull`, `@Min`, `@Pattern`). If the field does not have `@Valid`, add it. Example: if you have `@ConfigurationProperties @Validated class AppConfig { private NestedConfig nested; }` and `NestedConfig` contains `@NotNull private String value;`, add `@Valid` before `private NestedConfig nested;` to restore cascaded validation. Per Spring Boot 3.5 release notes and Spring Boot issue #40345.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All Bean Validation constraints on nested `@ConfigurationProperties` fields are enforced at startup. Deliberately misconfiguring a nested property value (e.g. setting a `@NotNull` field to null) causes a startup failure with a constraint violation message.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "@ConditionalOnBean: annotation attribute now suppresses default type",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "When `@ConditionalOnBean` or `@ConditionalOnMissingBean` is used on a `@Bean` method with the `annotation` attribute set, Spring Boot no longer infers the return type as an implicit type constraint. Previously, the type was only suppressed when `name`, `type`, or `value` was also set. This change can cause beans that previously matched or were skipped to now behave differently.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.autoconfigure.condition.ConditionalOnBean", "role": "mentioned" },
+        { "kind": "class", "name": "org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit @ConditionalOnBean/@ConditionalOnMissingBean usages with annotation attribute",
+          "instruction": "Search for all `@ConditionalOnBean` and `@ConditionalOnMissingBean` annotations that use the `annotation` attribute: `grep -r '@ConditionalOn.*Bean' src/ --include='*.java' -A3 | grep annotation`. For each match, check whether the original intent was to match both the return type AND the annotation. If yes, add `value = <ReturnType>.class` to the annotation explicitly, e.g. `@ConditionalOnBean(annotation = SomeAnnotation.class, value = SomeService.class)`. This restores the previous implicit type matching. Per Spring Boot 3.5 release notes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application context loads with the expected set of conditional beans present or absent. Unit tests for custom auto-configurations using these annotations pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Graceful shutdown enabled by default",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Graceful shutdown is now the default for all embedded web servers (Jetty, Reactor Netty, Tomcat, Undertow). In-flight requests are drained before the JVM exits. Environments that expect fast, immediate shutdown (tests, CI containers, rapid-cycle deployments) may observe increased shutdown time.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "server.shutdown", "role": "mentioned" },
+        { "kind": "property", "name": "spring.lifecycle.timeout-per-shutdown-phase", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set server.shutdown=immediate if fast shutdown is required",
+          "instruction": "If your environment requires immediate shutdown behaviour (e.g. short-lived integration test contexts, sidecar containers that must exit quickly), add `server.shutdown=immediate` to `application.properties` or `application.yml` (or to the relevant test profile). If graceful shutdown is acceptable but the default drain timeout is too long, tune it with `spring.lifecycle.timeout-per-shutdown-phase=<duration>` (e.g. `20s`). To keep graceful shutdown (the new default), no action is needed. Per Spring Boot reference docs (https://docs.spring.io/spring-boot/reference/web/graceful-shutdown.html).",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application shuts down within the expected time frame. In test environments where `server.shutdown=immediate` was set, `@SpringBootTest` contexts terminate immediately. In production, in-flight requests complete before the process exits.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Empty YAML maps now ignored",
+      "jira_keys": ["GH-35403"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/35403",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "Empty maps in YAML configuration (`key: {}`) are now silently ignored and treated as absent keys, aligning YAML behavior with `.properties` files and system property formats. Code that relied on an empty YAML map to reset or clear a collection or map property will no longer have that effect.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Replace empty YAML maps used as reset signals with explicit null",
+          "instruction": "Search all `application*.yml` files for entries of the form `someKey: {}` or `someKey:` (with no value and no child keys). For each, determine whether the intent was to clear or reset a property (e.g. override an inherited map to empty). If yes, replace the empty map with an explicit null: `someKey: ~` (YAML null). If the intent was to declare an empty default that should have no effect, leave the key in place or remove it. Per Spring Boot issue GH-35403.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without warnings about ignored YAML entries. Properties that were intended to be empty/null are confirmed to be absent from the bound `Environment`, or are bound as null where the explicit null syntax is used.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Paketo tiny builder is new default for OCI images",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Building-OCI-Images-with-Spring-Boot",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The default Cloud Native Buildpacks builder switched from `paketobuildpacks/builder-jammy-base` to `paketobuildpacks/builder-jammy-java-tiny`. The tiny builder has no shell and a reduced set of system libraries. Applications that require a shell-based entry point or platform-specific native libraries may fail to build or start.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Test OCI image build with jammy-java-tiny builder",
+          "instruction": "Run `./mvnw spring-boot:build-image` (or `./gradlew bootBuildImage`) and test the resulting image with `docker run --rm <image-name>`. Check that the application starts successfully. If startup fails due to missing shell or system libraries, explicitly revert to the base builder by adding the following to your Maven plugin config: `<configuration><image><builder>paketobuildpacks/builder-jammy-base</builder></image></configuration>`, or in Gradle: `bootBuildImage { builder = 'paketobuildpacks/builder-jammy-base' }`. Note that the tiny builder supports both ARM and x64 platforms natively.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`docker run --rm <image-name>` starts the application and it responds to health check requests. If the tiny builder was not suitable and the base builder was configured, the build output references `paketobuildpacks/builder-jammy-base`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Tomcat APR requires explicit config on Java 24+",
+      "jira_keys": ["GH-44033"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/44033",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "On Java 24+, the `server.tomcat.use-apr` property now defaults to `never`, meaning Tomcat's Apache Portable Runtime connector is disabled silently even if the APR native library is present. Applications that relied on APR for improved performance or native SSL termination will silently fall back to the NIO connector.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "server.tomcat.use-apr", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set server.tomcat.use-apr=when-available if APR is needed on Java 24+",
+          "instruction": "If your application uses Tomcat APR (you have `libapr-1` and `libtcnative` installed and were relying on APR-based SSL or NIO2 connectors), add `server.tomcat.use-apr=when-available` (uses APR if the native library is present) or `server.tomcat.use-apr=always` (requires APR, fails startup if library is absent) to your `application.properties`. This is only required when running on Java 24 or later. Per Spring Boot issue GH-44033.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Tomcat startup logs confirm `APR/native library based Apache Tomcat Native library` loaded. Connector type in logs is `AprEndpoint` (or NioEndpoint if APR is not installed and `when-available` was chosen).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Tomcat multipart limits introduced (Tomcat 10.1.42)",
+      "jira_keys": ["GH-45870"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/45870",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "Tomcat 10.1.42 introduced default limits on the number of parts in a `multipart/form-data` request and the maximum size of part headers. Applications that submit large multipart forms may encounter HTTP 400 or 500 responses from Tomcat without changing any application code.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "server.tomcat.max-part-count", "role": "mentioned" },
+        { "kind": "property", "name": "server.tomcat.max-part-header-size", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Tune server.tomcat.max-part-count and max-part-header-size for large forms",
+          "instruction": "If your application accepts `multipart/form-data` requests with many fields or large headers, set `server.tomcat.max-part-count` to a value that accommodates your largest form (e.g. `1000`) and `server.tomcat.max-part-header-size` to a byte value large enough for your part headers (e.g. `10240`). Add these to `application.properties`. The default values introduced by Tomcat 10.1.42 are conservative; refer to the Tomcat changelog for the exact defaults. Test your largest form submission against the upgraded application to determine whether the defaults are adequate. Per Spring Boot issue GH-45870.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Submitting the application's largest multipart form returns the expected HTTP 200 (or business-logic response), not HTTP 400. Tomcat access logs show no `maxPartCount` or `maxPartHeaderSize` rejection entries.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Actuator endpoint access model reworked",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot/reference/actuator/endpoints.html",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`management.endpoints.enabled-by-default` and per-endpoint `.enabled` boolean properties are deprecated in favor of a new access model using `management.endpoints.access.default` and `management.endpoint.<id>.access` with values `none`, `read-only`, or `unrestricted`. The `enableByDefault` attribute on `@Endpoint` is replaced by `defaultAccess`. Failure to migrate means endpoints may become inaccessible when these deprecated properties are eventually removed.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "management.endpoints.enabled-by-default", "role": "removed" },
+        { "kind": "property", "name": "management.endpoint.<id>.enabled", "role": "removed" },
+        { "kind": "property", "name": "management.endpoints.access.default", "role": "replacement" },
+        { "kind": "property", "name": "management.endpoint.<id>.access", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Migrate management.endpoints.enabled-by-default to management.endpoints.access.default",
+          "instruction": "In all `application*.properties` and `application*.yml` files, replace `management.endpoints.enabled-by-default=true` with `management.endpoints.access.default=unrestricted`, and `management.endpoints.enabled-by-default=false` with `management.endpoints.access.default=none`. The new property accepts `none`, `read-only`, or `unrestricted` as values — not booleans. Per Spring Boot 3.5 reference docs (https://docs.spring.io/spring-boot/reference/actuator/endpoints.html).",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `management.endpoints.enabled-by-default` key remains in any application config file. Actuator endpoints that were previously enabled are reachable and those that were disabled return 404.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "rename",
+          "summary": "Migrate management.endpoint.<id>.enabled to management.endpoint.<id>.access",
+          "instruction": "For each occurrence of `management.endpoint.<id>.enabled=true`, replace with `management.endpoint.<id>.access=unrestricted`. For `management.endpoint.<id>.enabled=false`, replace with `management.endpoint.<id>.access=none`. For example: `management.endpoint.heapdump.enabled=true` becomes `management.endpoint.heapdump.access=unrestricted`. Note that `heapdump` now defaults to `access=NONE` in Spring Boot 3.5 — you must explicitly set `management.endpoint.heapdump.access=unrestricted` if you want to expose it. Per Spring Boot 3.5 release notes and reference docs.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [0],
+          "verification": "No `management.endpoint.<id>.enabled` keys remain in any application config file. Actuator endpoints behave as expected — those intended to be restricted return 404 or 401, those intended to be exposed return 200.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "DynamicPropertyRegistry injection in @Bean deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/41996",
+      "change_type": "deprecation",
+      "reason_type": "bugfix",
+      "reason": "Injecting `DynamicPropertyRegistry` directly into a `@Bean` method (commonly used with Testcontainers) is deprecated and now fails by default due to container lifecycle ordering issues. A replacement pattern using `DynamicPropertyRegistrar` beans resolves the lifecycle problem and is required before removal in Spring Boot 4.0.",
+      "scopes": [
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.test.context.DynamicPropertyRegistry", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.test.context.DynamicPropertyRegistrar", "role": "replacement" },
+        { "kind": "property", "name": "spring.testcontainers.dynamic-property-registry-injection", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace DynamicPropertyRegistry @Bean injection with DynamicPropertyRegistrar bean",
+          "instruction": "Locate all `@Bean` methods that inject `DynamicPropertyRegistry` as a parameter, typically in `@Configuration` or `@TestConfiguration` classes. Replace each such bean with a separate `@Bean` method that returns a `DynamicPropertyRegistrar`. The container bean should be injected as a method parameter instead of the registry. Example — before: `@Bean public MyContainer myContainer(DynamicPropertyRegistry registry) { var c = new MyContainer(); registry.add(\"prop\", c::getUrl); return c; }`. After: `@Bean public MyContainer myContainer() { return new MyContainer(); }` and `@Bean public DynamicPropertyRegistrar registrar(MyContainer myContainer) { return registry -> registry.add(\"prop\", myContainer::getUrl); }`. Per Spring Boot 3.5 release notes and issue #41996.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `DynamicPropertyRegistry` parameters appear in `@Bean` methods (grep: `grep -r 'DynamicPropertyRegistry' src/test --include='*.java'` returns no `@Bean` method matches). Tests that use Testcontainers pass without `IllegalStateException` or deprecation warnings about dynamic property registry injection.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "@MockBean and @SpyBean deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/39860",
+      "change_type": "deprecation",
+      "reason_type": "dependency_alignment",
+      "reason": "`@MockBean` and `@SpyBean` are deprecated since Spring Boot 3.4.0 in favor of Spring Framework 6.2's `@MockitoBean` and `@MockitoSpyBean`. They are scheduled for removal in Spring Boot 4.0. Migration requires care because `@MockitoBean` is not supported on `@Configuration` classes, and replacing `@SpyBean` with `@MockitoSpyBean` can cause test failures in some setups.",
+      "scopes": [
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.test.mock.mockito.MockBean", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.test.mock.mockito.SpyBean", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.test.context.bean.override.mockito.MockitoBean", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.test.context.bean.override.mockito.MockitoSpyBean", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace @MockBean with @MockitoBean and @SpyBean with @MockitoSpyBean",
+          "instruction": "In all test classes, replace `import org.springframework.boot.test.mock.mockito.MockBean;` with `import org.springframework.test.context.bean.override.mockito.MockitoBean;` and the annotation `@MockBean` with `@MockitoBean`. Similarly replace `@SpyBean` / `import org.springframework.boot.test.mock.mockito.SpyBean` with `@MockitoSpyBean` / `import org.springframework.test.context.bean.override.mockito.MockitoSpyBean`. Important caveats: (1) `@MockitoBean` is not supported on `@TestConfiguration` or `@Configuration` classes — move such annotations to fields in the actual test class. (2) If `@MockitoSpyBean` causes 'Unable to select a bean to wrap' errors, ensure the target bean is defined in the application context and not only in a test configuration. Per Spring Boot issue #43348.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `import org.springframework.boot.test.mock.mockito.MockBean` or `SpyBean` imports remain in test sources (`grep -r 'boot.test.mock.mockito' src/test/ --include='*.java'` returns empty). All tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "WebJars locator-core deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "deprecation",
+      "reason_type": "performance",
+      "reason": "Support for `org.webjars:webjars-locator-core` is deprecated. The replacement `org.webjars:webjars-locator-lite` provides faster startup and continued support. Both artifacts are managed by the Spring Boot BOM.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.webjars:webjars-locator-core", "role": "removed" },
+        { "kind": "dependency", "name": "org.webjars:webjars-locator-lite", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace webjars-locator-core with webjars-locator-lite in build",
+          "instruction": "In `pom.xml`, replace `<groupId>org.webjars</groupId><artifactId>webjars-locator-core</artifactId>` with `<groupId>org.webjars</groupId><artifactId>webjars-locator-lite</artifactId>`. In Gradle, replace `implementation 'org.webjars:webjars-locator-core'` with `implementation 'org.webjars:webjars-locator-lite'`. No version is needed; the Spring Boot BOM manages both artifacts.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Dependency tree shows `org.webjars:webjars-locator-lite` and no longer contains `org.webjars:webjars-locator-core`. WebJars resources (e.g. `/webjars/jquery/...`) are served correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "OTLP tracing auto-configuration classes renamed",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot//3.4/api/java/org/springframework/boot/actuate/autoconfigure/tracing/otlp/OtlpTracingAutoConfiguration.html",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`OtlpAutoConfiguration` is deprecated in favor of `OtlpTracingAutoConfiguration`; `OpenTelemetryAutoConfiguration` is deprecated in favor of `OpenTelemetryTracingAutoConfiguration`; and `OtlpTracingConnectionDetails#getUrl()` is deprecated in favor of `getUrl(Transport)`. Any custom auto-configuration or conditional beans referencing the old class names will stop working when these classes are removed in Spring Boot 4.0.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpAutoConfiguration", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.tracing.otlp.OtlpTracingAutoConfiguration", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryAutoConfiguration", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.opentelemetry.OpenTelemetryTracingAutoConfiguration", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace OtlpAutoConfiguration and OpenTelemetryAutoConfiguration references",
+          "instruction": "Search your codebase for any direct references to `OtlpAutoConfiguration` or `OpenTelemetryAutoConfiguration` — these appear in `@ConditionalOnClass`, `@AutoConfigureAfter`, `@AutoConfigureBefore`, `@Import`, or `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` files. Replace `OtlpAutoConfiguration` with `OtlpTracingAutoConfiguration` and `OpenTelemetryAutoConfiguration` with `OpenTelemetryTracingAutoConfiguration`. Also replace any calls to `OtlpTracingConnectionDetails.getUrl()` (no-arg) with `getUrl(Transport)`, passing the appropriate `Transport` enum value (`HTTP` or `GRPC`). Both deprecated classes are in package `org.springframework.boot.actuate.autoconfigure.tracing.otlp`. Per Spring Boot 3.4.0 RC1 release notes.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No references to `OtlpAutoConfiguration` or `OpenTelemetryAutoConfiguration` (the deprecated names) remain in source code or `META-INF` files. Tracing spans are exported via OTLP as expected.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Logback ApplicationNameConverter renamed",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`org.springframework.boot.logging.logback.ApplicationNameConverter` is deprecated in favor of `EnclosedInSquareBracketsConverter`. Custom Logback configuration files that reference the old converter class name will produce deprecation warnings and will break when the class is removed in a future version.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.logging.logback.ApplicationNameConverter", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.logging.logback.EnclosedInSquareBracketsConverter", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace ApplicationNameConverter with EnclosedInSquareBracketsConverter in logback config",
+          "instruction": "Search for custom Logback configuration files (e.g. `logback-spring.xml`, `logback.xml`) that reference `ApplicationNameConverter` or its FQCN `org.springframework.boot.logging.logback.ApplicationNameConverter`. Replace the class name with `org.springframework.boot.logging.logback.EnclosedInSquareBracketsConverter`. Run `grep -r 'ApplicationNameConverter' src/main/resources/ src/test/resources/` to locate all occurrences.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No occurrences of `ApplicationNameConverter` remain in any Logback XML config file. Application starts without Logback warnings about deprecated or unknown converter classes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "spring.gson.lenient replaced by spring.gson.strictness",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Configuration-Changelog",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "The `spring.gson.lenient` boolean property is deprecated in favor of `spring.gson.strictness`, which accepts the string value `lenient` or `strict`. Applications using the old property will see deprecation warnings and the property will be removed in a future version.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.gson.lenient", "role": "removed" },
+        { "kind": "property", "name": "spring.gson.strictness", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace spring.gson.lenient with spring.gson.strictness in application config",
+          "instruction": "In all `application*.properties` or `application*.yml` files, replace `spring.gson.lenient=true` with `spring.gson.strictness=lenient`, and `spring.gson.lenient=false` with `spring.gson.strictness=strict`. The new property accepts the string literals `lenient` and `strict` (case-insensitive). Per Spring Boot 3.5 configuration changelog.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `spring.gson.lenient` key exists in any application config file. Application starts without deprecation warnings about the Gson strictness property.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "EndpointExposure.CLOUD_FOUNDRY deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`EndpointExposure.CLOUD_FOUNDRY` used with `@ConditionalOnAvailableEndpoint` is deprecated in favor of `EndpointExposure.WEB`. Custom Cloud Foundry-specific actuator endpoint conditions that use the old enum value will produce warnings and break when the value is removed.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.endpoint.condition.EndpointExposure", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace EndpointExposure.CLOUD_FOUNDRY with EndpointExposure.WEB",
+          "instruction": "Search for all usages of `EndpointExposure.CLOUD_FOUNDRY` in your codebase: `grep -r 'CLOUD_FOUNDRY' src/ --include='*.java'`. For each occurrence in a `@ConditionalOnAvailableEndpoint(exposure = EndpointExposure.CLOUD_FOUNDRY)` annotation, replace `EndpointExposure.CLOUD_FOUNDRY` with `EndpointExposure.WEB`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `EndpointExposure.CLOUD_FOUNDRY` references remain in the codebase. Custom Cloud Foundry actuator endpoints are registered correctly when the application runs on Cloud Foundry.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "OTLP logging and gRPC transport support",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Spring Boot 3.5 adds auto-configuration for OTLP log export, allowing logs to be shipped to an OpenTelemetry collector over HTTP or gRPC. This is an opt-in capability with no migration requirement.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "management.otlp.logging.endpoint", "role": "mentioned" },
+        { "kind": "property", "name": "management.logging.export.enabled", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Enable OTLP log export via management.otlp.logging properties",
+          "instruction": "To opt in to OTLP log export, set `management.logging.export.enabled=true` and `management.otlp.logging.endpoint=http://<collector-host>:4318/v1/logs` (HTTP) or `management.otlp.logging.endpoint=http://<collector-host>:4317` for gRPC in `application.properties`. Add `io.opentelemetry:opentelemetry-exporter-otlp` to your dependencies if not already present via the Spring Boot OTLP starter. No migration action is required for existing applications.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "With `management.logging.export.enabled=true`, application logs appear in the OTLP collector's log backend. `GET /actuator/health` returns 200.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "SSL bundles for JavaMailSender",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Spring Boot 3.5 allows `JavaMailSender` TLS configuration to use SSL bundles via `spring.mail.ssl.*` properties, simplifying certificate management for mail connections. This is an opt-in feature; existing applications do not need to migrate unless they want to consolidate TLS configuration.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.mail.ssl.bundle", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Liveness/Readiness auto-enabled on Cloud Foundry",
+      "jira_keys": [],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-3.5-Release-Notes",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Liveness and Readiness health probes are now automatically enabled on Cloud Foundry without requiring explicit configuration. No migration action is required; verify probe endpoint behavior in CF environments.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "ClientHttpRequestFactoryBuilder API",
+      "jira_keys": [],
+      "source_url": "https://docs.spring.io/spring-boot/how-to/http-clients.html",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new `ClientHttpRequestFactoryBuilder` fluent API allows fine-grained construction and customization of HTTP client factories (Apache, Jetty, Reactor Netty, JDK, Simple HttpURLConnection). This is particularly useful for applying custom TLS strategies, timeouts, or proxy configurations that are not expressible through `application.properties` alone.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.http.client.ClientHttpRequestFactoryBuilder", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}
