@@ -1,0 +1,758 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Non-breaking spaces removed from documentation source files",
+      "jira_keys": ["WFLY-20836"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Non-breaking space characters were replaced with regular spaces in WildFly documentation and configuration source files. Tooling or scripts that parse WildFly documentation or configuration files and rely on specific whitespace characters may fail after upgrade.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit doc-parsing scripts for non-breaking space assumptions",
+          "instruction": "Search your build scripts, documentation processors, and configuration parsers for any code that explicitly checks for Unicode non-breaking space (U+00A0, \\u00A0, or HTML &nbsp;) in content extracted from WildFly documentation or configuration files. Replace any such checks with regular ASCII space (U+0020) checks, or normalise whitespace before processing. Run any affected tooling end-to-end against the WildFly 39 documentation to confirm it parses correctly.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "All documentation parsing scripts run without whitespace-related errors against WildFly 39 source. Generated output is identical in structure to the previous run.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Netty upgraded to 4.1.130.Final (CVE-2025-67735, CVE-2025-58056, CVE-2025-58057, CVE-2025-55163)",
+      "jira_keys": ["WFLY-21274", "WFLY-20911", "WFLY-20846"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Three rounds of Netty CVE patches (CVE-2025-55163 at 4.1.124.Final, CVE-2025-58056 and CVE-2025-58057 at 4.1.127.Final, CVE-2025-67735 at 4.1.130.Final) culminate at 4.1.130.Final as the required minimum. Projects that manage io.netty versions in their BOM must update to this final target.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-bom", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update io.netty BOM/version to 4.1.130.Final",
+          "instruction": "In pom.xml (and any parent POMs or BOM files), locate all version properties and dependencyManagement entries for io.netty artifacts. Update the version to 4.1.130.Final. If you import io.netty:netty-bom as a BOM, set its version to 4.1.130.Final. Run mvn dependency:tree | grep netty to confirm no transitive dependency pulls in an older version. If a transitive pull forces an earlier version, add an explicit dependencyManagement override at 4.1.130.Final. Run HTTP and HTTP/2 integration tests after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no io.netty artifact below 4.1.130.Final. HTTP and HTTP/2 integration tests pass without connection-handling errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "lz4-java upgraded to 1.10.2 (CVE-2025-66566, CVE-2025-12183)",
+      "jira_keys": ["WFLY-21262", "WFLY-21240", "WFLY-21290"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Two CVEs (CVE-2025-66566, CVE-2025-12183) in at.yawk.lz4:lz4-java required two upgrade steps from 1.8.1 through 1.10.1 to 1.10.2. Any project that explicitly pins lz4-java — common via Kafka or Infinispan transitive dependencies — must update to 1.10.2.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "at.yawk.lz4:lz4-java", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update at.yawk.lz4:lz4-java to 1.10.2",
+          "instruction": "Search pom.xml and any BOM files for at.yawk.lz4:lz4-java version entries. Update to 1.10.2. Run mvn dependency:tree | grep lz4 to confirm no transitive dependency (Kafka client, Infinispan, RocksDB) forces an older version. If one does, add an explicit dependencyManagement override to pin at 1.10.2.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows at.yawk.lz4:lz4-java at 1.10.2. Application compresses and decompresses LZ4 data correctly in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "angus-mail upgraded to 2.0.4 (CVE-2025-7962)",
+      "jira_keys": ["WFLY-20832"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-7962 in org.eclipse.angus:angus-mail addressed by upgrading to 2.0.4. Projects that manage this dependency directly must update.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.eclipse.angus:angus-mail", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.eclipse.angus:angus-mail to 2.0.4",
+          "instruction": "Search pom.xml for org.eclipse.angus:angus-mail version entries. Update to 2.0.4. Run mvn dependency:tree | grep angus to confirm no older transitive version is pulled in. Run mail-sending integration tests (JavaMail session lookup, SMTP send) after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.eclipse.angus:angus-mail at 2.0.4. Mail session integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "com.nimbusds:jose-jwt upgraded to non-vulnerable version",
+      "jira_keys": ["WFLY-20895"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "An old com.nimbusds:jose-jwt version in WildFly Quickstarts triggered security alerts. Projects that bundle or depend on jose-jwt must ensure they are on a current non-vulnerable release.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.nimbusds:nimbus-jose-jwt to latest non-vulnerable version",
+          "instruction": "Search pom.xml and any BOM files for com.nimbusds:nimbus-jose-jwt version entries. Check the GitHub advisory database (https://github.com/advisories?query=nimbus-jose-jwt) and the NVD for the current unaffected version in the 9.x series. At time of this migration guide, 9.43 or later is recommended — verify against the advisory database for the most current safe release. Run mvn dependency:tree | grep nimbus to confirm no transitive pull introduces an older version. Run OIDC/JWT authentication integration tests after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows com.nimbusds:nimbus-jose-jwt at the targeted safe version. JWT parsing and OIDC token validation integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Infinispan 16.0 + JGroups 5.5 + wildfly-clustering 9.0",
+      "jira_keys": ["WFLY-21163", "WFLY-21164", "WFLY-21266", "WFLY-21307"],
+      "source_url": "https://infinispan.org/blog/2025/11/10/infinispan-16-0",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Infinispan has been upgraded to 16.0.x and JGroups to 5.5 alongside wildfly-clustering 9.0 — all major version jumps in the clustering stack. Infinispan 16 rewrote clustering messages to use Protocol Buffers via ProtoStream. Custom cache serialization, Externalizer registrations, distributed cache listener wiring, and JGroups protocol stacks must all be validated. Session failover and SFSB clustering scenarios require integration testing before promoting to production.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.jgroups:jgroups", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.wildfly.clustering:wildfly-clustering-common", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit custom Infinispan Externalizer and marshalling registrations",
+          "instruction": "Search for all classes that implement org.infinispan.commons.marshall.Externalizer or org.infinispan.commons.marshall.AdvancedExternalizer in your codebase and in any WildFly module configuration. In Infinispan 16, cluster communication uses Protocol Buffers (ProtoStream) by default; Externalizers registered via SerializationConfiguration are still used for cluster messages but the recommendation is to migrate to ProtoStream-based marshallers. If you have custom Externalizers, verify they continue to work by running distributed-cache read/write tests. If you use cache stores, confirm store compatibility — as noted in the Infinispan upgrade guide, binary format changes between major versions require StoreMigrator if persistent cache stores are in use. Run the StoreMigrator tool (https://infinispan.org/docs/stable/titles/upgrading/upgrading.html) for any persistent file-based or JDBC stores before deploying WildFly 39 against existing data.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Cluster forms correctly. Distributed cache entries written before upgrade are readable after upgrade. No marshalling ClassCastException or MarshallingException appears in server.log.",
+          "cli_operation": "/subsystem=infinispan:read-resource(recursive=false)"
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate JGroups 5.5 protocol stack and distributed session failover",
+          "instruction": "Review your JGroups stack configuration for any protocol elements specific to JGroups 5.4 that have been removed or renamed in 5.5. Open standalone-ha.xml or domain.xml and compare the <subsystem xmlns=\"urn:jboss:domain:jgroups:*\"> protocol lists against the JGroups 5.5 release notes (https://github.com/belaban/JGroups/releases). Deploy a distributable web application and execute a session-failover test by: (1) establishing an HTTP session on node A, (2) stopping node A, (3) confirming the session is still accessible via node B. Run the same test for SFSBs.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All cluster members form a view in JGroups. Distributed HttpSession failover test confirms session attributes are preserved across node shutdown. SFSB failover test confirms stateful bean state survives node loss. No ISPN or JGroups ERROR-level messages in server.log.",
+          "cli_operation": "/subsystem=jgroups/channel=ee:read-attribute(name=cluster)"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta EE 11 Security Specs in WildFly Preview; SecurityManager subsystem removal",
+      "jira_keys": ["WFLY-19307", "WFLY-20982", "WFLY-20211", "WFLY-20213", "WFLY-20980"],
+      "source_url": "https://docs.jboss.org/author/display/WFLY/Migrate+Legacy+Security+to+Elytron+Security.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview moves Jakarta Security/Authorization/Authentication to EE 11 versions. The legacy java.security.Policy and SecurityManager subsystem are being removed. Applications on WildFly Preview using legacy java.security.Policy, SecurityManager, or pre-EE 11 JACC/JASPIC annotations must migrate to Elytron-based or Jakarta Security 4.x APIs.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "java.security.SecurityManager", "role": "removed" },
+        { "kind": "class", "name": "java.security.Policy", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove security-manager subsystem from standalone/domain XML",
+          "instruction": "Open standalone.xml, standalone-ha.xml, standalone-full.xml, and domain.xml. Search for any <subsystem xmlns=\"urn:jboss:domain:security-manager:*\"> element. Remove the entire element and its contents (minimum-permissions, maximum-permissions). Also remove the corresponding extension entry <extension module=\"org.jboss.as.security-manager\"/> from the <extensions> block. Per WFLY-20213, the security-manager subsystem is being removed in the EE 11 path — leaving it in place will cause boot errors on WildFly Preview.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts without 'Unknown subsystem security-manager' or 'Extension not found' boot errors in server.log. /extension=org.jboss.as.security-manager:read-resource returns 'not found'.",
+          "cli_operation": "/extension=org.jboss.as.security-manager:remove"
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Migrate java.security.Policy usage to Elytron JACC policy provider",
+          "instruction": "Search your application and configuration for direct use of java.security.Policy.setPolicy(), Policy.getPolicy(), or custom java.security.Policy implementations. Replace these with the Elytron JACC policy provider: configure /subsystem=elytron/policy=jacc:add(jacc-policy={}) in the CLI. Enable JACC for web deployments via /subsystem=undertow/application-security-domain=other:write-attribute(name=enable-jacc,value=true). For EJBs, run /subsystem=ejb3/application-security-domain=other:write-attribute(name=enable-jacc,value=true). Consult the WildFly Elytron migration guide at https://docs.wildfly.org/39/WildFly_Elytron_Security.html for the full JACC configuration reference.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application deploys and authorization decisions are enforced correctly. No java.security.Policy-related AccessControlException appears in server.log. JACC-protected resources are accessible only to authorized principals.",
+          "cli_operation": "/subsystem=elytron/policy=jacc:read-resource"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "CXF 4.0.10 upgrade for DelayedCachedOutputStreamCleaner thread leak",
+      "jira_keys": ["WFLY-21103"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "bugfix",
+      "reason": "A background thread accumulation regression was introduced in Apache CXF following the CVE-2025-23184 fix. CXF 4.0.10 (included in WildFly 39) resolves this. Applications deploying JAX-WS services under high concurrency may experience thread-pool exhaustion on older CXF versions.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.cxf:cxf-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.apache.cxf version to 4.0.10 if managing it directly",
+          "instruction": "If your pom.xml or BOM declares an explicit version for org.apache.cxf:cxf-* artifacts, update to 4.0.10. Run mvn dependency:tree | grep cxf to confirm no older version is pulled transitively. After upgrading, run JAX-WS service load tests or a sustained concurrency test and confirm that background CXF thread counts do not grow unboundedly. Check jboss-thread-pool metrics or JVM thread dumps to validate thread counts stabilise.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No thread count growth in 'org.apache.cxf' thread groups observed over a sustained load test. JAX-WS integration tests pass. No OutOfMemoryError or thread-pool rejection errors in server.log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM 6.6.40 (standard) / 7.1.x (Preview); bytecode provider caching and query stats default",
+      "jira_keys": ["WFLY-20853", "WFLY-21227", "WFLY-21012", "WFLY-21200", "WFLY-21313", "WFLY-20299", "WFLY-20960"],
+      "source_url": "https://docs.hibernate.org/orm/7.1/migration-guide/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Standard WildFly ships Hibernate ORM 6.6.40.Final. WildFly Preview ships 7.1.x (a major version — see Hibernate ORM 7 migration guide for API changes). Additionally: the bytecode provider is now cached per deployment (WFLY-20299), and hibernate.statistics.query_max_size now defaults to 200 (was higher), potentially truncating query statistics.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" },
+        { "kind": "property", "name": "hibernate.statistics.query_max_size", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Override hibernate.statistics.query_max_size if needed above 200",
+          "instruction": "If your application uses Hibernate statistics (SessionFactory.getStatistics()) and previously relied on a query statistics cache larger than 200 entries, add the property explicitly to persistence.xml: <property name=\"hibernate.statistics.query_max_size\" value=\"<your-desired-size>\"/>. The previous default was effectively unbounded; with 200 as the default, statistics for queries beyond the 200th distinct HQL/JPQL string will not be tracked. For most applications with fewer than 200 distinct query strings, no change is needed.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "SessionFactory.getStatistics().getQueries().length returns the expected count. Query statistics are available for all monitored named queries.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Verify bytecode provider caching does not mask class-loading issues across redeployments",
+          "instruction": "The bytecode provider is now cached per deployment (WFLY-20299), meaning it is reused across hot redeployments within the same JVM lifetime. Run a hot redeployment sequence: deploy your application, undeploy it, redeploy it, and run your JPA integration tests on the redeployed version. Confirm that entity proxies, lazy loading, and instrumented class state behave identically in the second deployment as in the first. If you previously observed stale proxy class state after redeployment and added explicit workarounds, verify those workarounds are still appropriate.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JPA integration tests pass on a redeployed application without ClassCastException or LinkageError. Lazy-loaded associations return expected values on the redeployed application.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "MicroProfile Platform 7.1 including MP Telemetry 2.1 and MP OpenAPI 4.1.1",
+      "jira_keys": ["WFLY-20684", "WFLY-20685", "WFLY-21139"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly now implements MicroProfile Platform 7.1, including MP Telemetry 2.1 and MP OpenAPI 4.1.1. Applications using MP-annotated classes or @OpenAPIDefinition configurations must be reviewed for compatibility with the new spec versions.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.eclipse.microprofile.openapi:microprofile-openapi-api", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update microprofile-openapi-api dependency to 4.1.1",
+          "instruction": "In pom.xml, update any compile-time or provided-scope dependency on org.eclipse.microprofile.openapi:microprofile-openapi-api to version 4.1.1. Review your @OpenAPIDefinition, @Operation, @Schema, and @APIResponse annotations for any attributes changed or removed in OpenAPI 4.1.1 relative to your previous version. Compile the project and resolve any API-incompatibility errors. Run OpenAPI endpoint tests to confirm the /openapi document is generated correctly.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application compiles without errors on microprofile-openapi-api 4.1.1. GET /openapi returns a 200 response with a valid OpenAPI document reflecting all annotated endpoints.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate MP Telemetry 2.1 trace and metric export configuration",
+          "instruction": "If you use MicroProfile Telemetry for tracing or metrics export, review the MP Telemetry 2.1 spec changes. Confirm that your OTLP exporter endpoint configuration (otel.exporter.otlp.endpoint system property or mp.telemetry.* MicroProfile Config keys) still functions with the 2.1 implementation. Run distributed trace integration tests and confirm spans are exported to your configured OTel collector.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Traces exported to the OTLP collector appear with the expected span names and attributes. No OTel configuration errors appear in server.log at boot.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Servlet 6.1 in WildFly Preview (Undertow 2.4.x); SessionCookieConfig incompatibility",
+      "jira_keys": ["WFLY-19556", "WFLY-21082", "WFLY-21088"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview integrates Jakarta Servlet 6.1 via Undertow 2.4.x alpha. Applications targeting WildFly Preview must update servlet-api compile dependencies to 6.1.x. A binary incompatibility between Undertow 2.3 and 2.4 in ServletSessionConfig/SessionCookieConfig is worked around internally but may affect custom Undertow extensions.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.servlet:jakarta.servlet-api", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.servlet.SessionCookieConfig", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update jakarta.servlet:jakarta.servlet-api to 6.1.x for WildFly Preview targets",
+          "instruction": "In pom.xml, update the scope=provided dependency on jakarta.servlet:jakarta.servlet-api to version 6.1.x. Review your web.xml — if it declares version=\"6.0\" in the <web-app> element, update to version=\"6.1\" and set xmlns=\"https://jakarta.ee/xml/ns/jakartaee\" and xsi:schemaLocation to the 6.1 schema. Recompile and resolve any API-incompatibility errors. For custom Undertow handlers or extensions that directly use io.undertow.servlet.api.SessionCookieConfig, recompile against Undertow 2.4.x and resolve any method signature changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without ClassNotFoundException or IncompatibleClassChangeError for servlet classes. Session cookie configuration (name, path, domain, secure, httpOnly, maxAge) behaves as expected in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Concurrency 3.1 in WildFly Preview",
+      "jira_keys": ["WFLY-19560", "WFLY-21148"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview now implements Jakarta Concurrency 3.1. Applications targeting WildFly Preview that use ManagedExecutorService, ContextService, or @Asynchronous must compile against jakarta.enterprise.concurrent-api 3.1.x.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.enterprise.concurrent:jakarta.enterprise.concurrent-api", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update jakarta.enterprise.concurrent-api to 3.1.x for WildFly Preview",
+          "instruction": "In pom.xml, update the scope=provided dependency on jakarta.enterprise.concurrent:jakarta.enterprise.concurrent-api to version 3.1.x. Review any usage of @Asynchronous, ManagedExecutorService, ManagedScheduledExecutorService, and ContextService for API changes in Concurrency 3.1. New in 3.1: parallel stream support and context-aware completable futures. Compile and run concurrency integration tests.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application compiles against jakarta.enterprise.concurrent-api 3.1.x. ManagedExecutorService tasks execute in the correct transaction and security context. @Asynchronous EJB methods return results as expected.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jackson components upgraded to 2.20.x",
+      "jira_keys": ["WFLY-21198"],
+      "source_url": "",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Jackson upgraded from 2.18.x to 2.20.x. Projects that override Jackson in their BOM or use Jackson internals must update to 2.20.1 and validate serialisation behaviour.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.fasterxml.jackson:jackson-bom", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.fasterxml.jackson:jackson-bom to 2.20.1",
+          "instruction": "In pom.xml, update any Jackson BOM import or individual jackson-* version properties to 2.20.1. Run mvn dependency:tree | grep jackson to confirm no older version is pulled transitively. Run JSON serialisation and deserialisation integration tests. If you use Jackson Databind internal APIs (e.g. DeserializationContext, BeanDeserializerModifier) check the Jackson 2.19→2.20 changelog for any removed or renamed SPI methods.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no com.fasterxml.jackson artifact below 2.20.1. JSON round-trip and serialisation tests pass with correct output.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JPA bytecode enhancement enabled by default; bytecode provider cached",
+      "jira_keys": ["WFLY-19393", "WFLY-20299"],
+      "source_url": "https://docs.jboss.org/hibernate/orm/6.6/userguide/html_single/Hibernate_User_Guide.html#BytecodeEnhancement",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Hibernate persistence container bytecode enhancement is now enabled by default for all persistence units in WildFly 39. The bytecode provider is also cached per deployment. This improves performance but changes entity runtime class structure. Applications with complex entity proxies, custom ClassTransformers, or instrumentation-sensitive code may see different lazy loading and proxy behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "hibernate.enhancer.enableDirtyTracking", "role": "mentioned" },
+        { "kind": "property", "name": "hibernate.enhancer.enableLazyInitialization", "role": "mentioned" },
+        { "kind": "property", "name": "hibernate.enhancer.enableAssociationManagement", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run full JPA test suite with bytecode enhancement enabled",
+          "instruction": "Deploy your application to WildFly 39 and run the complete JPA integration test suite without any persistence.xml changes. Focus on: (1) lazy-loaded associations — confirm they load on access without LazyInitializationException, (2) dirty tracking — verify entity state is detected and flushed correctly without explicit merge calls, (3) proxy identity — confirm entity == proxy identity checks hold, (4) bidirectional associations — both sides must be set explicitly (enhancement disables auto-management per WFLY-21644 in WildFly 40, but the enhancement itself is now on). If tests fail due to enhancement, you can selectively disable aspects: add <property name=\"hibernate.enhancer.enableDirtyTracking\" value=\"false\"/> or <property name=\"hibernate.enhancer.enableLazyInitialization\" value=\"false\"/> in persistence.xml, but this reverts the performance benefit.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JPA integration tests pass. No ClassCastException, InvocationTargetException, or LazyInitializationException caused by enhancement appears in server.log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Jakarta Data StatelessSession now scoped per transaction",
+      "jira_keys": ["WFLY-21267"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Jakarta Data repositories were improperly sharing StatelessSession instances across calls. Each repository now uses a transaction-scoped StatelessSession. Session-level state (e.g. first-level cache entries, pending operations) that previously persisted across Jakarta Data calls will no longer do so.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.hibernate.StatelessSession", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit Jakarta Data repository calls for cross-call session state assumptions",
+          "instruction": "Review all Jakarta Data repository interfaces in your codebase. Identify any test or service code that relied on a StatelessSession being shared across multiple repository method calls — for example, code that inserts an entity in one repository call and reads it back in a subsequent call within the same request without an explicit transaction commit. Since StatelessSession has no first-level cache, such patterns were already fragile, but the new per-transaction scoping makes the boundary explicit. Add transaction boundaries (e.g. @Transactional) around sequences of repository calls that must observe each other's writes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Jakarta Data repository integration tests pass. Multi-step repository workflows that insert and query within the same transaction return the expected results.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Idle time-based eviction now configurable for distributed sessions and SFSBs",
+      "jira_keys": ["WFLY-20918"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "New idle time-based eviction is configurable for distributed HttpSession, SFSB, and Timer stores. If only max-entries-based eviction was previously configured, the new idle-timeout capability must be reviewed to avoid unintended early eviction.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Review distributable-web idle-timeout configuration in standalone/domain XML",
+          "instruction": "Open standalone-ha.xml or domain.xml and locate the <subsystem xmlns=\"urn:jboss:domain:distributable-web:*\"> element. Review whether the new <idle-timeout> attribute has been added to any hotrod-session-management or infinispan-session-management element. If you use max-active-sessions for eviction and do not want idle-time eviction, confirm that no idle-timeout is set (or set it to a value larger than your expected session idle period to avoid premature eviction). If you want to leverage idle eviction to reclaim memory, configure <idle-timeout value=\"<minutes>\" unit=\"MINUTES\"/> in the session management element.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Sessions idle for less than the configured threshold are not evicted. Sessions idle beyond the threshold are evicted and new requests from the same session receive a fresh session (typically resulting in a redirect to login). Session eviction metrics in Infinispan confirm the expected behaviour.",
+          "cli_operation": "/subsystem=distributable-web:read-resource(recursive=true)"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Local caches auto-configured with single segment; max-active-timers removed from EJB config",
+      "jira_keys": ["WFLY-20850", "WFLY-20839"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Local Infinispan caches are now auto-configured with a single segment. The max-active-timers attribute has been removed from the default EJB subsystem configuration. Applications relying on multi-segment local cache behaviour or the max-active-timers attribute must update configuration.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "max-active-timers", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove max-active-timers attribute from ejb3 subsystem configuration",
+          "instruction": "Open standalone.xml / domain.xml and locate the <subsystem xmlns=\"urn:jboss:domain:ejb3:*\"> element. Search for any max-active-timers attribute on timer-service or related elements. Remove the attribute — it is no longer valid and will cause a configuration parse error if left in place. Verify through testing that EJB timer behaviour is unaffected (timer fires at expected intervals, timers survive server restart if persistent).",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts without 'Unexpected attribute max-active-timers' parse errors. EJB timers fire correctly at configured intervals. Persistent timers survive server restart.",
+          "cli_operation": "/subsystem=ejb3/service=timer-service:read-resource"
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "New resteasy-original-webapplicationexception-behavior attribute in jaxrs subsystem",
+      "jira_keys": ["WFLY-14559"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The jaxrs subsystem gains a new resteasy-original-webapplicationexception-behavior attribute controlling whether RESTEasy propagates WebApplicationException using legacy (pre-JAX-RS 2.0) behaviour or the spec-compliant behaviour. The default value needs to be reviewed for compatibility with existing exception handling.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "resteasy-original-webapplicationexception-behavior", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Determine WebApplicationException propagation behaviour needed and configure explicitly",
+          "instruction": "Test your JAX-RS endpoints by throwing a WebApplicationException (or a subclass) from a JAX-RS resource method or provider, and confirm the response status code and entity are propagated correctly to the client. If your application relies on the legacy RESTEasy behaviour (the exception is re-wrapped and remapped), set the attribute to true: /subsystem=jaxrs:write-attribute(name=resteasy-original-webapplicationexception-behavior,value=true). If your application expects the JAX-RS 2.0+ spec-compliant behaviour (the exception response is returned directly), leave the attribute at its default (false) or explicitly set it to false. Document the chosen value in your configuration management so future upgrades do not silently change the behaviour.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JAX-RS integration tests that cover WebApplicationException paths return the expected HTTP status codes and response bodies.",
+          "cli_operation": "/subsystem=jaxrs:read-attribute(name=resteasy-original-webapplicationexception-behavior)"
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "hibernate.statistics.query_max_size defaults to 200",
+      "jira_keys": ["WFLY-20960"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The default value for hibernate.statistics.query_max_size has been lowered to 200. Applications using Hibernate statistics that previously tracked more than 200 distinct HQL/JPQL query strings will see those additional queries silently excluded from statistics.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "hibernate.statistics.query_max_size", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set hibernate.statistics.query_max_size explicitly if more than 200 queries tracked",
+          "instruction": "If your application calls SessionFactory.getStatistics().getQueryStatistics(hql) for more than 200 distinct HQL/JPQL strings, add <property name=\"hibernate.statistics.query_max_size\" value=\"<n>\"/> in persistence.xml, where <n> is larger than the number of distinct query strings your application executes. To find the current count, run your test suite with Hibernate statistics enabled and check Statistics.getQueries().length.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Statistics.getQueries().length returns the expected number of distinct tracked query strings. getQueryStatistics(hql) returns non-null for all monitored queries.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "OpenTelemetry logs now capture formatted messages (post-argument substitution)",
+      "jira_keys": ["WFLY-20251"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "OpenTelemetry log export now captures log messages after formatting (with substituted arguments) rather than the raw template string. Log processing pipelines that relied on receiving unformatted template strings from OTel exports must be updated.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update log processing pipelines to expect formatted OTel log messages",
+          "instruction": "Review your OTel log processing pipeline (Logstash patterns, Splunk extractors, Grafana Loki log queries, etc.) for any patterns that matched on message template strings (e.g. 'Order {} created for customer {}' with placeholder braces). These will now receive the fully substituted message ('Order 12345 created for customer ACME'). Update parsing patterns accordingly.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "OTel log export integration test shows log body contains the fully substituted message string. Log processing pipeline correctly parses and indexes the new format.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "require-host-http11 attribute deprecated and ignored in Undertow subsystem",
+      "jira_keys": ["WFLY-21349"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The require-host-http11 attribute in the Undertow subsystem is now deprecated and its value is silently ignored at runtime. Leaving it in configuration generates a deprecation warning at boot.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "require-host-http11", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove require-host-http11 from Undertow HTTP listener configuration",
+          "instruction": "Open standalone.xml / domain.xml and search for require-host-http11 in the <subsystem xmlns=\"urn:jboss:domain:undertow:*\"> section. Remove the attribute from any http-listener or https-listener element. Alternatively, run: /subsystem=undertow/server=default-server/http-listener=default:undefine-attribute(name=require-host-http11). Reload the server and confirm no deprecation WARN for this attribute appears in server.log.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts without WARN messages about deprecated require-host-http11 attribute. /subsystem=undertow/server=default-server/http-listener=default:read-attribute(name=require-host-http11) returns undefined.",
+          "cli_operation": "/subsystem=undertow/server=default-server/http-listener=default:undefine-attribute(name=require-host-http11)"
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "MicroProfile Reactive Messaging requires WAR deployment; EJB JAR or EAR not supported",
+      "jira_keys": ["WFLY-20605"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "MP Reactive Messaging must be deployed from .war archives only. Deploying reactive messaging code from an EJB JAR or EAR module results in channels not being activated.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Restructure reactive messaging code into a WAR module",
+          "instruction": "If you have @Incoming/@Outgoing channel declarations inside an EJB JAR (ejb-jar.xml, @Stateless, @Singleton) or an EAR, move the relevant CDI beans and channel declarations into a WAR module. The WAR module should have CDI enabled (beans.xml present in WEB-INF). Package the WAR as a standalone deployment or as a web module inside the EAR — but the reactive messaging code itself must live in the WAR's classpath. Verify that the Kafka or AMQP connector is visible to the WAR classloader.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "MP Reactive Messaging channels connect to the broker on deployment. Messages produced by @Outgoing methods are received by @Incoming consumers. No 'channel not found' or 'connector not configured' errors appear in server.log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "CommonUnaryRequirement concept references deprecated in JGroups and clustering subsystems",
+      "jira_keys": ["WFLY-21041", "WFLY-21242", "WFLY-21299"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "Internal clustering extension API org.jboss.as.clustering.controller.CommonUnaryRequirement is being removed. Custom WildFly extensions or subsystems that reference this type must migrate to the replacement API before it is removed.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.clustering.controller.CommonUnaryRequirement", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace CommonUnaryRequirement usages with the replacement capability requirement API",
+          "instruction": "Search your custom WildFly extension or subsystem source code for any imports or references to org.jboss.as.clustering.controller.CommonUnaryRequirement. Replace each usage with the equivalent RuntimeCapability or CapabilityServiceSupport look-up as exposed by the WildFly Core extension API (org.jboss.as.controller.capability.RuntimeCapability). Consult the WildFly 39 subsystem source (specifically the jgroups and clustering subsystems in wildfly-clustering-*) for examples of the updated pattern. Recompile against the WildFly 39 server API artifacts.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom extension deploys without ClassNotFoundException or NoSuchFieldError for CommonUnaryRequirement. Clustering capabilities are resolved correctly at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "org.bouncycastle module targeted for removal; bundle as application dependency",
+      "jira_keys": ["WFLY-21033", "WFLY-16576", "WFLY-20999"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The org.bouncycastle server module was previously removed (WFLY-16576), restored (WFLY-20999), and is again targeted for removal (WFLY-21033). In WildFly 39 the module's long-term status is removal. Applications that depend on the bundled BouncyCastle module via jboss-deployment-structure.xml will break when the module is finally removed.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.bouncycastle:bcprov-jdk18on", "role": "replacement" },
+        { "kind": "dependency", "name": "org.bouncycastle:bcpkix-jdk18on", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Bundle BouncyCastle as an explicit application dependency instead of server module",
+          "instruction": "Search jboss-deployment-structure.xml files in your WAR, EAR, and EJB JAR modules for any <module name=\"org.bouncycastle*\"/> dependencies. Remove those module dependency entries. In pom.xml, add BouncyCastle as compile-scope (bundled) dependencies: add org.bouncycastle:bcprov-jdk18on and org.bouncycastle:bcpkix-jdk18on at the version required by your application (verify the latest stable release at https://mvnrepository.com/artifact/org.bouncycastle/bcprov-jdk18on). Package the BouncyCastle jars inside the WAR's WEB-INF/lib or EAR's lib directory. Retest any cryptographic operations (TLS, S/MIME, PGP, PKCS operations) that relied on BouncyCastle.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without 'Module org.bouncycastle not found' errors. Cryptographic operations using BouncyCastle APIs complete successfully. No JCE provider lookup failures for BouncyCastle algorithms.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    }
+  ]
+}

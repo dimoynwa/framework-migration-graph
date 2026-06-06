@@ -1,0 +1,1223 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "TypeScript 5.x support dropped — TypeScript 6.0 now required",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/versions",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 22 requires TypeScript 6.0 or higher; TypeScript 5.x is no longer supported by the Angular compiler. Any project that pins TypeScript below 6.0 will fail to compile. CI pipelines, IDEs, and bundler configurations must all be updated to use TypeScript 6.0 before upgrading Angular packages.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "typescript", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade typescript to >=6.0 in package.json",
+          "instruction": "Update the `typescript` entry in `package.json` `devDependencies` to `>=6.0.0`. Run `npm install` (or `yarn`/`pnpm`) to pull the new version. Then run `tsc --version` to confirm version 6.x is active.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`tsc --version` prints 6.x. `ng build` completes without TypeScript-version errors.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Review tsconfig.json for TypeScript 6.0 strict-mode changes",
+          "instruction": "Open all `tsconfig*.json` files in the project. TypeScript 6.0 tightens several type checks that were previously warnings. Run `npx tsc --noEmit` and address any new compilation errors introduced by TypeScript 6.0 stricter defaults (e.g. stricter narrowing, changed inference rules). Pay particular attention to template type-checking errors surfaced by the Angular compiler, as Angular 22 also enables `strictTemplates: true` via the `ng update` schematic if it is absent.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "`npx tsc --noEmit` exits with code 0 across all tsconfig targets.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Default changeDetection changed to OnPush for all components",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/discussions/66779",
+      "change_type": "breaking_change",
+      "reason_type": "performance",
+      "reason": "Components that do not explicitly declare a `changeDetection` strategy now default to `ChangeDetectionStrategy.OnPush` instead of the previous `Default` (eager) strategy. This is a wide-impact silent behavioral change: components that rely on automatic dirty-checking triggered by non-signal async events will stop updating after upgrade. The `ng update` schematic automatically adds `changeDetection: ChangeDetectionStrategy.Eager` to every component that lacks an explicit strategy, preserving existing behavior.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ChangeDetectionStrategy", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run ng update to apply Eager migration schematic",
+          "instruction": "Run `ng update @angular/core @angular/cli` in a clean Git branch BEFORE making any manual changes. The bundled migration schematic automatically adds `changeDetection: ChangeDetectionStrategy.Eager` to every `@Component` decorator that does not already declare a `changeDetection` property. This preserves previous `Default`-strategy behavior across the entire codebase. The schematic also renames any `ChangeDetectionStrategy.Default` usages to `ChangeDetectionStrategy.Eager`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `@Component` decorator in the codebase is missing a `changeDetection` property. `grep -r '@Component' --include='*.ts' -l` lists no files without `changeDetection`. All existing tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Audit async UI updates for OnPush correctness",
+          "instruction": "After running `ng update`, audit components that receive data from Observables or Promises not wired through Angular signals. Components now carrying `ChangeDetectionStrategy.Eager` will continue to work, but if you plan to progressively migrate to `OnPush`, ensure those components call `this.cdr.markForCheck()` after async updates, or migrate their data flow to Angular signals (`signal()`, `computed()`, `toSignal()`).",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All E2E and integration tests pass. Component views update correctly after async operations in a browser smoke test.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "ComponentFactoryResolver and ComponentFactory removed",
+      "jira_keys": [],
+      "source_url": "https://www.w3tutorials.net/blog/replace-deprecated-angular-componentfactoryresolver-componentfactory/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Both `ComponentFactoryResolver` and `ComponentFactory<T>` are removed from the Angular API surface in Angular 22. These were View Engine-era APIs superseded by the Ivy runtime in Angular 14+, which allows creating components directly from their class reference. Any code that injects `ComponentFactoryResolver` or holds a `ComponentFactory<T>` will fail to compile after upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ComponentFactoryResolver", "role": "removed" },
+        { "kind": "class", "name": "ComponentFactory", "role": "removed" },
+        { "kind": "class", "name": "ViewContainerRef", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove ComponentFactoryResolver injection from constructors",
+          "instruction": "Search the codebase for all injection sites of `ComponentFactoryResolver`: `grep -rn 'ComponentFactoryResolver' --include='*.ts'`. For each file found, remove the constructor parameter `private resolver: ComponentFactoryResolver` and its import from `@angular/core`. Remove any line that calls `this.resolver.resolveComponentFactory(SomeComponent)` and assigns the result to a `ComponentFactory<T>` typed variable.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`grep -rn 'ComponentFactoryResolver\\|ComponentFactory' --include='*.ts'` returns no matches. TypeScript compilation succeeds.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace factory-based createComponent with class-based createComponent",
+          "instruction": "Replace every call of the form `viewContainerRef.createComponent(factory)` (where `factory` is a `ComponentFactory<T>`) with `viewContainerRef.createComponent(ComponentClass)`, passing the component class directly. To set inputs, use `componentRef.setInput('inputName', value)` (available since Angular 14) instead of `componentRef.instance.inputName = value`, which is untyped. Inject `ViewContainerRef` directly where needed via `inject(ViewContainerRef)` or constructor injection.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All dynamic component creation paths compile and function correctly. No `ComponentFactory` references remain in the codebase. Unit tests for dynamic components pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "createNgModuleRef removed — replace with createNgModule",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`createNgModuleRef()` has been removed from `@angular/core`. The replacement API `createNgModule()` was introduced in Angular 14 and provides equivalent functionality. Any code still using the old function will fail to compile after upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "createNgModuleRef", "role": "removed" },
+        { "kind": "class", "name": "createNgModule", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace createNgModuleRef with createNgModule across codebase",
+          "instruction": "Run `grep -rn 'createNgModuleRef' --include='*.ts'` to find all usages. Replace every call `createNgModuleRef(module, parentInjector?)` with `createNgModule(module, parentInjector?)`. Update the import: remove `createNgModuleRef` and add `createNgModule` from `@angular/core`. The function signature and return type are identical.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -rn 'createNgModuleRef' --include='*.ts'` returns no matches. TypeScript compilation succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "ChangeDetectorRef.checkNoChanges removed",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `checkNoChanges()` method has been removed from `ChangeDetectorRef`. In unit tests it was commonly used to assert no pending changes exist; in production it was used as a diagnostic guard. Code referencing this method will fail to compile after upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ChangeDetectorRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove all ChangeDetectorRef.checkNoChanges() calls",
+          "instruction": "Run `grep -rn 'checkNoChanges' --include='*.ts'` to locate all usages. In unit tests, replace `fixture.detectChanges(); cdr.checkNoChanges();` patterns with `fixture.detectChanges()` alone — the assertion is no longer available. In production code, remove all calls to `cdr.checkNoChanges()`. If the intent was to detect expression-changed-after-checked errors in development, rely on Angular's built-in double-check in development mode and signal-based reactive patterns instead.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`grep -rn 'checkNoChanges' --include='*.ts'` returns no matches. All unit tests compile and pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "data-* attributes no longer bind component inputs or outputs",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Angular 22 no longer treats `data-*` prefixed attributes as input or output bindings. Templates using `data-myProp` to bind to a component input will silently stop working after upgrade — no compile-time error is raised, making this particularly easy to miss.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace data-* input/output bindings with standard Angular bindings",
+          "instruction": "Audit all Angular component and directive templates for attributes prefixed with `data-` that were being used as input bindings. Run `grep -rn 'data-' --include='*.html' --include='*.ts'` to find candidates. Replace `data-myProp=\"value\"` with `myProp=\"value\"` (static), `[myProp]=\"expression\"` (dynamic input binding), or `(myEvent)=\"handler($event)\"` (output binding) as appropriate. Confirm by running `ng build` and checking that the bound properties receive their values at runtime.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All component templates that previously used `data-*` bindings are updated to standard Angular binding syntax. Bound inputs receive correct values in browser and test environments.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Duplicate input/output bindings throw at compile time",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Angular 22's compiler now throws a compile-time error when the same binding name appears more than once in a template (e.g. both `[foo]` and `(foo)` on the same element, or `[foo]` twice). Previously this silently applied both bindings with undefined precedence.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Resolve duplicate binding errors reported by ng build",
+          "instruction": "Run `ng build` or `ng serve`. The Angular compiler will report all duplicate binding errors with file name and line number. For each error, inspect the template: if both `[foo]` and `[(foo)]` are present, remove the redundant one-way binding and keep only the two-way `[(foo)]`. If the same input appears twice with different values, determine which value is correct and remove the duplicate. Resolve naming conflicts between inputs and outputs that share the same identifier.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without any duplicate-binding compilation errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "in operator throws in Angular template expressions",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Using the JavaScript `in` operator inside Angular template expressions (e.g. `'key' in obj`) now causes a compile-time error in Angular 22. The template compiler does not support this operator, and relying on it previously produced undefined behavior.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace in operator in templates with explicit property access helpers",
+          "instruction": "Run `grep -rn \" in \" --include='*.html'` to locate template expressions that use the `in` operator. For each occurrence, extract the logic into a component method. Example: replace `*ngIf=\"'key' in obj\"` with `*ngIf=\"hasKey(obj, 'key')\"` and add `hasKey(obj: Record<string, unknown>, key: string): boolean { return Object.prototype.hasOwnProperty.call(obj, key); }` to the component class. Alternatively, use the `?.` optional chain or an explicit `!== undefined` check.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without `in`-operator template errors. All affected template conditions render correctly in unit and E2E tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Multiple matching selectors throw NG8023 at compile time",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "When two or more directives or components match the same element selector, Angular 22 throws diagnostic NG8023 at compile time rather than silently applying both. This prevents unpredictable runtime behavior caused by ambiguous directive application order.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Resolve NG8023 ambiguous selector conflicts reported by compiler",
+          "instruction": "Run `ng build` and collect all NG8023 diagnostic errors. For each conflict, identify the two or more directives/components with overlapping selectors. Resolution options: (1) narrow the selector of one directive to be more specific (e.g. add an attribute qualifier `[myDir][scope='admin']`); (2) remove one directive from the NgModule `declarations` or standalone component `imports` where it is not needed; (3) if intentional co-application is required, refactor into a single directive that combines both behaviors. Update `NgModule` declarations and standalone `imports` arrays accordingly.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without any NG8023 diagnostic errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Hammer.js gesture integration removed from @angular/platform-browser",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/platform-browser/HammerGestureConfig",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "All Hammer.js gesture integration code — `HammerGestureConfig`, `HammerModule`, and touch event bindings — is removed from `@angular/platform-browser` in Angular 22. Applications that rely on swipe, pinch, rotate, or other Hammer.js gestures must provide their own gesture handling solution.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "HammerGestureConfig", "role": "removed" },
+        { "kind": "class", "name": "HammerModule", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove HammerModule and HammerGestureConfig from app",
+          "instruction": "Run `grep -rn 'HammerModule\\|HammerGestureConfig\\|HAMMER_GESTURE_CONFIG' --include='*.ts'`. Remove all imports and usages of `HammerModule` from NgModule imports arrays and standalone component imports. Remove any `HammerGestureConfig` provider overrides. Remove the `hammerjs` npm package if it exists: `npm uninstall hammerjs @types/hammerjs`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No references to `HammerModule`, `HammerGestureConfig`, or `hammerjs` remain in TypeScript source files. `ng build` succeeds.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace Hammer.js gesture events with Pointer Events API or alternative library",
+          "instruction": "For each gesture event that was previously handled via Hammer.js (e.g. `(swipe)`, `(pinch)`, `(rotate)`): (1) Use the native Pointer Events API (`pointerdown`, `pointermove`, `pointerup`) directly on the host element via `@HostListener` or Angular event bindings, implementing gesture detection logic manually; or (2) Install a dedicated gesture library (e.g. `@use-gesture/vanilla` or `allotment`) and wire it to your component. Update all template event bindings from Hammer.js synthetic event names to the new event names.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All touch gestures (swipe, pinch, etc.) function correctly in a browser on a touch device or emulated touch in Chrome DevTools.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "FetchBackend is now the default HttpBackend",
+      "jira_keys": [],
+      "source_url": "https://pawan-kumawat.medium.com/angular-22-fetch-is-now-the-default-2bdb5c36e6d6",
+      "change_type": "breaking_change",
+      "reason_type": "performance",
+      "reason": "Angular 22 switches `HttpClient`'s default backend from `XhrBackend` to `FetchBackend`. The Fetch API does not support upload progress events, so applications using `reportProgress: true` for file upload tracking will silently stop receiving `UploadProgress` events. An `ng update` migration schematic is available to add `withXhr()` where needed.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "FetchBackend", "role": "replacement" },
+        { "kind": "class", "name": "XhrBackend", "role": "mentioned" },
+        { "kind": "class", "name": "withXhr", "role": "co-required" },
+        { "kind": "class", "name": "withFetch", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove withFetch() from provideHttpClient — it is now the default",
+          "instruction": "Search for `withFetch()` in all `provideHttpClient(...)` calls: `grep -rn 'withFetch' --include='*.ts'`. Remove `withFetch()` from each `provideHttpClient(withFetch(), ...)` call — Fetch is now the default and `withFetch()` is deprecated. This step is safe to apply to all files.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `withFetch()` call remains in the codebase. `ng build` succeeds.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Add withXhr() to provideHttpClient where upload progress is used",
+          "instruction": "Search for all usages of `reportProgress: true` in `HttpRequest` options: `grep -rn 'reportProgress' --include='*.ts'`. For each module or application config that contains HTTP requests with upload progress, update `provideHttpClient(...)` to `provideHttpClient(withXhr())` in the corresponding `ApplicationConfig` or `NgModule` providers. Also migrate `reportProgress: true` to `reportUploadProgress: true` or `reportDownloadProgress: true` to explicitly target the desired event type (the generic `reportProgress` option is now deprecated).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Upload progress events (`HttpEventType.UploadProgress`) are received correctly during file upload. `ng build` succeeds with no deprecation errors for `reportProgress`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "min/max validators reject string arguments",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The built-in Angular `Validators.min()` and `Validators.max()` no longer accept string values as arguments. Passing a string (e.g. from a component property typed as `string`) previously coerced the value silently; it now causes a TypeScript compilation error.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "Validators", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Convert string arguments of Validators.min/max to number",
+          "instruction": "Run `grep -rn 'Validators\\.min\\|Validators\\.max' --include='*.ts'` to find all usages. For each call site, verify the argument type. If the argument is a string (e.g. from `@Input() minValue: string`), wrap it with `Number(...)`: `Validators.min(Number(this.minValue))`. If the value comes from a form control value of type `string`, parse it before passing: `Validators.min(parseFloat(rawValue))`. Update component `@Input` types from `string` to `number` where appropriate.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds with no type errors on `Validators.min`/`Validators.max` call sites. Form validation behaves correctly with numeric boundary values.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "ApplicationRef.bootstrap requires non-nullable element argument",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The second argument of `ApplicationRef.bootstrap()` no longer accepts `any` or nullable types. Projects that pass a potentially-null element reference will receive a TypeScript compilation error after upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ApplicationRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Add null guard before ApplicationRef.bootstrap() element argument",
+          "instruction": "Search for all calls to `appRef.bootstrap(` or `ApplicationRef.bootstrap(`: `grep -rn '\\.bootstrap(' --include='*.ts'`. For each call that passes an element reference as the second argument, ensure the reference is typed as non-nullable. Add an explicit null guard: `const el = document.getElementById('app-root'); if (!el) throw new Error('Root element not found'); appRef.bootstrap(AppComponent, el);`. If the element is obtained via `document.querySelector`, use the non-null assertion operator only if you are certain the element always exists.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds with no nullability errors on `ApplicationRef.bootstrap()` call sites. Application bootstraps correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "AnimationCallbackEvent.animationComplete signature changed",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `animationComplete` property of `AnimationCallbackEvent` has a new type signature in Angular 22. Code that accesses, types, or subscribes to `animationComplete` on animation callback events must be updated to match the new interface signature. TypeScript will flag mismatched usages at compile time.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "AnimationCallbackEvent", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update AnimationCallbackEvent.animationComplete usages to new signature",
+          "instruction": "Run `grep -rn 'animationComplete' --include='*.ts'`. For each usage, check the Angular 22 API reference at `https://angular.dev/api/animations/AnimationCallbackEvent` for the updated `animationComplete` property type. Update any TypeScript type annotations, destructuring, or method call chains that reference `animationComplete` to match the new interface. Pay attention to places where the value is passed to typed parameters or stored in typed variables.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds with no errors on `animationComplete` usages. Animation lifecycle callbacks fire and are handled correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Router paramsInheritanceStrategy defaults to 'always'",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/ExtraOptions",
+      "change_type": "breaking_change",
+      "reason_type": "behavioral",
+      "reason": "The Router's `paramsInheritanceStrategy` now defaults to `'always'`, meaning child routes automatically inherit all parent route parameters. The previous default was `'emptyOnly'`, where inheritance only occurred when child routes had no own params. Applications with route hierarchies that relied on isolated param scopes may silently receive unexpected parameter values in child components.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "paramsInheritanceStrategy", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Restore emptyOnly paramsInheritanceStrategy if child-route isolation is needed",
+          "instruction": "If your application depends on child routes NOT inheriting parent-route parameters (i.e. the previous `'emptyOnly'` behavior), explicitly configure the strategy. In your `ApplicationConfig`, update the `provideRouter` call: `provideRouter(routes, withRouterConfig({ paramsInheritanceStrategy: 'emptyOnly' }))`. In NgModule-based apps, add `paramsInheritanceStrategy: 'emptyOnly'` to the `RouterModule.forRoot(routes, { paramsInheritanceStrategy: 'emptyOnly' })` options object. Alternatively, audit each child route component to ensure it handles unexpected inherited params gracefully.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Child route components receive only the parameters they expect. Router integration tests confirm correct param values at each route level.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "currentSnapshot required in CanMatchFn and CanMatch.canMatch()",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/CanMatchFn",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The `currentSnapshot` parameter (third argument of type `PartialMatchRouteSnapshot`) is now required in both `CanMatchFn` functional guards and `CanMatch.canMatch()` class implementations. Existing implementations without this parameter will fail TypeScript compilation. The `ng update` schematic applies this migration automatically.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "CanMatchFn", "role": "mentioned" },
+        { "kind": "class", "name": "CanMatch", "role": "mentioned" },
+        { "kind": "class", "name": "PartialMatchRouteSnapshot", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run ng update to add currentSnapshot parameter to CanMatchFn guards",
+          "instruction": "Run `ng update @angular/core @angular/cli`. The bundled migration schematic automatically adds the `currentSnapshot: PartialMatchRouteSnapshot` third parameter to all `CanMatchFn` functions and `CanMatch.canMatch()` implementations in the project. If you prefer to apply manually: search `grep -rn 'CanMatchFn\\|canMatch' --include='*.ts'` and add `currentSnapshot: PartialMatchRouteSnapshot` as the third parameter to each function signature and method signature. Import `PartialMatchRouteSnapshot` from `@angular/router`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds. No `CanMatchFn` or `canMatch` signature is missing the third `currentSnapshot` parameter.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "provideRoutes() removed — replace with provideRouter or ROUTES token",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/provideRoutes",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`provideRoutes(routes)` has been deleted from `@angular/router`. It should be replaced with `provideRouter(routes)` for standard use cases, or the `ROUTES` injection token for multi-provider lazy-loaded route registration.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideRoutes", "role": "removed" },
+        { "kind": "class", "name": "provideRouter", "role": "replacement" },
+        { "kind": "class", "name": "ROUTES", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace provideRoutes() with provideRouter() or ROUTES token",
+          "instruction": "Run `grep -rn 'provideRoutes' --include='*.ts'`. For each occurrence: (1) If this is the root application routes setup, replace `provideRoutes(appRoutes)` with `provideRouter(appRoutes)` and import `provideRouter` from `@angular/router`. (2) If this is a lazy-loaded feature module or a multi-provider token scenario where you need to add routes without calling `provideRouter` again, replace with `{ provide: ROUTES, useValue: featureRoutes, multi: true }` and import `ROUTES` from `@angular/router`. Remove the `provideRoutes` import from all files.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`grep -rn 'provideRoutes' --include='*.ts'` returns no matches. Application routing works correctly: all routes resolve and navigate as expected.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Unused host component styles removed from DOM on destroy",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Angular 22 removes component styles from the DOM when the associated host element is destroyed. Applications that relied on Angular component styles persisting beyond the component's lifetime — or styles unintentionally leaking to non-Angular DOM elements — may appear unstyled after upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit component styles for unintentional cross-boundary style leakage",
+          "instruction": "Identify components that are dynamically created and destroyed (modals, tooltips, overlays, dynamic routes). After upgrade, visually inspect pages where these components previously existed after being destroyed to check for styling regressions. For component styles that intentionally target elements outside the component's host (global styles), move them to a globally-scoped stylesheet or explicitly set `encapsulation: ViewEncapsulation.None` on the component decorator. Avoid relying on Angular's emulated encapsulation for cross-boundary styles.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All pages render correctly after dynamic component destruction. No unstyled elements appear where Angular component styles were previously leaking.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Shadow CSS polyfills and ::shadow, /deep/, >>> legacy selectors removed",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Deprecated shadow DOM encapsulation polyfills and the legacy deep-selector syntax (`::shadow`, `/deep/`, `>>>`, `::ng-deep`) are fully removed in Angular 22. Applications still using these selectors for style penetration will lose those styles after upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ::ng-deep and /deep/ with component-scoped or global styles",
+          "instruction": "Run `grep -rn '::ng-deep\\|/deep/\\|::shadow\\|>>>' --include='*.scss' --include='*.css' --include='*.less' --include='*.html' --include='*.ts'` to find all usages. For each: (1) If the style is intended to be global, move it to `styles.scss` / `styles.css` (the global stylesheet) and remove the deep selector prefix. (2) If the style must target a child component's internals, coordinate with the child component's author to expose a CSS custom property (`--my-color`) and use that from the parent. (3) If the component is under your control, set `encapsulation: ViewEncapsulation.None` on it so its styles are globally scoped by design.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `::ng-deep`, `/deep/`, `::shadow`, or `>>>` selectors remain in any stylesheet or template. Application renders with correct styles.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "TitleStrategy.getResolvedTitleForRoute return type changed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/TitleStrategy",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The return type of `TitleStrategy.getResolvedTitleForRoute()` was previously typed as `any`; it is now correctly typed as `string | undefined`. Custom `TitleStrategy` implementations that return the old type or assign the return value to a variable typed as `any` will require TypeScript updates to compile.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "TitleStrategy", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update TitleStrategy.getResolvedTitleForRoute implementations to return string | undefined",
+          "instruction": "Run `grep -rn 'getResolvedTitleForRoute' --include='*.ts'`. For each custom `TitleStrategy` subclass, update the override method signature to `override getResolvedTitleForRoute(snapshot: ActivatedRouteSnapshot): string | undefined`. Update any calling code that assigns or passes the return value to ensure it handles both `string` and `undefined`. Remove any casts to `any` around this method's return value.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds with no type errors on `getResolvedTitleForRoute` implementations or call sites. Route titles render correctly in the browser.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SVG animation attribute XSS hardening (CVE-2025-66412)",
+      "jira_keys": ["67797"],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-v4hv-rgfq-gp49",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular 22 registers SVG animation attributes (`attributeName`, `href`, `xlink:href` on `<animate>`, `<set>`, `<animateTransform>`) in the URL security context to block XSS via SVG animation injection (CVE-2025-66412). Dynamic bindings to these attributes now pass through the DomSanitizer and may have their values stripped if they are not marked as trusted. Applications using legitimate dynamic SVG animations must wrap values with `bypassSecurityTrustResourceUrl`.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit templates for dynamic bindings to SVG animation attributes",
+          "instruction": "Search templates for dynamic bindings targeting SVG animation attributes: `grep -rn '\\[attributeName\\]\\|\\[href\\]\\|\\[xlink:href\\]' --include='*.html' --include='*.ts'`. Identify any such bindings that exist on `<animate>`, `<set>`, `<animateMotion>`, or `<animateTransform>` elements. After upgrade, these values will be sanitized. If the bound value is a legitimate non-`javascript:` URL or attribute name, wrap it using `this.sanitizer.bypassSecurityTrustResourceUrl(value)` where `sanitizer: DomSanitizer` is injected via `inject(DomSanitizer)`. Only use `bypass*` APIs for values you fully control.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SVG animations with dynamic attributes render correctly after upgrade. No legitimate SVG animation values are silently stripped. Security scanner shows no `javascript:` URLs injectable via SVG animation attributes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "i18n translation security hardening — ICU, iframe, and URI attribute restrictions",
+      "jira_keys": ["68925", "68868"],
+      "source_url": "https://www.herodevs.com/blog-posts/cve-2026-27970-cross-site-scripting-xss-in-angular-i18n-icu-messages",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Multiple security fixes in Angular 22 tighten i18n template security: unknown HTML attributes in translated ICU content are now dropped; creation of `src`, `href`, `action`, and other sensitive URI attributes from ICU messages is blocked; `<iframe src>` bindings inside i18n translations are disallowed at compile time; and security-sensitive attributes in i18n bindings are validated at compile time. Translated content relying on these patterns will silently stop rendering or will fail compilation.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit i18n translation files for ICU blocks with custom or URI attributes",
+          "instruction": "Review all translation files (`.xlf`, `.xliff`, `.xmb`, `.xtb`, `.json`) and their source templates for ICU message blocks that contain: (1) non-standard HTML attributes on translated elements; (2) `href`, `src`, or `action` attributes generated from ICU expressions; (3) `<iframe src>` bindings within i18n-marked regions. Refactor these patterns to move URL values outside of ICU message boundaries and bind them directly from component properties. For iframe content, use a separate non-i18n binding for the `src` attribute: `<iframe [src]=\"sanitizedUrl\" i18n-title=\"...\">`. Run `ng build` to surface compile-time i18n security errors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without i18n security compile-time errors. All i18n-translated pages render correctly in all supported locales. No URI attributes are missing values in translated content.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "HttpClient SSRF and URL spoofing hardening",
+      "jira_keys": [],
+      "source_url": "https://www.herodevs.com/blog-posts/new-angular-vulnerabilities-expose-xss-xsrf-token-leakage-and-ssr-data-leaks-across-multiple-versions",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Multiple patches hardened the Angular HTTP client against SSRF: backslash URL bypasses, protocol-relative URL leakage, and multiple leading slashes are now blocked or normalized. Applications that pass user-controlled URLs to `HttpClient` may find previously-accepted inputs are now rejected by the sanitizer.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "HttpClient", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit URL construction logic passed to HttpClient for user-controlled inputs",
+          "instruction": "Identify all places where user-supplied or server-supplied URL values are passed to `HttpClient.get()`, `.post()`, `.put()`, `.delete()`, or `HttpRequest`. For each: (1) Validate that the URL is an absolute URL with an expected protocol (`https:`). (2) Reject or normalize URLs beginning with `//`, `\\`, or multiple leading slashes before passing to `HttpClient`. (3) Use the `URL` constructor to parse and validate: `new URL(userInput, window.location.origin)` and compare `origin` to your expected API origin. Add server-side input validation as a defense-in-depth measure.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HTTP requests with `//`, `\\`, or multiple leading slashes in the URL are rejected or normalized before reaching `HttpClient`. No SSRF-style requests escape to unintended hosts in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SSR transfer cache excludes credential-bearing requests by default",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/platform-browser/provideClientHydration",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "The SSR transfer cache now automatically excludes requests made with `withCredentials: true` or requests containing Cookie headers. This prevents accidentally caching and transferring authenticated API responses to the client bundle. SSR setups that relied on transfer-caching authenticated API responses will now re-fetch those responses on the client, potentially causing a flash of loading state or additional server round-trips.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideClientHydration", "role": "mentioned" },
+        { "kind": "class", "name": "withHttpTransferCacheOptions", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure transferCache options for authenticated requests if needed",
+          "instruction": "If your SSR application previously relied on transfer-caching authenticated API responses and you need to re-enable that behavior (with appropriate security review), configure `withHttpTransferCacheOptions` in `provideClientHydration()`: `provideClientHydration(withHttpTransferCacheOptions({ includeRequestsWithAuthHeaders: true }))`. Only enable this for endpoints where transferring server-fetched authenticated data to the client is intentional and the security implications (exposing server-side credentials in the transferred cache) are understood and accepted.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR pages that previously showed a loading flash now render correctly on first paint. No authenticated response data is unintentionally exposed in the page's transfer state unless explicitly configured.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "ng update migration schematics required — run before all manual changes",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Angular 22's `ng update @angular/core @angular/cli` applies several mandatory automated code transformations that must be run before manual migration work begins. These include adding `changeDetection: ChangeDetectionStrategy.Eager` to all components, updating `CanMatchFn` signatures, enabling `strictTemplates`, migrating `model()` / `output()` call patterns, and configuring `provideHttpClient` with `withXhr()` where needed.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run ng update @angular/core @angular/cli in clean branch",
+          "instruction": "Create a clean Git branch before starting the upgrade: `git checkout -b upgrade/angular-22`. Then run `ng update @angular/core @angular/cli` to upgrade Angular packages and apply all bundled migration schematics. The schematics will: (1) add `changeDetection: ChangeDetectionStrategy.Eager` to components missing an explicit strategy; (2) add the required `currentSnapshot` third parameter to all `CanMatchFn` guards; (3) set `strictTemplates: true` in `tsconfig.json` if absent; (4) migrate `model()` and `output()` call patterns; (5) disable `nullishCoalescingNotNullable` and `optionalChainNotNullable` diagnostics in `tsconfig.json` to suppress false positives; (6) add `withXhr()` to `provideHttpClient` calls where upload progress is detected. Review all schematic changes with `git diff` before committing.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "`ng build` succeeds after `ng update`. `git diff` shows expected schematic changes. No unrelated files were modified by the schematics.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "provideHttpClient XHR upload progress opt-in via withXhr()",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/http/setup",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Since `FetchBackend` is now the default and does not support upload progress events, applications using `reportProgress: true` for file uploads must explicitly opt in to the XHR backend by adding `withXhr()` to `provideHttpClient(...)`. Additionally, the `reportProgress` option is deprecated; its replacement is `reportUploadProgress: true` and/or `reportDownloadProgress: true`.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "withXhr", "role": "co-required" },
+        { "kind": "property", "name": "reportProgress", "role": "removed" },
+        { "kind": "property", "name": "reportUploadProgress", "role": "replacement" },
+        { "kind": "property", "name": "reportDownloadProgress", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add withXhr() to provideHttpClient in ApplicationConfig",
+          "instruction": "In `app.config.ts` (or wherever `provideHttpClient(...)` is declared for the root application), add `withXhr()`: change `provideHttpClient()` to `provideHttpClient(withXhr())`. Import `withXhr` from `@angular/common/http`. If there are feature modules or lazy-loaded providers that also configure `HttpClient`, update those as well.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "File upload with progress tracking receives `HttpEventType.UploadProgress` events correctly in the browser. `ng build` succeeds.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "rename",
+          "summary": "Migrate reportProgress to reportUploadProgress / reportDownloadProgress",
+          "instruction": "Run `grep -rn 'reportProgress' --include='*.ts'`. For each `HttpRequest` or request options object containing `reportProgress: true`: if the intent is to track upload progress, replace with `reportUploadProgress: true`; if the intent is to track download progress, replace with `reportDownloadProgress: true`; if both were tracked, add both properties. Remove `reportProgress: true` entirely from all request configs.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [0],
+          "verification": "`grep -rn 'reportProgress:' --include='*.ts'` returns no matches. Upload and download progress events are received as `HttpEventType.UploadProgress` and `HttpEventType.DownloadProgress` respectively.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "nullishCoalescingNotNullable / optionalChainNotNullable diagnostics now trigger",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "The improved Angular 22 template type checker enables `nullishCoalescingNotNullable` and `optionalChainNotNullable` diagnostics. Templates that use `??` or `?.` on types the compiler can now prove are non-nullable will produce new compile-time errors. The `ng update` schematic disables these diagnostics in `tsconfig.json` initially, allowing incremental remediation.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review and fix nullishCoalescingNotNullable template diagnostics",
+          "instruction": "After running `ng update`, the schematics will have added `nullishCoalescingNotNullable: false` and `optionalChainNotNullable: false` to the `angularCompilerOptions` in `tsconfig.json` to suppress these diagnostics initially. To address them incrementally: re-enable the diagnostics by setting them to `true`, run `ng build`, and for each reported diagnostic: (1) if the `??` or `?.` is genuinely on a non-nullable type, remove the operator; (2) if the type is incorrectly inferred as non-nullable, adjust the TypeScript type declaration to include `| null` or `| undefined`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "With `nullishCoalescingNotNullable: true` and `optionalChainNotNullable: true` in `tsconfig.json`, `ng build` completes without any related diagnostics.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "SignalFormsConfig.classes shape changed",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The shape of `SignalFormsConfig.classes` changed across Angular 21.x patch releases. Applications using signal forms with custom class configurations must verify their class config object matches the latest `SignalFormsConfig` interface or risk runtime errors from mismatched configuration.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "SignalFormsConfig", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify SignalFormsConfig.classes against updated interface shape",
+          "instruction": "Run `grep -rn 'SignalFormsConfig' --include='*.ts'` to find all usages. For each configuration object that sets `classes`, check the Angular 22 type definition for `SignalFormsConfig` to confirm the expected shape. Adjust the configuration object to match the new interface. Run TypeScript compilation to catch shape mismatches statically.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation succeeds on all `SignalFormsConfig.classes` configurations. Signal form fields render with correct CSS classes in the browser.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "[field] renamed to [formField] on signal form field directive",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The signal forms field directive binding was renamed from `[field]` to `[formField]` in Angular 21.0.8. Templates still using `[field]=\"...\"` on signal form field elements will silently stop binding the field after upgrading through the 21.0.8 milestone.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename [field] to [formField] in signal form templates",
+          "instruction": "Run `grep -rn '\\[field\\]=' --include='*.html' --include='*.ts'` to find all usages of the old signal form field binding. Replace every occurrence of `[field]=\"expression\"` with `[formField]=\"expression\"` in affected templates. This is a global rename with no logic change required.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `[field]=` binding remains on signal form field elements. Signal forms render and validate correctly in the browser.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Leave animations now extend to nested elements beyond removed host",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Leave animations in Angular 22 are no longer scoped to the element being removed. Nested elements can now also animate on leave. Animation tests or visual designs that assumed leave animations were isolated to the removing element may observe unintended cascading animations after upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review leave animation specs and visual tests for cascade side-effects",
+          "instruction": "Identify all components that use Angular `leave` or `:leave` animation triggers. Run animation integration tests and visual regression tests. If child elements are unexpectedly animating on leave, scope the animation trigger more precisely using `:enter` / `:leave` aliases with explicit query selectors, or wrap the animating children in a separate component to isolate their lifecycle.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All leave animations match the intended design. No unintended nested elements animate during parent element removal. Animation unit tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Incremental hydration enabled by default in Angular SSR",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/incremental-hydration",
+      "change_type": "behavior_change",
+      "reason_type": "performance",
+      "reason": "Incremental (deferred) hydration is now the default behavior in Angular SSR. Components previously hydrated eagerly on page load may now hydrate progressively on scroll or user interaction. SSR integration tests and page-load assertions that expected all components to be interactive immediately after render may fail.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideClientHydration", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify SSR hydration behavior and update integration tests",
+          "instruction": "Run SSR integration tests that interact with server-rendered pages. Identify any test or behavior that assumes all components are interactive immediately after the first paint. For `@defer` blocks that previously required explicit `withIncrementalHydration()`, verify they now hydrate at the expected triggers. If you need specific components to hydrate eagerly (e.g. above-the-fold interactive elements), add `hydrate on immediate` to those `@defer` blocks. Update tests that use `waitForAsync` or `fakeAsync` to account for deferred hydration timing.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All SSR integration tests pass. Interactive components above the fold hydrate immediately. Components below the fold hydrate on scroll as expected.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "withFetch() deprecated — FetchBackend is now default",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/http/setup",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`withFetch()` in `provideHttpClient(withFetch())` is deprecated because `FetchBackend` is now the default backend. The call is safe to remove and doing so reduces unnecessary configuration noise.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "withFetch", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove withFetch() from all provideHttpClient calls",
+          "instruction": "Run `grep -rn 'withFetch' --include='*.ts'` and remove `withFetch()` from every `provideHttpClient(withFetch(), ...)` call. If `withFetch()` was the only argument, change to `provideHttpClient()`. Remove the `withFetch` import from `@angular/common/http`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -rn 'withFetch' --include='*.ts'` returns no matches. `ng build` succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "reportProgress deprecated — use reportUploadProgress and reportDownloadProgress",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `reportProgress` option on `HttpRequest` and request option objects is deprecated. The replacement is the more explicit `reportUploadProgress: true` and/or `reportDownloadProgress: true` to independently track upload vs. download progress.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "reportProgress", "role": "removed" },
+        { "kind": "property", "name": "reportUploadProgress", "role": "replacement" },
+        { "kind": "property", "name": "reportDownloadProgress", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace reportProgress with reportUploadProgress and/or reportDownloadProgress",
+          "instruction": "Run `grep -rn 'reportProgress' --include='*.ts'`. For each HttpRequest options object with `reportProgress: true`, replace with `reportUploadProgress: true` if tracking file uploads, `reportDownloadProgress: true` if tracking downloads, or both if tracking both. Remove the deprecated `reportProgress` property.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -rn 'reportProgress:' --include='*.ts'` returns no matches. Progress event handling works correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "getAngularLib/setAngularLib removed from @angular/upgrade",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`getAngularLib()` and `setAngularLib()` are fully removed from `@angular/upgrade`. They must be replaced with `getAngularJSGlobal()` and `setAngularJSGlobal()` from the same package.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "getAngularLib", "role": "removed" },
+        { "kind": "class", "name": "setAngularLib", "role": "removed" },
+        { "kind": "class", "name": "getAngularJSGlobal", "role": "replacement" },
+        { "kind": "class", "name": "setAngularJSGlobal", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace getAngularLib/setAngularLib with getAngularJSGlobal/setAngularJSGlobal",
+          "instruction": "Run `grep -rn 'getAngularLib\\|setAngularLib' --include='*.ts'`. Replace every `getAngularLib()` call with `getAngularJSGlobal()` and every `setAngularLib(lib)` call with `setAngularJSGlobal(lib)`. Update the imports from `@angular/upgrade` to use the new function names. The function signatures are identical.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -rn 'getAngularLib\\|setAngularLib' --include='*.ts'` returns no matches. AngularJS hybrid bootstrapping works correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "VERSION from @angular/upgrade deprecated — use @angular/upgrade/static",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `VERSION` constant exported from `@angular/upgrade` is deprecated. The canonical export is from `@angular/upgrade/static`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "@angular/upgrade", "role": "mentioned" },
+        { "kind": "dependency", "name": "@angular/upgrade/static", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Update VERSION import from @angular/upgrade to @angular/upgrade/static",
+          "instruction": "Run `grep -rn \"from '@angular/upgrade'\" --include='*.ts'` to find files importing `VERSION` from the deprecated path. Change `import { VERSION } from '@angular/upgrade'` to `import { VERSION } from '@angular/upgrade/static'`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No import of `VERSION` from `@angular/upgrade` (non-`/static`) remains. TypeScript compilation succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "TypeScript 6.0 and Node.js 26 officially supported",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/versions",
+      "change_type": "informational",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 22 officially supports TypeScript 6.0 and Node.js 26.0.0. Teams can now use TypeScript 6.0 language features in Angular templates and application code.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "typescript", "role": "mentioned" },
+        { "kind": "dependency", "name": "nodejs", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "@Service decorator introduced as simpler @Injectable alternative",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new `@Service` decorator is available as a concise alternative to `@Injectable({ providedIn: 'root' })` for singleton services. It reduces boilerplate while expressing the same intent.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "@Service", "role": "replacement" },
+        { "kind": "class", "name": "@Injectable", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Signal Forms APIs graduated to stable public API",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Signal Forms (previously developer preview) are now part of Angular's stable public API. Stable APIs include `FormRoot`, `FormField`, `FieldState`, `SignalFormControl`, `validateAsync`, `validateHttp`, and `reloadValidation`. These are now safe to adopt in production code.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "FormRoot", "role": "mentioned" },
+        { "kind": "class", "name": "FormField", "role": "mentioned" },
+        { "kind": "class", "name": "SignalFormControl", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Arrow functions supported in Angular template expressions",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 22 templates now support arrow function syntax in expressions, removing the need to define helper methods on the component class for simple inline callbacks in `@for`, event handlers, and other bindings.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "@defer idle timeout and customization added",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/incremental-hydration",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`@defer` blocks now support idle timeout configuration and optional timeout for idle triggers, enabling more fine-grained control over deferred loading in resource-constrained environments.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Multiple @switch case matching with @case(a, b, c) syntax",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A single `@case` block can now match multiple values using `@case(a, b, c)` syntax, eliminating the need for fallthrough workarounds in Angular control flow templates.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "injectAsync helper for asynchronous dependency injection",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new `injectAsync()` helper function allows asynchronous injection of dependencies (e.g. lazily loaded tokens) within an injection context. Useful for deferring expensive initialization to first use.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "injectAsync", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "provideWebMcpTools and AI debugging tools (experimental)",
+      "jira_keys": [],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 22 ships experimental `provideWebMcpTools()` and `declareWebMcpTool` primitives for exposing Angular DI graph information to AI-assisted debugging workflows. These are entirely optional and have no migration impact.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideWebMcpTools", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

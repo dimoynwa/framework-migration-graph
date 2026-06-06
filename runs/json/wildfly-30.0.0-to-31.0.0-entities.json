@@ -1,0 +1,651 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Removal of sun.jdk Implicit Module Dependency",
+      "jira_keys": ["WFLY-17842"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 no longer automatically adds the sun.jdk module to deployment class paths. Applications that relied on this implicit dependency to access internal JDK APIs will fail to deploy with a ClassNotFoundException or NoClassDefFoundError unless an explicit module dependency is declared. Deployments must be audited and updated to either declare the explicit module dependency or migrate to supported public JDK APIs.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "sun.jdk", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit codebase for sun.jdk or internal JDK API usage",
+          "instruction": "Search all source files for imports from packages such as sun.*, com.sun.*, and jdk.internal.*. Run: grep -r --include='*.java' -E 'import (sun\\.|com\\.sun\\.|jdk\\.internal\\.)' src/. List any classes that use these APIs — they relied on the implicit sun.jdk module.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The grep produces a complete list of files using internal JDK APIs. If the list is empty, no action is required and the deployment should boot normally.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Declare explicit sun.jdk dependency in jboss-deployment-structure.xml",
+          "instruction": "If you cannot migrate away from internal JDK APIs, add an explicit module dependency in your deployment's META-INF/jboss-deployment-structure.xml: <jboss-deployment-structure xmlns=\"urn:jboss:deployment-structure:1.2\"><deployment><dependencies><module name=\"sun.jdk\" export=\"false\"/></dependencies></deployment></jboss-deployment-structure>. Alternatively, add 'Dependencies: sun.jdk' to your META-INF/MANIFEST.MF. The preferred long-term fix is to migrate to supported public JDK APIs from java.* or jakarta.* packages and remove this dependency.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Deployment starts without ClassNotFoundException or NoClassDefFoundError referencing sun.* or com.sun.* classes. Server log shows no deployment failure related to missing modules.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ee"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Removal of Legacy Xerces; Migrate to JDK JAXP",
+      "jira_keys": ["WFLY-16168", "WFLY-18047", "WFLY-18311", "WFLY-18644"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 removes the legacy Apache Xerces modules (org.apache.xerces, org.apache.xalan) from its distribution. RESTEasy, WebServices, and Hibernate Validator have been migrated to use the standard JDK JAXP implementation (JPMS java.xml module). Any deployment or server configuration that explicitly references or depends on the JBoss-bundled Xerces implementation will fail at startup or deployment time.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.xerces", "role": "removed" },
+        { "kind": "dependency", "name": "org.apache.xalan", "role": "removed" },
+        { "kind": "dependency", "name": "java.xml", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit deployments for org.apache.xerces or org.apache.xalan references",
+          "instruction": "Search jboss-deployment-structure.xml, MANIFEST.MF, and all Java sources for explicit references to org.apache.xerces or org.apache.xalan. Run: grep -r --include='*.xml' --include='*.MF' --include='*.java' -E 'org\\.apache\\.(xerces|xalan)' .. Also check your pom.xml or build.gradle for any Xerces/Xalan compile-scope dependencies that are not excluded.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No references to org.apache.xerces or org.apache.xalan remain in deployment descriptors, manifest files, or Java sources.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace Xerces/Xalan API usage with standard JAXP javax.xml APIs",
+          "instruction": "Replace any direct use of com.sun.org.apache.xerces.*, org.apache.xerces.*, or org.apache.xalan.* classes with the standard JAXP API from javax.xml.parsers.DocumentBuilderFactory, javax.xml.parsers.SAXParserFactory, javax.xml.transform.TransformerFactory, and related classes in java.xml. These factory classes use the JDK's built-in JAXP implementation by default. Per the WildFly JAXP migration proposal (WFLY-18846), the JDK JAXP 1.6 implementation is the new default. Remove any Xerces BOM or dependency entries from pom.xml.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application deploys without ClassNotFoundException referencing Xerces or Xalan classes. XML parsing operations function correctly. No WildFly server log errors about missing Xerces modules.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Removal of Scattered Cache Topology in Infinispan",
+      "jira_keys": ["WFLY-18635"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Support for the scattered cache topology has been dropped from WildFly's Infinispan subsystem. Scattered cache was deprecated since WildFly 16 and has now been removed. Any server configuration referencing a scattered-cache resource will fail to boot. The recommended migration is to replace scattered-cache with distributed-cache using owners=2, which provides equivalent fault tolerance.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace scattered-cache with distributed-cache owners=2 in Infinispan config",
+          "instruction": "In your WildFly server configuration (standalone.xml, standalone-ha.xml, or domain.xml), locate all <scattered-cache> elements under the Infinispan subsystem's <cache-container> blocks. Replace each <scattered-cache name=\"...\"> element with <distributed-cache name=\"...\"><memory max-count=\"...\"/></distributed-cache>, adding owners=\"2\" to match the two-copy replication that scattered cache provided. Use the WildFly CLI to perform this change: /subsystem=infinispan/cache-container=<container>/distributed-cache=<name>:add(owners=2). Remove any <scattered-cache> resources via: /subsystem=infinispan/cache-container=<container>/scattered-cache=<name>:remove.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server boots without errors. The WildFly CLI command /subsystem=infinispan/cache-container=<container>:read-children-names(child-type=scattered-cache) returns an empty list. Cluster formation and cache operations succeed.",
+          "cli_operation": "/subsystem=infinispan/cache-container=web/scattered-cache=dist:remove"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "org.apache.avro Module Moved to wildfly-preview Feature Pack",
+      "jira_keys": ["WFLY-18245"],
+      "source_url": "https://docs.wildfly.org/31/WildFly_and_WildFly_Preview.html",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The org.apache.avro module has been moved from the standard wildfly-ee feature pack to the wildfly-preview feature pack, reflecting its preview stability level. Applications using Apache Avro that are deployed to a standard WildFly server will no longer find the module on the server class path and will fail to resolve the dependency at deployment time. Teams must either provision using the wildfly-preview feature pack or bundle the Avro JAR directly in their deployment.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.avro", "role": "removed" },
+        { "kind": "dependency", "name": "org.wildfly:wildfly-preview-feature-pack", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Check if deployment uses org.apache.avro module",
+          "instruction": "Search your deployment descriptor (META-INF/jboss-deployment-structure.xml and META-INF/MANIFEST.MF) for references to org.apache.avro. Also check your Java sources: grep -r --include='*.java' 'import org.apache.avro' src/.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep result is empty, meaning no Avro module dependency is declared. If results are found, proceed to step 1.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Bundle Avro JAR in deployment or switch to wildfly-preview provisioning",
+          "instruction": "Option A (recommended for production): Add the Apache Avro dependency directly to your deployment's pom.xml with scope compile so it is bundled inside your WAR/EAR: <dependency><groupId>org.apache.avro</groupId><artifactId>avro</artifactId><version>1.11.x</version></dependency>. Remove any jboss-deployment-structure.xml entry referencing the server-side org.apache.avro module. Option B: If your entire server should be provisioned with preview capabilities, switch your Galleon provisioning to use org.wildfly:wildfly-preview-feature-pack instead of org.wildfly:wildfly-ee-galleon-pack.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Deployment starts without 'Module not found: org.apache.avro' errors. Avro serialization/deserialization functionality works correctly in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Artemis to 2.31.2 to Patch CVE-2023-46604 (RCE)",
+      "jira_keys": ["WFLY-18704"],
+      "source_url": "https://activemq.apache.org/news/cve-2023-46604",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Apache ActiveMQ Artemis has been upgraded to 2.31.2 to address CVE-2023-46604, a critical remote code execution vulnerability in the Java OpenWire protocol marshaller. The vulnerability allows a remote attacker with network access to a Java-based OpenWire broker or client to execute arbitrary shell commands by manipulating serialized class types. WildFly clients and remote JMS clients must be updated to use a patched version.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq:artemis-core-client", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Artemis client dependencies to 2.31.2 in pom.xml",
+          "instruction": "Update all Apache ActiveMQ Artemis client dependencies in your pom.xml or build.gradle to version 2.31.2 or later. If you use a WildFly BOM, import org.wildfly.bom:wildfly-ee version 31.0.0.Final, which manages the patched Artemis version transitively. For standalone clients that connect via OpenWire or JMS, explicitly set: <dependency><groupId>org.apache.activemq</groupId><artifactId>artemis-jms-client</artifactId><version>2.31.2</version></dependency>. Verify no older Artemis transitive dependencies are pulled in via: mvn dependency:tree | grep artemis.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows artemis-* at version 2.31.2 or higher with no older override. No CVE-2023-46604 finding in a dependency scanner (OWASP dependency-check).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Netty to 4.1.104.Final to Patch CVE-2023-44487 (HTTP/2 Rapid Reset)",
+      "jira_keys": ["WFLY-18625", "WFLY-18729"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/cve-2023-44487",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Netty has been upgraded to 4.1.104.Final to resolve CVE-2023-44487, the HTTP/2 Rapid Reset denial-of-service vulnerability. The attack allows a remote attacker to create and immediately cancel a large number of HTTP/2 streams, exhausting server resources. Any WildFly server or client provisioning that overrides the Netty version below 4.1.100.Final is at risk.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-all", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Netty to 4.1.104.Final in BOM or dependency overrides",
+          "instruction": "If your project directly references Netty or overrides it via a dependencyManagement section, update all io.netty:* dependencies to version 4.1.104.Final. When using the WildFly BOM (org.wildfly.bom:wildfly-ee:31.0.0.Final) the correct Netty version is managed automatically — do not override it with an older version. Run: mvn dependency:tree | grep netty to confirm no older version is resolved. If a transitive dependency forces an older version, add an explicit dependencyManagement entry: <dependency><groupId>io.netty</groupId><artifactId>netty-bom</artifactId><version>4.1.104.Final</version><type>pom</type><scope>import</scope></dependency>.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows io.netty:* at 4.1.104.Final or higher. OWASP dependency-check reports no CVE-2023-44487 finding.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Apache Santuario to 3.0.3 to Patch CVE-2023-44483 (Private Key Disclosure)",
+      "jira_keys": ["WFLY-18685"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2023-44483",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Apache Santuario (XML Security for Java) has been upgraded to 3.0.3 to patch CVE-2023-44483, which causes private key material to be written to log files when XML Signature generation is performed with debug logging enabled. Applications using WS-Security or XML Digital Signature that have debug logging active are at risk of private key exposure.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.santuario:xmlsec", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.apache.santuario:xmlsec to 3.0.3 in dependencies",
+          "instruction": "Ensure org.apache.santuario:xmlsec is at version 3.0.3 or later. When using the WildFly BOM this is managed automatically. For standalone projects that reference Santuario directly, update: <dependency><groupId>org.apache.santuario</groupId><artifactId>xmlsec</artifactId><version>3.0.3</version></dependency>. Immediately disable DEBUG-level logging for org.apache.xml.security as a temporary mitigation until the upgrade is deployed.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.apache.santuario:xmlsec at 3.0.3 or higher. With DEBUG logging enabled, private key material does not appear in server or application logs during XML Signature operations.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade com.squareup.okio to 3.4.0 to Patch CVE-2023-3635 (DoS via GZIP)",
+      "jira_keys": ["WFLY-18301"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/cve-2023-3635",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "The com.squareup.okio library has been upgraded to 3.4.0 to resolve CVE-2023-3635, a denial-of-service vulnerability caused by improper handling of the GZIP extra field length. An attacker can craft a malicious GZIP archive that triggers an unhandled exception in GzipSource, crashing the consuming application. Any component or client bundling okio below 3.4.0 is at risk.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.squareup.okio:okio", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.squareup.okio:okio to 3.4.0 in dependency management",
+          "instruction": "Locate any direct or transitive dependency on com.squareup.okio:okio or com.squareup.okio:okio-jvm below version 3.4.0 using: mvn dependency:tree | grep okio. Add a dependencyManagement override to force 3.4.0: <dependency><groupId>com.squareup.okio</groupId><artifactId>okio</artifactId><version>3.4.0</version></dependency>. Note that upgrading to 3.4.0 from 2.x is a breaking semantic-version bump — verify Kotlin version compatibility as okio 3.4.0 requires Kotlin 1.8 or later.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "mvn dependency:tree shows com.squareup.okio:okio at 3.4.0 or higher. Application builds successfully with the Kotlin version constraint satisfied. OWASP dependency-check reports no CVE-2023-3635 finding.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Upgrade to Hibernate ORM 6.4 and Hibernate Search 7.0",
+      "jira_keys": ["WFLY-18399", "WFLY-18542", "WFLY-18609", "WFLY-18629", "WFLY-18555", "WFLY-18927", "WFLY-18374", "WFLY-18583", "WFLY-18804"],
+      "source_url": "https://docs.hibernate.org/orm/6.4/migration-guide/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 ships Hibernate ORM 6.4.2.Final and Hibernate Search 7.0, both of which introduce API changes relative to the previously bundled versions. Hibernate ORM 6.4 generifies the CurrentTenantIdentifierResolver and MultiTenantConnectionProvider SPIs for multi-tenancy. Hibernate Search 7.0 requires Lucene indexes created with the 6.2 mapping to be dropped and recreated, and artifact coordinates ending in -orm6 must be renamed.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.hibernate.search:hibernate-search-mapper-orm", "role": "mentioned" },
+        { "kind": "class", "name": "org.hibernate.context.spi.CurrentTenantIdentifierResolver", "role": "mentioned" },
+        { "kind": "class", "name": "org.hibernate.engine.jdbc.connections.spi.MultiTenantConnectionProvider", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Hibernate Search artifact coordinates — remove -orm6 suffix",
+          "instruction": "If your pom.xml includes Hibernate Search dependencies with the -orm6 suffix (e.g. hibernate-search-mapper-orm-orm6, hibernate-search-backend-lucene-orm6), remove the -orm6 suffix from the artifactId. For example: change <artifactId>hibernate-search-mapper-orm-orm6</artifactId> to <artifactId>hibernate-search-mapper-orm</artifactId>. Version should align with the 7.0.x stream managed by the WildFly BOM.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows hibernate-search-* artifacts without -orm6 suffix. Build compiles successfully.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Generify CurrentTenantIdentifierResolver and MultiTenantConnectionProvider for Hibernate ORM 6.4",
+          "instruction": "If your application implements CurrentTenantIdentifierResolver or MultiTenantConnectionProvider for multi-tenancy, add the String type parameter to the implementation class signature. Change: class MyTenantResolver implements CurrentTenantIdentifierResolver to class MyTenantResolver implements CurrentTenantIdentifierResolver<String>. Apply the same change to any MultiTenantConnectionProvider subtype. Per the Hibernate ORM 6.4 migration guide (https://docs.hibernate.org/orm/6.4/migration-guide/).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without unchecked cast warnings on CurrentTenantIdentifierResolver or MultiTenantConnectionProvider. All multi-tenancy integration tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Recreate Lucene indexes after Hibernate Search 7.0 upgrade",
+          "instruction": "After deploying with Hibernate Search 7.0, existing Lucene indexes created by Search 6.2 are incompatible and will cause exceptions. Trigger a full reindex by calling MassIndexer with schema recreation: SearchSession searchSession = Search.session(entityManager); searchSession.massIndexer().dropAndCreateSchemaOnStart(true).startAndWait(). Schedule this as a one-time startup task or maintenance operation. Per the Hibernate Search 7.0 migration guide (https://docs.jboss.org/hibernate/search/7.0/migration/html_single/).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0, 1],
+          "verification": "Application starts without Hibernate Search index schema exceptions. Full-text search queries return correct results. MassIndexer completes without errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Upgrade to Infinispan 14.0.21.Final",
+      "jira_keys": ["WFLY-18277", "WFLY-18377", "WFLY-18416", "WFLY-18630", "WFLY-18774"],
+      "source_url": "https://infinispan.org/docs/stable/titles/upgrading/upgrading.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 upgrades the Infinispan clustering subsystem to 14.0.21.Final. Infinispan 14 changes the default marshaller from JBoss Marshalling to ProtoStream (Protocol Buffers). Applications using custom marshallers, HotRod clients, or embedded Infinispan caches may need to reconfigure marshalling. Kryo and Protostuff marshallers are deprecated in this stream.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.infinispan:infinispan-client-hotrod", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.infinispan:infinispan-jboss-marshalling", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit HotRod client and marshaller configuration for Infinispan 14",
+          "instruction": "Review all HotRod client configurations and embedded Infinispan cache configurations in your application. If you previously relied on the default JBoss Marshalling serialization, you must either: (a) migrate entity classes to use ProtoStream annotations (@ProtoField, @ProtoDoc), or (b) explicitly add the JBoss Marshalling compatibility dependency org.infinispan:infinispan-jboss-marshalling to your deployment and configure the marshaller explicitly: ConfigurationBuilder builder = new ConfigurationBuilder(); builder.marshaller(new JBossUserMarshaller()). Kryo and Protostuff marshallers are deprecated — plan migration to ProtoStream.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without Infinispan marshalling exceptions. Cache get/put operations round-trip objects correctly. No deprecation warnings for Kryo or Protostuff marshallers in logs.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Extensive MicroProfile and SmallRye Component Upgrades",
+      "jira_keys": ["WFLY-18291", "WFLY-18319", "WFLY-18442", "WFLY-18443", "WFLY-18693", "WFLY-18732", "WFLY-18735", "WFLY-18750", "WFLY-18760", "WFLY-18797", "WFLY-18826"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/31.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 31 updates SmallRye Config, Fault Tolerance, Health, OpenTelemetry, OpenAPI, and Reactive Messaging to the versions mandated by MicroProfile 6.1. Implementations relying on SmallRye-specific internal APIs or deprecated MicroProfile configurations may encounter behavior differences. Metric and telemetry export formats may have changed in the OpenTelemetry update.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run MicroProfile TCK and integration tests against SmallRye 6.1 components",
+          "instruction": "Execute your full MicroProfile integration test suite against the updated WildFly 31 server. Pay particular attention to: (1) SmallRye Config — verify all @ConfigProperty injection points and ConfigSource implementations; (2) Fault Tolerance — verify @Retry, @CircuitBreaker, and @Bulkhead behavior against updated timeout defaults; (3) OpenTelemetry — verify trace and metric export to your collector endpoint still functions with the updated exporter format; (4) Health — verify /health, /health/ready, and /health/live endpoints return the expected JSON structure; (5) Reactive Messaging — verify AMQP and Kafka connector configurations.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All MicroProfile integration tests pass. /health endpoint returns 200 with correct UP status. Traces and metrics appear in the telemetry backend. No SmallRye deprecation warnings in server logs.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Upgrade to RESTEasy 6.2.7.Final",
+      "jira_keys": ["WFLY-18376", "WFLY-18713", "WFLY-18916", "WFLY-18378", "WFLY-18917"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/31.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "RESTEasy and its MicroProfile REST Client integration have been upgraded to the 6.2.7.Final stream. The 6.2.x line aligns with Jakarta EE 10 and JAX-RS 3.1, and may introduce behavioral shifts in content-type negotiation, provider scanning, or parameter handling relative to earlier 6.x versions. JAX-RS test suites should be executed to catch any regressions.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Execute full JAX-RS and MicroProfile REST Client test suite",
+          "instruction": "Run your complete JAX-RS endpoint test suite against WildFly 31 to verify that RESTEasy 6.2.7.Final produces the same response bodies, status codes, and content-type headers as the previous version. Specifically check: (1) multipart/form-data handling, (2) exception mapper behavior for jakarta.ws.rs.WebApplicationException subclasses, (3) MicroProfile REST Client @RegisterRestClient proxies, and (4) any custom MessageBodyReader/MessageBodyWriter implementations for changed provider scanning order. Update RESTEasy client-side dependencies in pom.xml to 6.2.7.Final if used outside the WildFly BOM.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JAX-RS integration tests pass. No HTTP 415 Unsupported Media Type or HTTP 500 errors introduced by the upgrade. REST endpoints return the expected response structures.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "ATTRIBUTE Granularity Sessions Now Consistently Replicate on setAttribute",
+      "jira_keys": ["WFLY-18233", "WFLY-18315", "WFLY-18572", "WFLY-18727"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Revisions to the distributed session manager's metadata mapping and replication logic ensure that sessions configured with ATTRIBUTE granularity will now consistently trigger replication upon every call to HttpSession.setAttribute(). Previous behavior was inconsistent. Applications that call setAttribute() frequently or unnecessarily (e.g., setting an attribute to the same value) may see increased network replication traffic after this change.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit session mutation patterns to avoid redundant setAttribute calls",
+          "instruction": "Review all HttpSession.setAttribute() call sites in your application. Remove calls that set an attribute to its existing value without modification, as each call now unconditionally triggers cluster replication when using ATTRIBUTE granularity. If your session handling is read-heavy and you observe excessive replication traffic after upgrading, consider switching session granularity from ATTRIBUTE to SESSION in your distributable-web configuration: <distributable-web><infinispan-session-management ... granularity=\"SESSION\"/>. Per WildFly High Availability Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Cluster replication traffic is at expected levels under load. No unexpected session invalidation or stale data observed across cluster nodes. Session-scoped tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "distributable-web"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "HotRod Session max-active-sessions Premature Expiry and Thread Leak Fixed",
+      "jira_keys": ["WFLY-18389", "WFLY-18404", "WFLY-18869"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Bugs in the HotRod-based session manager caused sessions to be prematurely expired and excessive expiration threads to be spawned when max-active-sessions was configured. Additionally, setting max-active-sessions=-1 (unlimited) incorrectly triggered ISPN000424 errors. All three bugs are resolved in WildFly 31. Deployments using these settings should verify that session expiration and thread counts behave correctly.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify session expiration and thread behavior with max-active-sessions config",
+          "instruction": "If your deployment configures max-active-sessions in the distributable-web HotRod session manager, validate the following after upgrading: (1) Sessions are not expired before their configured timeout; (2) Server thread counts do not grow unboundedly during session creation load; (3) Setting max-active-sessions=-1 no longer produces ISPN000424 log errors. Remove any workarounds you added to avoid the previous bugs (such as setting a very high positive max-active-sessions instead of -1).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No ISPN000424 errors in server logs with max-active-sessions=-1. Session expiration occurs at the configured timeout, not prematurely. Thread pool size remains stable under sustained session creation load.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "distributable-web"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Deployments Using Artemis APIs Must Declare Explicit Module Dependency",
+      "jira_keys": ["WFLY-18240"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 removes the implicit visibility of org.apache.activemq.artemis module for deployments that directly use Artemis client APIs. Deployments that call Artemis APIs beyond the standard JMS API must now explicitly declare a module dependency. Without this declaration, class loading will fail at runtime with ClassNotFoundException.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq.artemis", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add org.apache.activemq.artemis explicit dependency to jboss-deployment-structure.xml",
+          "instruction": "Add an explicit module dependency on org.apache.activemq.artemis in your deployment descriptor. Create or update META-INF/jboss-deployment-structure.xml: <jboss-deployment-structure xmlns=\"urn:jboss:deployment-structure:1.2\"><deployment><dependencies><module name=\"org.apache.activemq.artemis\"/></dependencies></deployment></jboss-deployment-structure>. Alternatively, add the following entry to META-INF/MANIFEST.MF: Dependencies: org.apache.activemq.artemis. This is only required if you use Artemis-specific APIs directly (e.g., ClientSession, ServerLocator). Standard JMS API usage through @Resource injection does not require this change.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Deployment completes without ClassNotFoundException referencing org.apache.activemq.artemis classes. Direct Artemis API calls function correctly at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Legacy JGroups FD Protocol Auto-Updated to FD_ALL2",
+      "jira_keys": ["WFLY-18540"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 31 automatically migrates legacy JGroups FD (Failure Detection) protocol configurations to the newer FD_ALL2 protocol during server boot. FD_ALL2 provides improved failure detection semantics: unlike the original FD which pings only the next neighbor, FD_ALL2 uses a coordinated approach where all nodes participate in detecting failures. This changes cluster partition and failure communication behavior slightly.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Execute cluster failover tests after FD to FD_ALL2 protocol migration",
+          "instruction": "After upgrading to WildFly 31, review your JGroups stack configuration in standalone-ha.xml or domain.xml. If you had an explicit FD protocol entry, verify that WildFly has replaced it with FD_ALL2. Run your cluster failover and network partition test scenarios to confirm: (1) node failure is detected within expected timeouts, (2) cluster reforms correctly after a network partition, (3) no unexpected split-brain scenarios occur. You may manually configure FD_ALL2 explicitly to control its parameters (timeout, max_tries): /subsystem=jgroups/stack=<stack>/protocol=FD_ALL2:add(properties={timeout=3000, max_tries=3}).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JGroups stack configuration shows FD_ALL2 and no legacy FD. Cluster failover tests pass within expected timeout windows. No split-brain or stale cluster membership in logs after node failure simulation.",
+          "cli_operation": "/subsystem=jgroups/stack=tcp/protocol=FD_ALL2:read-resource"
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Infinispan Remote Timeout Corrected to Not Be Less Than Lock Timeout",
+      "jira_keys": ["WFLY-18306"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "A bug was corrected where the Infinispan remote-timeout in WildFly's Infinispan subsystem could be configured to a value less than the default lock-timeout, leading to spurious timeout failures during distributed cache operations. WildFly 31 enforces that remote-timeout is always at least as large as lock-timeout. Configurations that override these values may see different effective timeout behavior.",
+      "scopes": [
+        { "scope": "config", "severity": "low" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Verify Infinispan remote-timeout is >= lock-timeout in configuration",
+          "instruction": "If you override remote-timeout or lock-timeout in your Infinispan cache container configuration, verify that remote-timeout >= lock-timeout. Check via the WildFly CLI: /subsystem=infinispan/cache-container=<container>/distributed-cache=<cache>:read-attribute(name=remote-timeout) and compare to the lock-timeout attribute. If remote-timeout is less than lock-timeout, increase it. Remove any workarounds such as inflated remote-timeout values that compensated for this bug.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "No spurious Infinispan timeout exceptions in server logs during cache operations. The CLI reports remote-timeout >= lock-timeout for all configured caches.",
+          "cli_operation": "/subsystem=infinispan/cache-container=web/distributed-cache=dist:read-attribute(name=remote-timeout)"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JCA Recovery Now Supports Empty Username and Password Values",
+      "jira_keys": ["WFLY-18324"],
+      "source_url": "https://docs.wildfly.org/31/Migration_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "WildFly 31 corrects the JCA subsystem to properly handle empty username and password values in recovery configurations. Previously, empty credentials required workarounds in configuration files. With this fix, any workarounds can be simplified or removed.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Remove JCA recovery workarounds for empty credentials",
+          "instruction": "Review your JCA datasource recovery configurations in standalone.xml or domain.xml. If you previously added workarounds for empty recovery-username or recovery-password (such as placeholder values or disabled recovery), simplify these by setting the values to empty strings or removing them. Example: <recovery><recover-credential><user-name></user-name><password></password></recover-credential></recovery>. Validate that the datasource recovery mechanism functions correctly after the change.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "JCA datasource recovery configuration accepts empty username and password without server boot errors. Datasource connection recovery operates correctly during failover tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "MicroProfile Reactive Messaging Native AMQP Connector Support",
+      "jira_keys": ["WFLY-15405"],
+      "source_url": "https://www.wildfly.org/news/2024/01/25/WildFly-31-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly 31 adds native AMQP 1.0 connector support to MicroProfile Reactive Messaging. Deployments can now bridge reactive streams directly to AMQP-compatible message brokers without bundling custom extensions or connectors. This is an additive capability with no breaking impact.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure AMQP connector in MicroProfile Reactive Messaging",
+          "instruction": "To use the new AMQP connector, add the following to your MicroProfile Config source (microprofile-config.properties or application.properties): mp.messaging.incoming.<channel-name>.connector=smallrye-amqp, mp.messaging.incoming.<channel-name>.host=<broker-host>, mp.messaging.incoming.<channel-name>.port=5672. Annotate your channel consumer with @Incoming(\"<channel-name>\"). No additional JAR bundling is required. Ensure your AMQP broker (e.g. Apache Artemis) is accessible from the WildFly instance.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without connector configuration errors. Messages sent to the AMQP broker are received by the annotated @Incoming channel method. No ClassNotFoundException for AMQP connector classes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Preview Support for Jakarta MVC 2.1 via Krazo",
+      "jira_keys": ["WFLY-18838", "WFLY-18930"],
+      "source_url": "https://docs.wildfly.org/31/WildFly_and_WildFly_Preview.html",
+      "change_type": "informational",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview now includes Jakarta MVC 2.1 support via the Eclipse Krazo integration. This allows developers to build standard MVC-based web applications natively on the preview application server. This is available only in the wildfly-preview feature pack and has no impact on standard WildFly deployments.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Native LZ4 Compression Support for Kafka Clients",
+      "jira_keys": ["WFLY-18009"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/31.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "performance",
+      "reason": "WildFly 31 provisions native LZ4 compression support, enabling deployments that use native Kafka clients to produce and consume LZ4-compressed topics without bundling the LZ4 codec library manually. This is an additive capability with no breaking impact.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

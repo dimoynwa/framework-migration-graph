@@ -1,0 +1,785 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "EE 11 APIs combined with Java Security Manager causes boot failure",
+      "jira_keys": ["WFLY-19287"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 33 introduced a hard boot failure when EE 11 (Jakarta EE 11) APIs are combined with the deprecated Java Security Manager. The Java Security Manager is fundamentally incompatible with the module-based class loading required by EE 11 APIs on Java 17+. Any deployment that uses Jakarta EE 11 namespaces and also enables the Security Manager will fail to start.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove -Djava.security.manager JVM startup flag",
+          "instruction": "Search all server startup scripts (e.g. standalone.sh, standalone.conf, standalone.conf.bat, domain.sh, domain.conf) for the JVM argument `-Djava.security.manager` and remove it. Also remove any `-Djava.security.policy=<path>` references. If you set the security manager via the `JAVA_OPTS` environment variable in your container or CI configuration, remove it there as well.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without `java.lang.SecurityException` or `AccessControlException` in the server log, and no `-Djava.security.manager` argument appears in the running JVM process arguments (`ps aux | grep java`).",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "remove",
+          "summary": "Remove security policy files referenced by Security Manager",
+          "instruction": "Locate any `.policy` files referenced in `-Djava.security.policy=` arguments or under `<JBOSS_HOME>/standalone/configuration/` and `<JBOSS_HOME>/domain/configuration/`. These files are no longer applicable. Remove or archive them — they must not be on the classpath or configured as the active policy, or they may cause unexpected `AccessControlException` in legacy subsystems.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "No `.policy` file is referenced in any WildFly startup configuration. Server boot log shows no Security Manager-related warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "core"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Java Security Manager broken and unsupported on Java 17+",
+      "jira_keys": ["WFLY-19709"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The Java Security Manager has been deprecated since Java 17 (JEP 411) and is effectively non-functional in modern JDK versions. Tests and production deployments relying on the Security Manager fail on Java 17 and later. WildFly 34 does not support running with the Security Manager enabled; this is a hard incompatibility that will cause incorrect server behaviour or boot failures.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove Security Manager from all WildFly startup scripts and configs",
+          "instruction": "Audit every location where `-Djava.security.manager` or `-Djava.security.policy` may be set: (1) `standalone.conf` / `standalone.conf.bat`; (2) `domain.conf`; (3) `JAVA_OPTS` in container `Dockerfile` or Kubernetes Pod spec; (4) Maven Surefire or Failsafe plugin configuration in `pom.xml` (`<argLine>` elements); (5) any CI pipeline environment variable sets. Remove all occurrences. After removal, verify that your application code does not call `System.getSecurityManager()` or `AccessController.doPrivileged()` in ways that assume a non-null `SecurityManager` — these calls are safe to leave but will no-op on Java 17+.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts cleanly on Java 17+. No `SecurityException` or deprecation warning about `java.security.manager` in server logs. `System.getSecurityManager()` returns `null` at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "core"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "EJB application-security-domain capability not deregistered on undeploy",
+      "jira_keys": ["WFLY-19843"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "An EJB application security domain resource does not properly deregister its capability when removed, causing stale capability registration state. On subsequent deploy or redeploy of the same application without a server restart, a capability registration conflict will fail the deployment. This affects CI/CD pipelines and environments that perform hot redeployments.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Stop relying on hot-undeploy of application-security-domain without restart",
+          "instruction": "Review your deployment pipelines for any scenario where an EJB application is undeployed and immediately redeployed (hot swap) without a server restart, specifically when the application has an `application-security-domain` mapping under the `ejb3` subsystem. Until you upgrade to WildFly 34 (which contains the fix), insert a server restart between undeploy and redeploy in affected pipelines. After upgrading to WildFly 34, validate that hot redeployment no longer produces a `DuplicateServiceException` or capability conflict in the server log.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Hot redeployment of an EJB application with an `application-security-domain` succeeds without `DuplicateServiceException` or `WFLYEJB` capability registration errors in the server log.",
+          "cli_operation": "/subsystem=ejb3/application-security-domain=<your-domain>:read-resource"
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-7885 Undertow ProxyProtocol race condition — upgrade to 2.3.17+",
+      "jira_keys": ["WFLY-19720", "WFLY-19732"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/cve-2024-7885",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-7885 is a race condition in Undertow's `ProxyProtocolReadListener` where the same `StringBuilder` instance is reused across multiple requests on the same HTTP connection, potentially causing information leakage between requests. This is remotely exploitable. The fix is included in Undertow 2.3.17+ and is shipped with WildFly 34. If upgrading via WildFly 33.0.x as an intermediate step, upgrade to at least 33.0.2 first.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.undertow:undertow-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm no BOM or pom.xml pins Undertow below 2.3.17",
+          "instruction": "Search your project's `pom.xml`, parent POMs, and BOM imports for any explicit `io.undertow:undertow-core` or `io.undertow:undertow-servlet` version declarations. Remove any override that pins these below `2.3.17.Final`. If you import `org.wildfly.bom:wildfly-ee` or similar WildFly BOMs, ensure you are importing the WildFly 34 BOM, which manages Undertow at 2.3.17+ automatically. Run `mvn dependency:tree | grep undertow` to confirm the resolved version.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep undertow` shows `io.undertow:undertow-core:jar:2.3.17.Final` or higher. No CVE scanner flags `io.undertow:undertow-core` below 2.3.17 in the final artifact.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-8391 Vert.x gRPC unbounded message size — upgrade to 4.5.10",
+      "jira_keys": ["WFLY-19730"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-8391",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-8391 affects Eclipse Vert.x 4.3.0 through 4.5.9: the gRPC server does not limit the maximum length of message payloads, allowing an attacker to send large messages that exhaust server resources (DoS, CVSS 5.8). Applications that bundle their own Vert.x dependency and override the WildFly-managed version below 4.5.10 remain exposed even after upgrading WildFly.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.vertx:vertx-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.vertx:vertx-grpc-server", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.vertx:vertx-grpc-client", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove Vert.x version overrides pinning below 4.5.10",
+          "instruction": "Search all `pom.xml` files and BOM imports for explicit `io.vertx` version declarations (e.g. `<version>4.5.9</version>` on any `io.vertx:vertx-*` artifact, or a `<vertx.version>` property). Remove or update them to `4.5.10` or later. If you depend on the `io.vertx:vertx-stack-depchain` BOM, upgrade it to `4.5.10`. Then rely on the WildFly 34 server BOM to manage the Vert.x version for server-provided modules. Run `mvn dependency:tree | grep vertx` to confirm no bundled Vert.x artifact is below 4.5.10.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep vertx` shows all `io.vertx` artifacts at version `4.5.10` or higher. OWASP Dependency Check or similar scanner reports no CVE-2024-8391 findings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-7254 protobuf-java stack overflow — upgrade to 3.25.5",
+      "jira_keys": ["WFLY-19757"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/cve-2024-7254",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-7254 (CVSS 8.7, High) is a stack overflow vulnerability in `com.google.protobuf:protobuf-java` where parsing a maliciously crafted message with deeply nested groups or SGROUP tags causes unbounded recursion and a JVM `StackOverflowError`. This is fixed in protobuf-java 3.25.5, 4.27.5, and 4.28.2. Applications that bundle their own `protobuf-java` JAR remain vulnerable even after upgrading WildFly.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.google.protobuf:protobuf-java", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade bundled protobuf-java to 3.25.5 or remove in favour of server module",
+          "instruction": "Option A (recommended): Remove any explicit `com.google.protobuf:protobuf-java` dependency from your application's `pom.xml` and mark it `<scope>provided</scope>` to use the WildFly server-provided module (which is patched to 3.25.5 in WildFly 34). Option B (if you must bundle): Update the version to `3.25.5` in your `pom.xml`: `<dependency><groupId>com.google.protobuf</groupId><artifactId>protobuf-java</artifactId><version>3.25.5</version></dependency>`. Do not bundle `protobuf-java-util` at a lower version, as it is also affected (SNYK-JAVA-COMGOOGLEPROTOBUF-8055228).",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep protobuf-java` shows version `3.25.5` or higher. OWASP Dependency Check or Snyk scan reports no CVE-2024-7254 findings in the packaged WAR/EAR.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "OIDCSecurityContext deserialization failure fixed in WildFly 33.0.1+",
+      "jira_keys": ["WFLY-19549"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "`OIDCSecurityContext` deserialization fails under certain conditions when security contexts are serialized for session replication across cluster nodes or for persistent session storage. This regression was fixed in WildFly 33.0.1. Upgrading directly to WildFly 34 includes the fix. Applications using OIDC with clustered session replication should verify that sessions survive redeployment and node failover after the upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.wildfly.security.http.oidc.OIDCSecurityContext", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify OIDC session serialization works across cluster nodes",
+          "instruction": "If your application uses WildFly's built-in OIDC integration (via the `elytron-oidc-client` subsystem) and runs in a cluster with distributed HTTP sessions (e.g. Infinispan-backed session replication), perform a failover test after upgrading to WildFly 34: (1) Authenticate a user through OIDC on node A; (2) Kill node A; (3) Confirm the session is still valid on node B without re-authentication. No configuration change is required — the fix is in the WildFly 34 runtime.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "After a node failover in a clustered deployment, authenticated OIDC sessions remain valid on the surviving node. No `InvalidClassException` or `ClassNotFoundException` appears in the server log during session deserialization.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta REST 4.0 and RESTEasy 7.0 in WildFly Preview",
+      "jira_keys": ["WFLY-19312"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview ships Jakarta REST 4.0 (part of EE 11) and RESTEasy 7.0. Jakarta REST 4.0 changes the API package from `javax.ws.rs` to `jakarta.ws.rs` (already done in EE 9) and introduces breaking API changes relative to RESTEasy 6.2.x. Standard WildFly continues to use RESTEasy 6.2.x; only applications targeting WildFly Preview are affected.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Verify all JAX-RS imports use jakarta.ws.rs namespace",
+          "instruction": "Search your source tree for any remaining `import javax.ws.rs.*` declarations: `grep -r 'import javax.ws.rs' src/`. These must be replaced with `import jakarta.ws.rs.*` for compatibility with Jakarta REST 4.0. Most projects targeting EE 10+ will have done this already. If using IntelliJ IDEA, run 'Migrate Project to Jakarta EE 9+' refactoring. If using Eclipse, use the Jakarta EE migration wizard.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -r 'import javax.ws.rs' src/` returns no results. Application deploys on WildFly Preview without `ClassNotFoundException` for JAX-RS types.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Run integration tests against WildFly Preview with RESTEasy 7.0",
+          "instruction": "Point your Arquillian or integration-test Maven profile at a WildFly Preview 34 managed container and run the full REST endpoint test suite. RESTEasy 7.0 has breaking changes in provider discovery, exception mapping, and some multipart/form-data handling relative to 6.2.x. Pay particular attention to: (1) custom `ExceptionMapper` implementations; (2) `MessageBodyReader`/`MessageBodyWriter` providers; (3) `@Provider` auto-discovery behaviour. Consult the RESTEasy 7.0 release notes on GitHub (https://github.com/resteasy/resteasy/releases) for the full list of breaking changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All REST integration tests pass against a WildFly Preview 34 managed container. No `500 Internal Server Error` responses caused by unresolved `MessageBodyWriter` or `ExceptionMapper`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "MicroProfile REST Client 4.0 in WildFly Preview",
+      "jira_keys": ["WFLY-19589"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview upgrades MicroProfile REST Client to 4.0 (part of MicroProfile Platform 7). This version has breaking API changes around SSL configuration and provider registration compared to 3.x. Only WildFly Preview users are affected; standard WildFly continues on MicroProfile REST Client 3.x.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review MicroProfile REST Client 4.0 SSL and provider API changes",
+          "instruction": "Review the MicroProfile REST Client 4.0 specification changelog (https://github.com/eclipse/microprofile-rest-client/releases/tag/4.0) for breaking changes. Key areas to audit in your codebase: (1) SSL configuration — `RestClientBuilder.sslContext()` and `trustStore()` method signatures may have changed; (2) custom `ClientRequestFilter`, `ClientResponseFilter`, and `ResponseExceptionMapper` provider registration; (3) `@RegisterRestClient` configuration properties that have been renamed or removed. Compile your client proxy interfaces against the WildFly Preview 34 client API JAR to detect compile-time breaks before deploying.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Client proxy interfaces compile without errors against the WildFly Preview 34 MicroProfile REST Client 4.0 API. Integration tests invoking remote services via `@Inject`-ed client proxies pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "MicroProfile Telemetry 2.0 — MicrometerSetupTask package relocated",
+      "jira_keys": ["WFLY-19590"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "MicroProfile Telemetry is upgraded to 2.0, which adopts OpenTelemetry Metrics and Logging. As part of this upgrade, the `MicrometerSetupTask` class was relocated to a new package. Any test or custom setup code that references this class by its old fully qualified name will fail to compile or resolve at runtime.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.wildfly.extension.micrometer.MicrometerSetupTask", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Update MicrometerSetupTask import to new package",
+          "instruction": "Search your test source tree for any import of `MicrometerSetupTask`: `grep -r 'MicrometerSetupTask' src/test/`. Identify the new fully qualified class name from the WildFly 34 source (check `wildfly/testsuite` in the GitHub repository at https://github.com/wildfly/wildfly/tree/34.0.0.Final) and update all import statements accordingly. This class is part of WildFly's internal test infrastructure and is typically only referenced in Arquillian-based integration tests that set up the Micrometer/Telemetry subsystem.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Test compilation succeeds without `cannot find symbol` errors for `MicrometerSetupTask`. Tests that use Micrometer/Telemetry setup pass against WildFly 34.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Security Enterprise API 4.0.0 in WildFly Preview",
+      "jira_keys": ["WFLY-19472"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview upgrades to `jakarta.security.enterprise-api` 4.0.0 (EE 11). This version introduces breaking changes to security annotations and interfaces compared to 3.x, including changes to the `IdentityStore`, `Credential`, and `HttpAuthenticationMechanism` APIs. Only WildFly Preview users are affected.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.security.enterprise:jakarta.security.enterprise-api", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Compile application against jakarta.security.enterprise-api 4.0.0",
+          "instruction": "Update your `pom.xml` to reference `jakarta.security.enterprise:jakarta.security.enterprise-api:4.0.0` with `<scope>provided</scope>` when building for WildFly Preview. Compile the project and resolve any breaking API changes. Key areas affected in 4.0.0 include: (1) `jakarta.security.enterprise.identitystore.IdentityStore` interface methods; (2) `jakarta.security.enterprise.authentication.mechanism.http.HttpAuthenticationMechanism`; (3) `jakarta.security.enterprise.credential.Credential` hierarchy. Consult the Jakarta Security 4.0 changelog at https://jakarta.ee/specifications/security/4.0/ for the complete list of incompatible changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles against `jakarta.security.enterprise-api:4.0.0`. Security-dependent integration tests pass on WildFly Preview 34. No `NoSuchMethodError` or `IncompatibleClassChangeError` at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM 6.6.1 and Hibernate Search 7.2 upgrade",
+      "jira_keys": ["WFLY-19306", "WFLY-19632"],
+      "source_url": "https://docs.jboss.org/hibernate/orm/6.6/migration-guide/migration-guide.html",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Hibernate ORM is upgraded to 6.6.1.Final and Hibernate Search to 7.2.1.Final. Hibernate ORM 6.6 introduces breaking changes including: `@Table` on SINGLE_TABLE subclasses now throws a mapping exception (was silently ignored); `jakarta.persistence.criteria.Expression#as(Class)` behaviour changed to match the spec (now a typecast only, not a real type conversion); implicit Oracle array type naming changed. These changes may affect JPA mappings, Criteria queries, and schema generation.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.hibernate.search:hibernate-search-mapper-orm", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit @Table on SINGLE_TABLE hierarchy subclasses",
+          "instruction": "Search your entity classes for `@Table` annotations on classes that are part of a `@Inheritance(strategy = InheritanceType.SINGLE_TABLE)` hierarchy but are not the root entity: `grep -r '@Table' src/main/java/`. For each hit, verify whether the annotated class is a SINGLE_TABLE subclass. If so, remove the `@Table` annotation — Hibernate ORM 6.6 will throw a `MappingException` if it finds `@Table` on a non-root SINGLE_TABLE entity.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without `org.hibernate.MappingException` related to `@Table` on SINGLE_TABLE subclass. All entity persistence tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace Expression.as() with JpaExpression.cast() for real type conversions",
+          "instruction": "Search your Criteria API code for calls to `expression.as(SomeType.class)` where a real type conversion (not just a typecast of the `Expression` object) is intended. In Hibernate ORM 6.6, `jakarta.persistence.criteria.Expression#as(Class)` is now a pure Java typecast of the `Expression` object (per JPA spec), not a SQL CAST. Replace with `((JpaExpression<?>) expression).cast(SomeType.class)` from `org.hibernate.query.criteria.JpaExpression`. Import `org.hibernate.query.criteria.JpaExpression` in affected files.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Criteria queries that previously used `Expression.as()` for type conversion produce correct SQL CAST in the generated query log (`show_sql=true`). Query results match expected types.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Validate Hibernate Search 7.2 index compatibility",
+          "instruction": "If you use Hibernate Search, review the Hibernate Search 7.2 migration guide at https://hibernate.org/search/documentation/migrate/7.2/. After upgrading, perform a full index rebuild (`session.search(Entity.class).schema().drop().andCreate().param(...)`) in a non-production environment to ensure index mappings are compatible. Verify that custom `ValueBridge`, `PropertyBridge`, or `TypeBridge` implementations compile against the 7.2 API.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Hibernate Search index rebuild completes without errors. Full-text search queries return expected results. No `SearchException` during application startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Apache Artemis upgraded to 2.37.0 via 2.35",
+      "jira_keys": ["WFLY-19636", "WFLY-19437", "WFLY-19166"],
+      "source_url": "https://activemq.apache.org/components/artemis/documentation/2.37.0/configuration-index.html",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Apache Artemis is upgraded from 2.34 through 2.35 to 2.37.0. This multi-version jump includes changes to broker configuration, address-settings merge behaviour, and security. Deployments using the `messaging-activemq` subsystem or embedded messaging must validate their broker XML configuration and address-settings against the 2.37 changelog. The `artemis upgrade` command can assist with migrating broker instance scripts.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review Artemis 2.35–2.37 changelogs for config and protocol changes",
+          "instruction": "Review the Apache Artemis release notes for versions 2.35, 2.36, and 2.37 at https://activemq.apache.org/components/artemis/documentation/latest/upgrading.html. Pay particular attention to: (1) address-settings merge policy changes that affect how `<address-setting>` elements with the same `match` pattern are resolved; (2) any deprecated broker XML elements now enforced as errors; (3) security changes to role-based access on addresses. If you use an external Artemis broker (not embedded), run `artemis upgrade` from the 2.37 distribution against your existing broker instance directory to regenerate scripts and log4j2 configuration.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "WildFly server starts with `messaging-activemq` subsystem active and no WARN or ERROR messages about unknown or deprecated Artemis configuration elements. A test message can be sent and consumed on all configured destinations.",
+          "cli_operation": "/subsystem=messaging-activemq/server=default:read-resource(recursive=false)"
+        }
+      ],
+      "subsystem": "messaging"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly user BOM renamed: wildfly-microprofile to wildfly-expansion",
+      "jira_keys": ["WFLY-19464", "WFLY-19756"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "The `org.wildfly.bom:wildfly-microprofile` Maven BOM artifact has been renamed to `org.wildfly.bom:wildfly-expansion` as part of a general reorganisation of WildFly user-facing BOMs. Projects importing `wildfly-microprofile` will silently lose MicroProfile dependency management, causing wrong transitive versions to be resolved without a build error.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly.bom:wildfly-microprofile", "role": "removed" },
+        { "kind": "dependency", "name": "org.wildfly.bom:wildfly-expansion", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename org.wildfly.bom:wildfly-microprofile to wildfly-expansion in pom.xml",
+          "instruction": "In every `pom.xml` (parent, child modules, and BOM imports), find the `<dependencyManagement>` entry that imports `<artifactId>wildfly-microprofile</artifactId>` under `<groupId>org.wildfly.bom</groupId>`. Replace the `<artifactId>` value with `wildfly-expansion`. Also update the `<version>` to `34.0.0.Final`. Example replacement:\n```xml\n<dependency>\n  <groupId>org.wildfly.bom</groupId>\n  <artifactId>wildfly-expansion</artifactId>\n  <version>34.0.0.Final</version>\n  <type>pom</type>\n  <scope>import</scope>\n</dependency>\n```\nAlso update any reference to `org.wildfly.bom:wildfly-ee` or `org.wildfly.bom:wildfly-ee-preview` to the WildFly 34 version if these are imported separately.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:resolve` succeeds without `Artifact not found` errors for `wildfly-microprofile`. `mvn dependency:tree` shows MicroProfile API versions managed at the WildFly 34 expected versions (e.g. MicroProfile Config 3.1, MicroProfile Health 4.0).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Arquillian BOM corrected for JUnit 5 compatibility",
+      "jira_keys": ["WFLY-19574"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "dependency_upgrade",
+      "reason_type": "bugfix",
+      "reason": "The Arquillian version declared in WildFly user-facing BOMs was incompatible with JUnit 5, causing test runner resolution failures for projects using WildFly's managed Arquillian BOM. The BOM is corrected in WildFly 34. Projects that worked around this by explicitly pinning Arquillian versions should review those overrides.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Remove Arquillian version overrides and re-run JUnit 5 tests",
+          "instruction": "Search your `pom.xml` files for explicit `<arquillian.version>` property declarations or direct `org.jboss.arquillian.*` version pins in `<dependencyManagement>` that were added as workarounds. Remove these overrides and let the WildFly 34 BOM manage the Arquillian version. Run `mvn test -pl <test-module>` to confirm JUnit 5 tests resolve and execute correctly.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Maven `test` phase completes without `NoClassDefFoundError` for Arquillian JUnit 5 integration classes. All Arquillian-based integration tests are discovered and executed by the JUnit 5 runner.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "Legacy SSL realm removed from Undertow — migrate to Elytron ssl-context",
+      "jira_keys": ["WFLY-19255"],
+      "source_url": "https://docs.jboss.org/author/display/WFLY/Simple%20SSL%20Migration.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Legacy `<security-realm>` SSL configuration is no longer used in the Undertow subsystem. The subsystem enforces use of Elytron-based `<ssl-context>` references for HTTPS listeners. Any deployment or server configuration that still references a legacy security realm for SSL on an Undertow HTTPS listener must be migrated to Elytron before upgrading.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Create Elytron key-store and ssl-context to replace legacy security-realm SSL",
+          "instruction": "In the WildFly CLI, create an Elytron key-store and server SSL context to replace the legacy security realm SSL configuration:\n```\n/subsystem=elytron/key-store=LocalhostKeyStore:add(path=server.keystore,relative-to=jboss.server.config.dir,credential-reference={clear-text=<keystore-password>},type=JKS)\n/subsystem=elytron/key-manager=LocalhostKeyManager:add(key-store=LocalhostKeyStore,credential-reference={clear-text=<key-password>})\n/subsystem=elytron/server-ssl-context=LocalhostSslContext:add(key-manager=LocalhostKeyManager)\n```\nThen switch the Undertow HTTPS listener from the legacy security realm to the new Elytron ssl-context:\n```\n/subsystem=undertow/server=default-server/https-listener=https:undefine-attribute(name=security-realm)\n/subsystem=undertow/server=default-server/https-listener=https:write-attribute(name=ssl-context,value=LocalhostSslContext)\n```\nNote: Undertow cannot reference both a `security-realm` and an `ssl-context` simultaneously — the `security-realm` attribute must be undefined before setting `ssl-context`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without HTTPS listener failure. `curl -k https://<host>:<port>/` returns an HTTP response. The Undertow HTTPS listener resource reports `ssl-context=LocalhostSslContext` and `security-realm` is undefined when read via CLI: `/subsystem=undertow/server=default-server/https-listener=https:read-resource`.",
+          "cli_operation": "/subsystem=undertow/server=default-server/https-listener=https:read-resource"
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "HotRod SNI hostname auto-configuration decoupled from physical hostname",
+      "jira_keys": ["WFLY-19441"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "SNI hostname validation for HotRod/Infinispan remote cache is now decoupled from the physical hostname. When no explicit SNI hostname is configured in `<remote-cache-container>`, hostname validation is automatically disabled. In Kubernetes or OpenShift environments that previously relied on implicit SNI hostname validation derived from the physical host, this change means validation will be silently disabled unless an explicit SNI hostname is set.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set explicit SNI hostname on remote-cache-container if validation required",
+          "instruction": "If your deployment relies on SNI hostname validation for the HotRod connection to an Infinispan/Data Grid cluster, explicitly configure the `sni-hostname` attribute on the `<remote-cache-container>` resource. Via CLI:\n```\n/subsystem=infinispan/remote-cache-container=<name>:write-attribute(name=sni-hostname,value=<your-infinispan-host>)\n```\nOr in the server XML:\n```xml\n<remote-cache-container name=\"...\" sni-hostname=\"infinispan.example.com\">\n  ...\n</remote-cache-container>\n```\nIf you do not require SNI validation (e.g. all traffic is within a trusted internal network), no action is needed — the new default (auto-disable when no SNI hostname set) is acceptable.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HotRod connection to the Infinispan cluster establishes successfully. If SNI validation is required, the TLS handshake uses the configured hostname and is verified by examining the TLS session SNI extension in a packet capture or the Infinispan server access log.",
+          "cli_operation": "/subsystem=infinispan/remote-cache-container=<name>:read-resource"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "mp.health.disable-default-procedures now correctly honoured",
+      "jira_keys": ["WFLY-19147"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Setting `mp.health.disable-default-procedures=true` in `microprofile-config.properties` at the application level now correctly disables all default MicroProfile Health procedures. Previously this property was silently ignored and default procedures were always enabled. Applications that relied on this silent-ignore behaviour (with default procedures always active) must now ensure they have explicit `@Liveness` and `@Readiness` checks or remove the property if defaults are desired.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit mp.health.disable-default-procedures usage and add explicit health checks",
+          "instruction": "Search your application source for `mp.health.disable-default-procedures` in any `microprofile-config.properties` or `META-INF/microprofile-config.properties` file. If set to `true`, verify that your application provides explicit `@ApplicationScoped` beans annotated with `@Liveness` and/or `@Readiness` (from `org.eclipse.microprofile.health`) for all health endpoints your load balancer or orchestrator relies on. If you do not need `disable-default-procedures=true`, remove the property to restore the default WildFly health probes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "GET `/health/live` and GET `/health/ready` return HTTP 200 with status `UP` and the expected health check names. No unexpected `DOWN` status from a missing default health check.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Distributed EJB timer consolidation and coalescing behaviour changed",
+      "jira_keys": ["WFLY-19271", "WFLY-19419", "WFLY-19514"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Three related improvements change distributed EJB timer behaviour: (1) timeouts that would fire in the past are now consolidated into a single firing rather than firing multiple times; (2) calendar-based timers coalesce missed timeouts; (3) timeout events no longer drop when the server is suspended. Applications with strict business logic around the number of timer invocations must be verified — what were previously multiple missed firings may now collapse into a single invocation.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate EJB timer invocation counts after upgrade",
+          "instruction": "Identify all `@Schedule`, `@Timeout`, and programmatic `TimerService` usages in your EJBs. In a staging environment, simulate a server pause followed by restart and verify that: (1) timers that should have fired during the downtime fire exactly once (coalescing) rather than repeatedly; (2) timers fire correctly when the server exits suspended mode. If your business logic requires that every missed firing is executed individually (e.g. per-minute batch processing of records), you must implement a catch-up loop in the timer method itself, as WildFly 34 will no longer fire a separate invocation per missed interval.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "After simulating a 5-minute server outage, a timer scheduled every minute fires exactly once (coalesced) and produces no duplicate side-effects. Server log shows no `TimerService` error or dropped timeout warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Datasource XML configuration schema corrected — may reject previously-accepted config",
+      "jira_keys": ["WFLY-19304"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The datasource subsystem XML schema was previously validating some configurations incorrectly, allowing malformed or semantically invalid configurations to be accepted at boot. The corrected schema and model definition may now reject configurations that were previously accepted, causing a boot failure after upgrade.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate datasource XML against the WildFly 34 corrected schema",
+          "instruction": "Before deploying to production, start WildFly 34 with your existing `standalone.xml` or `domain.xml` in a staging environment. Watch the boot log for any `WFLYJCA` or `WFLYCTL` errors related to datasource configuration. If errors appear, correct the datasource XML to conform to the updated schema. Common issues include: mis-ordered child elements in `<datasource>` or `<xa-datasource>` blocks, or attributes placed on wrong elements. The updated schema is published at `$JBOSS_HOME/docs/schema/wildfly-datasources_7_0.xsd` (version number may vary).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server boots without any `WFLYJCA` schema validation errors in the log. Datasources reach `State=Running` status as confirmed by `/subsystem=datasources/data-source=<name>:read-attribute(name=statistics-enabled)`.",
+          "cli_operation": "/subsystem=datasources:read-resource(recursive=false)"
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Redundant hibernate.cache.region.factory_class now logged as warning",
+      "jira_keys": ["WFLY-19664"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "If `hibernate.cache.region.factory_class` is set in a persistence unit but the JPA provider (WildFly) manages the second-level cache itself and ignores the property, a warning is now logged. This is a diagnostic improvement; no functional change occurs. However, the warning indicates dead configuration that should be cleaned up to avoid confusion.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "hibernate.cache.region.factory_class", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove redundant hibernate.cache.region.factory_class from persistence.xml",
+          "instruction": "Search `persistence.xml` files in your project for `<property name=\"hibernate.cache.region.factory_class\" value=\"...\"/>`. If WildFly is managing the Infinispan second-level cache (which it does by default when the `infinispan` subsystem is present and caching is enabled in the persistence unit), this property is ignored and should be removed. Remove the `<property>` element. If you have a genuine need to override the cache factory, consult the WildFly documentation on JPA configuration to determine the correct approach.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server boot log contains no WARN message about `hibernate.cache.region.factory_class` being ignored. `persistence.xml` contains no reference to `hibernate.cache.region.factory_class`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "jboss-client.jar missing SASL anonymous provider — fixed in WildFly 34",
+      "jira_keys": ["WFLY-19802"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "`jboss-client.jar` was missing the `wildfly-elytron-sasl-anonymous` security provider, causing client-side authentication failures when anonymous SASL was in use. This is fixed in WildFly 34. Projects that distribute `jboss-client.jar` separately (outside the server distribution) must refresh the JAR from WildFly 34 to include the fix.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Refresh jboss-client.jar from WildFly 34 distribution",
+          "instruction": "If you distribute `jboss-client.jar` as part of your client application (e.g. embedded in a Java SE client, a separate CLI tool, or a non-WildFly JVM that connects to WildFly via the remoting protocol), replace the existing `jboss-client.jar` with the one from the WildFly 34 distribution located at `<JBOSS_HOME>/bin/client/jboss-client.jar`. Do not use the JAR from WildFly 33 or earlier. If you depend on `jboss-client.jar` via Maven, update the version in your `pom.xml` to `34.0.0.Final`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Client application connects to WildFly 34 using anonymous SASL without `SaslException: No common SASL mechanism` or `AuthenticationException`. Connection succeeds and EJB invocations return expected results.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "remoting"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "EJB remote service cluster attribute deprecated",
+      "jira_keys": ["WFLY-19303"],
+      "source_url": "https://docs.wildfly.org/22/wildscribe/subsystem/ejb3/service/remote/index.html",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `cluster` attribute on the EJB remote service resource (`/subsystem=ejb3/service=remote`) is deprecated and will be removed in a future WildFly release. The current `connectors` attribute should be used for clustering configuration instead. The attribute continues to function in WildFly 34 but produces a deprecation warning.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Remove cluster attribute from ejb3 remote service config",
+          "instruction": "Check your `standalone-full.xml`, `standalone-full-ha.xml`, or domain profile XML for the `<remote>` element under `<subsystem xmlns=\"urn:jboss:domain:ejb3:*\">`. If it contains a `cluster` attribute (e.g. `<remote cluster=\"ejb\" connector-ref=\"http-remoting-connector\">`), remove the `cluster` attribute. The clustering configuration for EJB remoting is now driven by the `connectors` attribute on the `<remote>` element. Via CLI: `/subsystem=ejb3/service=remote:undefine-attribute(name=cluster)`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts without WARN log message about deprecated `cluster` attribute on `ejb3/service=remote`. `/subsystem=ejb3/service=remote:read-resource` does not return a non-null `cluster` attribute.",
+          "cli_operation": "/subsystem=ejb3/service=remote:undefine-attribute(name=cluster)"
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecated MSC API removed from ha-singleton-service implementation",
+      "jira_keys": ["WFLY-19352"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Deprecated MSC (Modular Service Container) API usage has been removed from the `ha-singleton-service` implementation. Any code that extends or integrates with `ha-singleton-service` internals using the old MSC API will fail to compile or link at runtime after upgrading to WildFly 34.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update ha-singleton-service integrations to current MSC API",
+          "instruction": "Search your codebase for any direct usage of `ha-singleton-service` internal APIs or MSC classes from the `org.jboss.msc` package that were previously accessed via `ha-singleton-service` extension points. Compile your project against WildFly 34 and resolve any `NoSuchMethodError`, `NoClassDefFoundError`, or compilation failures. Consult the WildFly `ha-singleton-service` proposal at https://docs.wildfly.org/wildfly-proposals/ and the updated `SingletonServiceConfiguratorFactory` API (see WFLY-19235) for the current integration pattern.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without errors against WildFly 34 APIs. HA singleton service deploys and is elected on exactly one cluster node without `MSCException` or `ServiceNotFoundException` in the server log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "clustering"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "HTTP Management Interface resource limits now configurable",
+      "jira_keys": ["WFLY-19715"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "informational",
+      "reason_type": "security",
+      "reason": "New attributes are available on the HTTP management interface resource to define resource limits including connection count and request rate. This allows production deployments to protect the management interface from excessive resource consumption or abuse. No migration required; opt-in configuration enhancement.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure HTTP management interface resource limits for production hardening",
+          "instruction": "To set resource limits on the HTTP management interface, use the WildFly CLI to write the new attributes on `/core-service=management/management-interface=http-interface`. Example — limit to 10 concurrent connections and 100 requests per second:\n```\n/core-service=management/management-interface=http-interface:write-attribute(name=max-connections,value=10)\n```\nConsult the WildFly 34 Admin Guide for the full list of new attributes and recommended values for production deployments.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts. `/core-service=management/management-interface=http-interface:read-resource` returns the configured `max-connections` value. Management interface remains accessible under the configured limits.",
+          "cli_operation": "/core-service=management/management-interface=http-interface:read-resource"
+        }
+      ],
+      "subsystem": "core-management"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "CLI read-config-as-xml-file operation now documented",
+      "jira_keys": ["WFLY-19692"],
+      "source_url": "https://www.wildfly.org/news/2024/10/17/WildFly-34-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `read-config-as-xml-file` CLI operation (introduced in WildFly Core WFCORE-6960) is now documented with updated CLI recipes. This operation exports the running server configuration as an XML file without a server restart. No migration required; informational for operators who use the CLI for configuration management.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Use read-config-as-xml-file to export running server configuration",
+          "instruction": "From the WildFly CLI (`jboss-cli.sh --connect`), run: `:read-config-as-xml-file(path=/tmp/current-config.xml)`. This exports the live server configuration to the specified file without restarting. Use this to diff configuration state before and after changes, or to capture the current running configuration for archiving.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "The file at the specified path is created and contains valid XML representing the server configuration. The file size is greater than zero and the XML root element is `<server>` or `<domain>` as appropriate.",
+          "cli_operation": ":read-config-as-xml-file(path=/tmp/current-config.xml)"
+        }
+      ],
+      "subsystem": "core"
+    }
+  ]
+}

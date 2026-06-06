@@ -1,0 +1,984 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "TypeScript < 5.8 Support Dropped",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 20 requires TypeScript 5.8 or higher. Projects still on TypeScript 5.7 or earlier will fail to compile after upgrading the Angular packages. This must be done before or alongside the Angular package upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "typescript", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade typescript to >=5.8 in package.json",
+          "instruction": "In package.json update the `typescript` dev-dependency to `>=5.8.0`. Run `npm install` (or `yarn` / `pnpm install`). Confirm the installed version with `npx tsc --version`. Resolve any new TypeScript 5.8 strict-mode errors before proceeding with the Angular upgrade.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`npx tsc --version` prints 5.8.x or higher and `ng build` completes without TypeScript version errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Node.js 18 and 22.0–22.10 No Longer Supported",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 20 drops support for Node.js 18 and Node.js 22.0 through 22.10. The minimum supported runtimes are Node.js 20.19, 22.12, or 24.0. Running Angular CLI or SSR applications on unsupported Node versions will cause unpredictable failures.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade runtime Node.js to 20.19, 22.12, or 24.0",
+          "instruction": "Update the Node.js runtime in all environments (local, CI, Docker images, cloud runtimes) to at least Node.js 20.19 LTS, 22.12 LTS, or 24.0. Update `.nvmrc`, `.tool-versions`, or `engines` field in `package.json` to reflect the minimum version. If using Docker, update the base image tag (e.g. `node:20.19-alpine`).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`node --version` prints 20.19.x or higher (or 22.12+, or 24.x) in all deployment environments. `ng serve` and `ng build` start without Node.js compatibility warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`afterRender` Renamed to `afterEveryRender`",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `afterRender` lifecycle hook has been renamed to `afterEveryRender` and is now stable. Unlike many Angular API renames, no automatic migration schematic was provided — all usages must be manually replaced. `afterNextRender` is unchanged.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "afterRender", "role": "removed" },
+        { "kind": "class", "name": "afterEveryRender", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace all `afterRender` calls with `afterEveryRender`",
+          "instruction": "Do a project-wide search for `afterRender` (exact identifier, not `afterNextRender`). Replace every import of `afterRender` from `@angular/core` with `afterEveryRender`, and rename every call site accordingly. Example: `import { afterEveryRender } from '@angular/core';` and `afterEveryRender(() => { ... });`. No behavioral change is needed — the signature is identical.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project-wide search for `afterRender(` (excluding `afterNextRender`) returns no results. `ng build` compiles without errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`InjectFlags` Enum Removed",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`InjectFlags` has been removed from Angular's public API. `inject()`, `Injector.get()`, `EnvironmentInjector.get()`, `TestBed.inject()`, and `TestBed.get()` no longer accept `InjectFlags`. An automated migration schematic is available to handle the majority of cases.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "InjectFlags", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run inject-migration schematic to replace InjectFlags",
+          "instruction": "Run the Angular-provided migration schematic: `ng generate @angular/core:inject-migration`. This rewrites all usages of `InjectFlags` across your project. For example, `inject(ElementRef, InjectFlags.Optional | InjectFlags.SkipSelf)` is converted to `inject(ElementRef, { optional: true, skipSelf: true })`. Review the diff after the schematic runs to confirm all conversions are correct.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No import of `InjectFlags` remains anywhere in the codebase. `ng build` succeeds without type errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`TestBed.get` Removed",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`TestBed.get()` was deprecated long ago and has now been fully removed. All test code that calls `TestBed.get()` will fail to compile.",
+      "scopes": [
+        { "scope": "test", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "TestBed.get", "role": "removed" },
+        { "kind": "class", "name": "TestBed.inject", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace TestBed.get() calls with TestBed.inject()",
+          "instruction": "Search all test files for `TestBed.get(`. Replace every occurrence with `TestBed.inject(`. The method signatures are compatible — `TestBed.inject(Token)` returns the same resolved instance. Example: `const service = TestBed.inject(MyService);`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `TestBed.get(` call remains in any `*.spec.ts` file. All unit tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`TestBed.flushEffects` Removed",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`TestBed.flushEffects()` has been removed. The replacement is `TestBed.tick()`, the new stable test synchronization API introduced in Angular 20.",
+      "scopes": [
+        { "scope": "test", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "TestBed.flushEffects", "role": "removed" },
+        { "kind": "class", "name": "TestBed.tick", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace TestBed.flushEffects() with TestBed.tick()",
+          "instruction": "Search all test files for `TestBed.flushEffects(`. Replace every occurrence with `TestBed.tick()`. `TestBed.tick()` synchronizes all pending effects and state changes, fulfilling the same role as `flushEffects()` while also being usable as a general-purpose tick for zoneless tests.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `TestBed.flushEffects(` call remains in any `*.spec.ts` file. All unit tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`provideExperimentalCheckNoChangesForDebug` Renamed to `provideCheckNoChangesConfig`",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/provideCheckNoChangesConfig",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`provideExperimentalCheckNoChangesForDebug` has been renamed to `provideCheckNoChangesConfig` and the `useNgZoneOnStable` option has been removed. Any provider calls using the old name or the removed option will fail to compile.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideExperimentalCheckNoChangesForDebug", "role": "removed" },
+        { "kind": "class", "name": "provideCheckNoChangesConfig", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace provideExperimentalCheckNoChangesForDebug with provideCheckNoChangesConfig",
+          "instruction": "Search the codebase for `provideExperimentalCheckNoChangesForDebug`. Replace every usage with `provideCheckNoChangesConfig`. Also remove any `useNgZoneOnStable` option from the call — the option no longer exists. Example: `provideCheckNoChangesConfig({ exhaustive: true, interval: 400 })`. Update the import from `@angular/core` accordingly.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No reference to `provideExperimentalCheckNoChangesForDebug` or `useNgZoneOnStable` remains. `ng build` succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`provideExperimentalZonelessChangeDetection` Renamed to `provideZonelessChangeDetection`",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/provideZonelessChangeDetection",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The experimental zoneless change detection provider has been promoted to developer preview and renamed to `provideZonelessChangeDetection`. Any provider array using the old experimental name will fail to compile after upgrading.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideExperimentalZonelessChangeDetection", "role": "removed" },
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace provideExperimentalZonelessChangeDetection with provideZonelessChangeDetection",
+          "instruction": "Search the codebase for `provideExperimentalZonelessChangeDetection`. Replace every import and call site with `provideZonelessChangeDetection` from `@angular/core`. The function signature is unchanged.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No reference to `provideExperimentalZonelessChangeDetection` remains. `ng build` compiles successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`PendingTasks.run` Return Type Changed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/20.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "`PendingTasks.run()` no longer returns the result of the inner async function. Code that captured the return value of `run()` will receive `void` instead of the promise result. To preserve the result, capture it inside the callback before `run()` resolves.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "PendingTasks", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Stop relying on PendingTasks.run() return value",
+          "instruction": "Search for all `await pendingTasks.run(...)` or `.run(...).then(...)` patterns where the return value is used. Refactor each by capturing the result inside the callback: e.g. `let result; await pendingTasks.run(async () => { result = await myOp(); });`. Alternatively, use `PendingTasks.add()` and manage the task lifecycle manually if fine-grained control is needed. Per Angular 20 release notes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All `PendingTasks.run()` call sites either do not use the return value, or capture the result inside the callback. Application behaves correctly during SSR pending-task tracking.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`ApplicationRef.tick` Error Propagation Changed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/ApplicationRef",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "`ApplicationRef.tick()` no longer swallows errors by reporting them silently to `ErrorHandler`. Errors now propagate to the caller. Tests or production code that previously relied on silent error swallowing during tick may now throw unexpected exceptions.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ApplicationRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add error handling around ApplicationRef.tick() call sites",
+          "instruction": "Locate all call sites that invoke `ApplicationRef.tick()` directly. Wrap each in a try/catch or handle the returned promise rejection if your code proceeds after a tick error. In tests, if the previous behavior was intentional, you may add `rethrowApplicationErrors: false` to `configureTestingModule` as a last resort, but prefer fixing the root cause that produced the tick error instead.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No unhandled exceptions propagate from `ApplicationRef.tick()` in production or test runs. Tests that previously relied on swallowed tick errors are updated.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Security — XSRF Token Leakage to Protocol-Relative URLs Fixed (CVE-2025-66035)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-58c5-g7wp-6w37",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "CVE-2025-66035: Angular's HttpClient was sending XSRF tokens to protocol-relative URLs (e.g. `//evil.com/...`) because they were incorrectly treated as same-origin. This is now fixed. Applications that inadvertently relied on this behavior for legitimate cross-origin credentialed calls must adjust their CSRF validation.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit HttpClient calls using protocol-relative URLs",
+          "instruction": "Search the codebase for any `HttpClient` calls or service URLs that use protocol-relative form (starting with `//`). Convert these to explicit `https://` URLs. Review server-side CSRF validation logic to ensure it does not rely on Angular attaching the XSRF token to cross-origin endpoints. Update backend CSRF configuration if needed.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `HttpClient` requests use protocol-relative URLs. CSRF validation on the backend does not depend on tokens arriving from cross-origin requests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Security — XSS via SVG `attributeName` and MathML/SVG URLs (CVE-2025-66412)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-v4hv-rgfq-gp49",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "CVE-2025-66412: Angular now sanitizes SVG animation `attributeName` bindings and MathML/SVG URL attributes to block stored XSS. Templates that dynamically bind these attributes with trusted values must explicitly bypass sanitization using `DomSanitizer`.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit templates binding SVG attributeName or MathML/SVG URL attributes",
+          "instruction": "Search all Angular templates for dynamic bindings to `[attributeName]` on SVG `<animate>`, `<set>`, `<animateMotion>`, or `<animateTransform>` elements, and for URL bindings on SVG/MathML elements (e.g. `[href]`, `[xlink:href]`). If the bound value is fully controlled (no user input), wrap it with `DomSanitizer.bypassSecurityTrustResourceUrl(url)` injected via the component constructor: `constructor(private sanitizer: DomSanitizer) {}`. Never bypass sanitization for user-supplied values.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Templates compile without sanitization warnings. SVG animations with dynamic `attributeName` render correctly. No JavaScript injection is possible via SVG attribute bindings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "ICU Translation Attribute Sanitization (CVE-2026-27970)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-g93w-mfhg-p222",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-27970: Angular now validates HTML attributes inside ICU translation blocks and drops unknown or security-sensitive attributes. Templates that bind security-sensitive or non-standard attributes inside i18n ICU messages may produce build errors or have attributes silently removed at runtime.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit i18n ICU blocks for sensitive attribute bindings",
+          "instruction": "Review all Angular translation files (XLIFF/XMB) and templates that use ICU message syntax (`{count, plural, ...}` or `{gender, select, ...}`). Check for any HTML element attributes inside ICU translated content that are security-sensitive (event handlers, script-like attributes, non-standard `data-*` attributes used for scripting). Remove or migrate these to safe alternatives. Address any compile-time errors surfaced by the new validation. Per Angular 20 i18n security hardening.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without i18n sanitization errors. ICU translated content renders correctly and no attribute bindings are silently stripped at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SSRF / URL Injection Fixes in SSR Bootstrapping (CVE-2026-46417)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-rfh7-fxqc-q52v",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-46417: Multiple SSR bootstrapping paths were hardened against SSRF and path-hijack attacks. `ServerPlatformLocation` and `renderModule`/`renderApplication` now validate the request URL against an `allowedHosts` list. Custom SSR integrations that pass externally-controlled URLs to the rendering engine must add the `allowedHosts` option.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ServerPlatformLocation", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add allowedHosts to renderModule / renderApplication SSR calls",
+          "instruction": "In any custom SSR server (Express, Fastify, etc.) that calls `renderModule()` or `renderApplication()`, add the `allowedHosts` option listing all legitimate hostnames your server accepts. Example: `renderApplication(AppComponent, { document, url: req.url, allowedHosts: ['myapp.example.com', 'www.myapp.example.com'] })`. This prevents an attacker from passing an absolute-form URL pointing at an internal host. Also review and remove any backslash URL normalization workarounds that were applied to earlier Angular SSR versions.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR server rejects rendering requests where the URL hostname is not in `allowedHosts`. Application renders correctly for all legitimate hostnames.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SVG `<script>` Element Sanitization",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/91dc91bae4a1bbefc58bef6ef739d0e02ab44d56",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular now strips namespaced SVG `<script>` elements during template compilation and rejects `<script>` elements as dynamic component hosts. Templates or dynamic component creation patterns that used SVG script elements must be refactored to not rely on script injection.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Remove SVG <script> elements from templates and dynamic component hosts",
+          "instruction": "Search all Angular templates and component factory calls for SVG `<script>` elements used as inline scripts or dynamic component hosts. Refactor these to use Angular-idiomatic script loading (e.g. `Renderer2.createElement` for safe DOM manipulation, or lazy-loaded modules). Do not use `<script>` as a `ViewContainerRef` host or as an element to dynamically attach components.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No SVG `<script>` elements appear in compiled templates or in dynamic component creation calls. `ng build` completes without sanitization errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "`iframe` `src` Translation Blocked",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular now blocks translations of `iframe[src]` attributes at compile time to prevent injection attacks. Any i18n-annotated `iframe[src]` binding will produce a build error and must be migrated to a programmatic sanitized approach.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace i18n iframe[src] bindings with DomSanitizer approach",
+          "instruction": "Search templates for `<iframe ... i18n-src ...>` or `<iframe [src]=\"...\" i18n-src>` patterns. Remove the `i18n-src` annotation. Instead, inject `DomSanitizer` in the component and expose a safe URL via a component property: `safeUrl = this.sanitizer.bypassSecurityTrustResourceUrl(trustedUrl)`, then bind `[src]=\"safeUrl\"`. Never pass user-controlled strings to `bypassSecurityTrustResourceUrl`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` produces no i18n/iframe src errors. The iframe renders the intended URL at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`InjectFlags` to Options Object Migration (Schematic)",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/migrations/inject-function",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "A dedicated Angular schematic automates the removal of `InjectFlags` from all DI call sites. This entry is the canonical actionable record for running the automated migration as part of the upgrade process.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "InjectFlags", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run ng generate @angular/core:inject-migration schematic",
+          "instruction": "Execute `ng generate @angular/core:inject-migration` in the project root. The schematic converts `InjectFlags.Optional` → `{ optional: true }`, `InjectFlags.SkipSelf` → `{ skipSelf: true }`, `InjectFlags.Host` → `{ host: true }`, and combinations thereof, across all `inject()`, `Injector.get()`, `EnvironmentInjector.get()`, `TestBed.inject()`, and `TestBed.get()` calls. Review the changed files after the schematic completes.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `InjectFlags` import or usage remains in the codebase. `ng build` completes without type errors related to inject flags.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`ng-reflect-*` Attributes No Longer Produced by Default",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Angular 20 stops emitting `ng-reflect-*` DOM attributes by default. E2E and unit tests that select DOM elements via `ng-reflect-*` attribute selectors will silently fail without error messages. All test selectors and debug tooling relying on these attributes must be updated.",
+      "scopes": [
+        { "scope": "test", "severity": "critical" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit and replace ng-reflect-* selectors in all tests",
+          "instruction": "Search all test files (`*.spec.ts`) and E2E test files for selectors containing `ng-reflect-`. Replace each `ng-reflect-*` attribute selector with a `data-testid` attribute added to the component template, or use component property queries via `fixture.debugElement.componentInstance`. Example: replace `fixture.debugElement.query(By.css('[ng-reflect-title]'))` with `fixture.debugElement.query(By.css('[data-testid=\"my-component\"]'))` after adding `data-testid=\"my-component\"` to the template element. If the attributes are needed temporarily during migration, add `provideNgReflectAttributes()` to `TestBed.configureTestingModule` providers to re-enable them.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No test selector references `ng-reflect-*`. All unit and E2E tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`DOCUMENT` Token Moved to `@angular/core`",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `DOCUMENT` injection token has moved from `@angular/common` to `@angular/core`. While `@angular/common` still re-exports it for now, the old export will be removed in a future release. An automated migration rewrites the imports during `ng update`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DOCUMENT", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Update DOCUMENT import from @angular/common to @angular/core",
+          "instruction": "Search the codebase for `import { DOCUMENT } from '@angular/common'`. Replace each with `import { DOCUMENT } from '@angular/core'`. The Angular CLI migration schematic handles this automatically when running `ng update @angular/core @angular/common`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No file imports `DOCUMENT` from `@angular/common`. `ng build` succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "TransferCache Skips Cookie-Bearing Requests by Default",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/ssr",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular's HttpTransferCache now excludes requests sent with `withCredentials` or containing Authorization/Cookie headers by default, preventing credential leakage across SSR/client hydration boundaries. Applications that intentionally cached credentialed responses must explicitly opt back in.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Opt in to caching credentialed requests via HttpTransferCacheOptions",
+          "instruction": "If your application intentionally caches HTTP responses to credentialed requests (e.g. requests bearing a public API token not tied to user identity), update the `provideClientHydration()` call to pass `withHttpTransferCacheOptions({ includeRequestsWithAuthHeaders: true })`. Example: `provideClientHydration(withHttpTransferCacheOptions({ includeRequestsWithAuthHeaders: true }))`. Do not enable this for requests carrying user-specific session cookies or private tokens. Per Angular SSR guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR-rendered HTTP responses are reused on the client only for the intended requests. Credentialed user-session requests are not cached across SSR/client boundaries.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`AsyncPipe` Catches Unhandled Errors Directly",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "`AsyncPipe` now directly catches and reports errors from Observable/Promise subscriptions instead of letting them propagate silently. Code relying on global error handling to catch `AsyncPipe` stream errors may now see errors reported differently.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "AsyncPipe", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Add catchError to error-prone Observable streams used with AsyncPipe",
+          "instruction": "Search templates for uses of the `async` pipe (`| async`). For each Observable or Promise bound via `async`, ensure the stream includes explicit error handling using RxJS `catchError`. Example: `data$ = this.service.getData().pipe(catchError(err => { this.errorHandler.handle(err); return EMPTY; }));`. Do not rely on `AsyncPipe`'s implicit error catching as a substitute for explicit error handling.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All `async` pipe bindings use Observables with explicit `catchError` operators. No unhandled errors propagate silently from `AsyncPipe` streams.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`in` and `void` Operators Available in Templates",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "The `in` keyword and `void` operator now resolve to their JavaScript semantics in Angular template expressions. Templates that previously used `in` or `void` as property identifiers may now parse differently, causing unexpected behavior.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Search templates for property names `in` or `void` and rename if needed",
+          "instruction": "Search all Angular template files (`*.html`, and inline templates in `*.ts`) for expressions containing the identifiers `in` or `void` used as property names (e.g. `object.in`, `item.void`). If any such identifiers exist, rename the property in the component class and template to avoid the reserved keyword. For legitimate use of the `in` operator (e.g. `'key' in obj`), verify the behavior is as expected.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "No template uses `in` or `void` as a property identifier. Template expressions using the `in` operator evaluate correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Uncaught Listener Errors Surface to `ErrorHandler`",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Uncaught errors in event listeners that were previously only logged to the console now flow through Angular's `ErrorHandler`. Custom `ErrorHandler` implementations that were not expecting listener errors may receive new error events and must be updated.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ErrorHandler", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update custom ErrorHandler to handle event listener errors",
+          "instruction": "Review any custom `ErrorHandler` class (`class MyErrorHandler implements ErrorHandler`). Ensure the `handleError(error)` method can correctly process errors originating from event listeners (e.g. click handlers, keyboard handlers) in addition to change detection errors. Add a type check or instanceof guard if different error types require different handling. Verify that error monitoring integrations (e.g. Sentry, Datadog) capture these newly-surfaced errors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom `ErrorHandler.handleError()` handles event listener errors without throwing. Error monitoring dashboards receive the expected error events.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Suspicious `Y` Date Pattern Throws",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Using the `Y` date format specifier (ISO week-numbering year) without `w` (week number) is now detected as suspicious and throws an error. This was a common source of incorrect date output. Replace `Y` with `y` where the calendar year is intended.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace Y date format specifier with y in DatePipe formats",
+          "instruction": "Search templates and component code for uses of Angular's `DatePipe` (i.e. `| date:'...'` or `formatDate(...)`) that include `'Y'` as the year specifier without a corresponding `'w'` (week number). Replace `Y` with `y` for the calendar year. Example: `| date:'Y-MM-dd'` → `| date:'y-MM-dd'`. If you intentionally format ISO week-numbering years, pair `Y` with `w` (e.g. `| date:'YYYY-ww'`).",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `DatePipe` format string uses `Y` without `w`. Dates render the correct calendar year in the UI.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`setInput` Blocked on `inputBinding`-managed Components",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Calling `ComponentRef.setInput()` is now disallowed on components whose inputs are managed by the new `inputBinding`/`twoWayBinding` dynamic component API. Attempting to call `setInput()` on such components will throw a runtime error.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ComponentRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ComponentRef.setInput() with inputBinding for dynamic components",
+          "instruction": "Identify `ComponentRef.setInput()` calls in code that creates dynamic components via `ViewContainerRef.createComponent()` with `inputBinding()`. Migrate to using `inputBinding()` directly in the `createComponent` call options instead of calling `setInput()` after creation. For components not using `inputBinding`, `setInput()` continues to work.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `setInput()` is called on components created with `inputBinding`. Dynamic components receive their inputs correctly without runtime errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Route Guard `any` Type Removed",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The `any` overload has been removed from route guard arrays on the `Route` interface. TypeScript projects may encounter new type errors on guard definitions that were previously typed as `any`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace any-typed route guards with concrete guard interfaces",
+          "instruction": "Search route configuration files for guard arrays (`canActivate`, `canDeactivate`, `canLoad`, `canMatch`, `canActivateChild`) that contain values typed as `any`. Replace with the concrete function types: `CanActivateFn`, `CanDeactivateFn`, `CanLoadFn`, `CanMatchFn`, `CanActivateChildFn` from `@angular/router`. Example: `canActivate: [myGuard as CanActivateFn]` or simply ensure `myGuard` is typed as `CanActivateFn`.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` produces no type errors on route guard arrays. All route guard types are concrete `*Fn` types.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`ngIf`, `ngFor`, `ngSwitch` Structural Directives Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/pull/60492",
+      "change_type": "deprecation",
+      "reason_type": "performance",
+      "reason": "`NgIf`, `NgFor`, and `NgSwitch` structural directives are deprecated in Angular 20 in favor of the built-in `@if`, `@for`, and `@switch` control flow syntax introduced in Angular 17. The directives will be removed in a future major version. Migrating now reduces bundle size and eliminates a subtle memory leak in `*ngFor`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "NgIf", "role": "removed" },
+        { "kind": "class", "name": "NgFor", "role": "removed" },
+        { "kind": "class", "name": "NgSwitch", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run control-flow migration schematic to replace *ngIf/*ngFor/*ngSwitch",
+          "instruction": "Run the Angular migration schematic: `ng update @angular/core --name=control-flow-migration`. This automatically converts `*ngIf` → `@if`, `*ngFor` → `@for`, `*ngSwitch`/`*ngSwitchCase`/`*ngSwitchDefault` → `@switch`/`@case`/`@default` across all templates. Review every changed file — the schematic handles most cases but may not correctly convert complex edge cases. After migration, remove `NgIf`, `NgFor`, and `NgSwitch` from `imports` arrays in standalone components and `NgModule` declarations.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `*ngIf`, `*ngFor`, or `*ngSwitch` directives remain in templates. No `NgIf`, `NgFor`, or `NgSwitch` are imported in components or modules. `ng build` and all tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`@angular/platform-browser-dynamic` Package Deprecated",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/migrations/standalone",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`@angular/platform-browser-dynamic` and its `bootstrapModule()` API are deprecated. The replacement is `bootstrapApplication()` with standalone providers (`provideRouter()`, `provideHttpClient()`, etc.). Continuing to use the deprecated API increases risk of a forced migration in the next major.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "@angular/platform-browser-dynamic", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate from bootstrapModule() to bootstrapApplication()",
+          "instruction": "Run `ng g @angular/core:standalone` three times in sequence: (1) 'Convert all components, directives and pipes to standalone', (2) 'Remove unnecessary NgModule classes', (3) 'Bootstrap the project using standalone APIs'. This rewrites `main.ts` from `platformBrowserDynamic().bootstrapModule(AppModule)` to `bootstrapApplication(AppComponent, appConfig)`. Create `app.config.ts` with providers: `provideRouter(routes)`, `provideHttpClient()`, and any other previously-NgModule-based providers. Remove `@angular/platform-browser-dynamic` from `package.json` dependencies after migration.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "`main.ts` uses `bootstrapApplication()` with no reference to `platformBrowserDynamic` or `bootstrapModule`. `ng build` and `ng serve` work correctly. No `@angular/platform-browser-dynamic` import remains.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "HammerJS Integration Deprecated",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "HammerJS gesture support in `@angular/platform-browser` is deprecated. `HammerModule` will be removed in a future major version. Applications should migrate to native pointer events or a standalone gesture library.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "HammerModule", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove HammerModule and migrate gestures to native pointer events",
+          "instruction": "Remove `HammerModule` from any `NgModule` imports arrays or standalone providers. Remove the `hammerjs` npm package from `package.json`. Reimplement gesture handling using native browser Pointer Events API (`pointerdown`, `pointermove`, `pointerup`) or a standalone gesture library such as `@use-gesture/vanilla`. Per Angular deprecation guidance.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `HammerModule` import remains in the codebase. Gesture interactions work correctly using the replacement implementation.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`@angular/platform-server/testing` Entry Point Deprecated",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `@angular/platform-server/testing` entry point is deprecated. Server-side tests should be updated to use `@angular/core/testing` APIs instead.",
+      "scopes": [
+        { "scope": "test", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "@angular/platform-server/testing", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Migrate @angular/platform-server/testing imports to @angular/core/testing",
+          "instruction": "Search all test files for imports from `@angular/platform-server/testing`. Replace each import with the equivalent from `@angular/core/testing`. For server-side rendering tests, use `TestBed` from `@angular/core/testing` with `provideServerRendering()` from `@angular/platform-server`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No import from `@angular/platform-server/testing` remains. All server-side tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`ng-reflect-*` Attributes Deprecated",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`ng-reflect-*` DOM debug attributes are deprecated, no longer emitted by default, and will be fully removed in a future version. Applications and tests that rely on these attributes for debugging or assertions must migrate away from them.",
+      "scopes": [
+        { "scope": "test", "severity": "medium" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove ng-reflect-* selectors from tests and application code",
+          "instruction": "Search all source and test files for `ng-reflect-`. Remove or replace every occurrence. In tests, replace `By.css('[ng-reflect-*]')` selectors with `data-testid` attributes or component property queries. If needed temporarily, add `provideNgReflectAttributes()` to `TestBed.configureTestingModule` providers to re-enable the attributes, then schedule removal.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `ng-reflect-` reference remains in any source or test file. All tests pass without relying on `ng-reflect-*` attributes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Dynamic Components: Input Bindings, Outputs, Directives",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`createComponent` now supports `inputBinding()`, `twoWayBinding()`, and `outputBinding()` for declarative binding of dynamic components, removing the need for manual `setInput()` calls or wrapper components.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`TestBed.tick()` Introduced as Stable Test Synchronization API",
+      "jira_keys": [],
+      "source_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`TestBed.tick()` is a new stable API that synchronizes test state and flushes effects. It is the official replacement for `TestBed.flushEffects()` and is usable as a general-purpose tick for both zone-based and zoneless tests.",
+      "scopes": [
+        { "scope": "test", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "TestBed.tick", "role": "replacement" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`linkedSignal`, `toSignal`, and `toObservable` Stabilized",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`linkedSignal()`, `toSignal()`, and `toObservable()` are now stable APIs in Angular 20. They can be adopted without experimental caveats alongside `signal()`, `effect()`, and signal-based queries.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Incremental Hydration Stabilized",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Incremental (on-demand) SSR hydration is now stable in Angular 20. `withIncrementalHydration()` and `withI18nSupport()` are production-ready and recommended for SSR applications seeking improved time-to-interactive.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`httpResource` Experimental Signal-Based HTTP API",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `httpResource()` API provides reactive signal-based HTTP data fetching built on `HttpClient`. It remains a developer preview in Angular 20. Evaluate for adoption in new features; existing `HttpClient` usage is unaffected.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

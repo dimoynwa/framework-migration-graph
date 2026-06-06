@@ -1,0 +1,1214 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "TypeScript < 5.9 Support Dropped",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 21 raises the minimum required TypeScript version to 5.9. Any project still on TypeScript 5.8 or earlier will fail to build after upgrading Angular. This must be the first step of the migration.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "typescript", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade `typescript` to >=5.9 in package.json",
+          "instruction": "In `package.json`, update the `typescript` devDependency to `>=5.9.0` (e.g. `\"typescript\": \"~5.9.0\"`). Run `npm install` or `yarn install` to install the new version. After installation, run `npx tsc --version` to confirm the installed version is 5.9.x or higher. Fix any new TypeScript type errors — pay particular attention to generic types, conditional types, and complex inference chains, which TypeScript 5.9 checks more strictly. Per the Angular 21 migration guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Running `npx tsc --version` reports 5.9.x or higher. `ng build` completes without TypeScript version mismatch errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Host Binding Type Checking Enabled by Default",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `typeCheckHostBindings` compiler option is now `true` by default in Angular 21. Components and directives with type-unsafe host bindings that were previously silently ignored will now produce build errors, requiring either fixes or explicit suppression.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "angularCompilerOptions.typeCheckHostBindings", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set `typeCheckHostBindings: false` in tsconfig as temporary suppression",
+          "instruction": "In your root `tsconfig.app.json` (or whichever tsconfig the Angular compiler uses), under `angularCompilerOptions`, add `\"typeCheckHostBindings\": false` to suppress the new errors temporarily and allow the build to pass. This is a short-term measure only — proceed immediately to step 1.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`ng build` completes without host binding type errors.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Fix host binding type errors and re-enable `typeCheckHostBindings`",
+          "instruction": "Remove `\"typeCheckHostBindings\": false` from `angularCompilerOptions`. Run `ng build` and triage each reported host binding type error. Common fixes: ensure `@HostBinding('class.active')` properties are `boolean`, ensure `@HostBinding('attr.aria-label')` properties are `string | null`, and ensure `@HostBinding('style.width.px')` properties are `number | null`. Fix each error at its source, then re-run `ng build` to confirm zero host binding errors remain.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "`ng build` produces zero host binding type errors with `typeCheckHostBindings` omitted or explicitly set to `true`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`ignoreChangesOutsideZone` Option Removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `ignoreChangesOutsideZone` option has been removed from both `NgZone` and `provideZoneChangeDetection`. Applications that used this option to suppress out-of-zone change detection will fail at startup. The intended replacement is either `provideZonelessChangeDetection()` or explicit scheduling.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "ignoreChangesOutsideZone", "role": "removed" },
+        { "kind": "class", "name": "NgZone", "role": "mentioned" },
+        { "kind": "class", "name": "provideZoneChangeDetection", "role": "mentioned" },
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `ignoreChangesOutsideZone` from zone configuration",
+          "instruction": "Search your codebase for all usages of `ignoreChangesOutsideZone`. In any call to `provideZoneChangeDetection({ ignoreChangesOutsideZone: true })`, remove the `ignoreChangesOutsideZone` key entirely. In any `NgZone` constructor options, remove the same key. If you were relying on this option to suppress out-of-zone changes, evaluate whether to migrate to `provideZonelessChangeDetection()` (see step 1) or to explicitly schedule change detection via `NgZone.run()` at the relevant call sites.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `ignoreChangesOutsideZone` returns zero results. Application starts without TypeErrors or unknown option warnings.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Optionally migrate to `provideZonelessChangeDetection()`",
+          "instruction": "If the purpose of `ignoreChangesOutsideZone` was to move toward zoneless behaviour, run the Angular schematic: `ng generate @angular/core:zoneless-migration`. This will replace `provideZoneChangeDetection()` with `provideZonelessChangeDetection()` in your root providers, remove `zone.js` from `polyfills` in `angular.json`, and update component strategies to `ChangeDetectionStrategy.OnPush` where possible. Review and commit the changes. Per the Angular zoneless guide at https://angular.dev/guide/zoneless.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [0],
+          "verification": "Application starts and `ng test` passes. No `zone.js` import remains in `polyfills`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Zone-Based Scheduler Removed from Internals by Default",
+      "jira_keys": [],
+      "source_url": "https://blog.angular.dev/announcing-angular-v21-57946c34f14b",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Angular 21 no longer provides a Zone-based change detection scheduler internally by default. Applications that mix `provideZoneChangeDetection` and `provideZonelessChangeDetection` in the same injector will break at runtime. The official migration schematic must be run for Zone-based apps.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideZoneChangeDetection", "role": "mentioned" },
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:zoneless-migration` schematic",
+          "instruction": "Run `ng generate @angular/core:zoneless-migration` in your Angular 21 project. The schematic will: (1) replace `provideZoneChangeDetection()` with `provideZonelessChangeDetection()` in `app.config.ts` or your root `AppModule`; (2) remove the `zone.js` entry from `polyfills` in `angular.json`; (3) set `ChangeDetectionStrategy.OnPush` on components where feasible. After the schematic runs, review all modified files, confirm no duplicate `provideZoneChangeDetection` and `provideZonelessChangeDetection` entries exist in the same injector, and run `ng build` and `ng test`. Per https://angular.dev/guide/zoneless.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "`ng build` succeeds. Application starts with no runtime error about conflicting zone schedulers. No `zone.js` polyfill import remains unless explicitly retained for Zone-based mode.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`emitDeclarationOnly` TypeScript Option Disallowed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The Angular compiler now throws a hard error if `emitDeclarationOnly: true` is present in any tsconfig it processes. This option is incompatible with Angular's template compilation. The option must be moved to a separate non-Angular tsconfig.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "compilerOptions.emitDeclarationOnly", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `emitDeclarationOnly` from Angular-processed tsconfigs",
+          "instruction": "Search all `tsconfig*.json` files in your project for `\"emitDeclarationOnly\": true`. Remove this option from any tsconfig that is processed by the Angular compiler (i.e., referenced by `angularCompilerOptions` or by `tsConfig` in `angular.json`). If you need `emitDeclarationOnly` for publishing a library's type declarations, create a separate `tsconfig.types.json` that extends your base config, add `\"emitDeclarationOnly\": true` there, and run `tsc -p tsconfig.types.json` independently as a build step — do not reference this tsconfig from the Angular build pipeline.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without the Angular compiler error about `emitDeclarationOnly`. Grep for `emitDeclarationOnly` in Angular-build tsconfigs returns zero results.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`NgModuleFactory` Removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `NgModuleFactory` class has been fully removed in Angular 21. Any direct usage of `NgModuleFactory` — including passing it to `ViewContainerRef.createComponent`, `platformBrowser().bootstrapModuleFactory()`, or lazy-loading via `loadChildren` string syntax — will fail at compile or runtime.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "NgModuleFactory", "role": "removed" },
+        { "kind": "class", "name": "NgModule", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Replace `NgModuleFactory` usages with `NgModule` or standalone APIs",
+          "instruction": "Search your codebase for `NgModuleFactory`. For each usage: (1) If passed to `ViewContainerRef.createComponent(factory)`, replace with `ViewContainerRef.createComponent(MyComponent)` using the component class directly (standalone) or with an `NgModuleRef`. (2) If used in `platformBrowser().bootstrapModuleFactory(factory)`, replace with `platformBrowser().bootstrapModule(AppModule)`. (3) For `loadChildren` string syntax such as `loadChildren: 'app/feature/feature.module#FeatureModule'`, replace with the dynamic import form: `loadChildren: () => import('./feature/feature.module').then(m => m.FeatureModule)`. The `ng update` schematic handles many of these conversions automatically — run `ng update @angular/core @angular/cli` first, then audit remaining manual usages. Per the Angular 21 migration guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `NgModuleFactory` returns zero results. `ng build` succeeds without `NgModuleFactory` reference errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`moduleId` Removed from `@Component` Metadata",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`moduleId` in the `@Component` decorator has been removed. It has been a no-op since Angular 2's early SystemJS era and was deprecated for several major versions. Leaving it in component decorators will cause a compilation error in Angular 21.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "moduleId", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Delete all `moduleId: module.id` entries from `@Component` decorators",
+          "instruction": "Run a global search in your codebase for `moduleId` (regex: `moduleId:\\s*module\\.id,?`). For each match, delete the `moduleId: module.id` line from the `@Component` metadata object. No replacement is needed — the property has been a no-op and its removal has no runtime impact. After deleting, run `ng build` to confirm the compiler no longer reports unknown `moduleId` property errors.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `moduleId` in TypeScript component files returns zero results. `ng build` succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`interpolation` Option Removed from `@Component`",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `interpolation` property on `@Component`, which allowed configuring custom interpolation delimiters, has been removed. Only the default `{{ ... }}` syntax is now supported. Templates using custom delimiters must be refactored.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "interpolation", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `interpolation` from `@Component` and refactor templates",
+          "instruction": "Search for `interpolation:` inside `@Component` decorators. For each component that defined custom interpolation delimiters (e.g. `interpolation: ['[[', ']]')`): (1) Remove the `interpolation` property from the `@Component` metadata. (2) Open the component's template and replace all custom interpolation usages with the standard `{{ expression }}` form — e.g. replace `[[ myVar ]]` with `{{ myVar }}`. (3) If the component's template is external (`.html` file), apply the same replacement there. Run `ng build` to verify no remaining interpolation syntax errors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `interpolation:` inside `@Component` decorators returns zero results. `ng build` reports no template parse errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`ApplicationConfig` Removed from `@angular/platform-browser`",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `ApplicationConfig` type was previously re-exported from `@angular/platform-browser` as a convenience. This re-export has been removed; the canonical location is `@angular/core`. Any import from `@angular/platform-browser` for `ApplicationConfig` will produce a compile error.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "@angular/platform-browser#ApplicationConfig", "role": "removed" },
+        { "kind": "class", "name": "@angular/core#ApplicationConfig", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Update `ApplicationConfig` imports to `@angular/core`",
+          "instruction": "Search your codebase for `import { ApplicationConfig } from '@angular/platform-browser'`. Replace each such import with `import { ApplicationConfig } from '@angular/core'`. This is a purely mechanical import path change; no API usage changes are required. Run `ng build` to confirm no remaining import errors for `ApplicationConfig`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `ApplicationConfig` from `@angular/platform-browser` returns zero results. `ng build` completes without `ApplicationConfig` import errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`UpgradeAdapter` Removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The legacy `UpgradeAdapter` from `@angular/upgrade` — the original AngularJS-to-Angular upgrade mechanism — has been removed. Applications still using this class must migrate to the static upgrade APIs in `@angular/upgrade/static`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "UpgradeAdapter", "role": "removed" },
+        { "kind": "class", "name": "UpgradeModule", "role": "replacement" },
+        { "kind": "class", "name": "downgradeComponent", "role": "replacement" },
+        { "kind": "class", "name": "downgradeInjectable", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `UpgradeAdapter` with `UpgradeModule` from `@angular/upgrade/static`",
+          "instruction": "Search for `import { UpgradeAdapter } from '@angular/upgrade'`. Replace each usage as follows: (1) Remove the `UpgradeAdapter` instantiation. (2) Import `UpgradeModule` from `@angular/upgrade/static` and add it to your root `NgModule` imports array. (3) Replace `upgradeAdapter.bootstrap(document.body, ['myApp'])` with standard Angular bootstrapping via `platformBrowserDynamic().bootstrapModule(AppModule)`, where `AppModule` imports `UpgradeModule`. (4) Replace `upgradeAdapter.upgradeNg1Component('myComp')` with `downgradeComponent({ component: MyAngularComponent })` from `@angular/upgrade/static`. (5) Replace `upgradeAdapter.downgradeNg2Component(MyComp)` with the same `downgradeComponent` API. (6) Replace `upgradeAdapter.downgradeNg2Provider(MyService)` with `downgradeInjectable(MyService)`. Per the Angular hybrid upgrade guide at https://angular.dev/guide/upgrade.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `UpgradeAdapter` returns zero results. Application bootstraps successfully and AngularJS components continue to function within the Angular hybrid shell.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`ngModuleFactory` Input of `NgComponentOutlet` Removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `ngModuleFactory` input on the `NgComponentOutlet` directive has been removed alongside the `NgModuleFactory` class. Any template using `<ng-container *ngComponentOutlet=\"comp; ngModuleFactory: factory\">` will fail. Pass an `NgModuleRef` or a standalone component type directly instead.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "NgComponentOutlet.ngModuleFactory", "role": "removed" },
+        { "kind": "class", "name": "NgComponentOutlet", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Replace `ngModuleFactory` input on `NgComponentOutlet` with module type",
+          "instruction": "Search templates for `ngComponentOutlet` with a `ngModuleFactory` binding, e.g. `*ngComponentOutlet=\"myComp; ngModuleFactory: myFactory\"`. Replace the `ngModuleFactory` input with the `ngModule` input (passing the `NgModule` class type directly, not a factory): `*ngComponentOutlet=\"myComp; ngModule: MyFeatureModule\"`. If you are using standalone components, remove the `ngModule` input entirely — standalone components do not need an injecting module. Remove any code that previously called `compiler.compileModuleAsync()` or `compiler.compileModuleSync()` to produce the factory.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `ngModuleFactory` in templates returns zero results. `ng build` succeeds and dynamic component outlets render correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`FormArrayDirective` Conflicts with Existing Directives",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Angular 21 introduces a new `FormArrayDirective` in `@angular/forms` with selector `[formArray]`. This will conflict with any existing custom directive or component input named `formArray` on form elements. Templates hosting both `<form>` and a custom `[formArray]` selector will experience directive conflicts.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "FormArrayDirective", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename conflicting `formArray` directive selectors or component inputs",
+          "instruction": "Search your codebase for custom directives or component `@Input()` declarations that use the selector attribute name `formArray` (e.g. `@Directive({ selector: '[formArray]' })` or `@Input() formArray`). Rename these to a project-specific name such as `[appFormArray]` or `[myFormArray]`. Update all corresponding template usages. Also check for form templates where a custom `formArray` input and a `<form>` tag coexist on the same element — these will now match Angular's built-in `FormArrayDirective` and may cause binding conflicts.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` produces no selector conflict errors. All form templates render and behave correctly in the browser.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "XSRF Token Leakage to Protocol-Relative URLs",
+      "jira_keys": [],
+      "source_url": "https://www.herodevs.com/blog-posts/new-angular-vulnerabilities-expose-xss-xsrf-token-leakage-and-ssr-data-leaks-across-multiple-versions",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular no longer sends XSRF tokens to protocol-relative URLs (e.g. `//example.com/api`). This prevents token leakage to cross-origin endpoints. Server-side CSRF validation that expected tokens from such requests must be adjusted. Patched in Angular 20.3.14.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit protocol-relative URL usages in `HttpClient` requests",
+          "instruction": "Search your codebase for protocol-relative URLs used in `HttpClient` calls (e.g. URLs starting with `//`). Confirm that such requests do not rely on Angular sending the XSRF token — they will no longer receive it. Update your server-side CSRF validation to not require the XSRF token for requests originating from protocol-relative URLs. Where possible, replace protocol-relative URLs with explicit `https://` URLs to re-enable XSRF token inclusion. Review Angular's `HttpClientXsrfModule` configuration if you customise the token cookie or header names.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `HttpClient` requests using protocol-relative URLs rely on the XSRF token. Server-side CSRF validation passes for all expected request patterns.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "XSS via SVG Animation `attributeName` and MathML/SVG URLs",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-v4hv-rgfq-gp49",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-66412: SVG animation `attributeName` bindings and MathML/SVG URL attributes are now sanitized at runtime. Templates that dynamically bind to these attributes may need `DomSanitizer.bypassSecurityTrustResourceUrl()` when the URL is verified safe. Patched in Angular 20.3.15.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit SVG `attributeName` and MathML/SVG URL bindings in templates",
+          "instruction": "Search your templates for dynamic bindings to SVG animation attributes — specifically `<animate [attr.attributeName]>`, `<set [attr.attributeName]>`, `<animateMotion>`, `<animateTransform>` — and for URL attributes on SVG/MathML elements (e.g. `[attr.href]`, `[attr.xlink:href]`). For any binding where the value originates from a verified safe source, wrap it with `DomSanitizer.bypassSecurityTrustResourceUrl(url)`. Inject `DomSanitizer` via DI: `constructor(private sanitizer: DomSanitizer) {}`. For bindings where the value comes from untrusted user input, remove the binding entirely or redesign to avoid dynamic SVG/MathML URL attributes. Per the CVE-2025-66412 advisory.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No runtime sanitization warnings appear in browser console for SVG/MathML bindings. Templates using verified-safe URLs compile and render correctly with `bypassSecurityTrustResourceUrl` applied.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SVG `<script>` and Sensitive Attribute Sanitization",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/security/advisories/GHSA-jrmj-c5cx-3cw6",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Namespaced SVG `<script>` elements are now stripped during template compilation. Dynamic `href`/`xlink:href` bindings on SVG `<a>` elements are sanitized. `<script>` elements are rejected as dynamic component hosts. Affects DOM schema normalization and compile-time i18n attribute security validation. Patched in Angular 20.3.16 and 20.3.22.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove SVG `<script>` elements used as dynamic component hosts",
+          "instruction": "Search your templates and dynamic component creation code for any use of SVG `<script>` elements as component hosts (e.g. `ViewContainerRef.createComponent` targeting a `<script>` element within an SVG context). Remove these patterns entirely — they are now rejected. Replace with a non-script SVG container element (e.g. `<g>`) or a standard HTML host element outside the SVG context.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without SVG script host errors. No `<script>` elements appear as component hosts in templates.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Audit dynamic `href`/`xlink:href` on SVG `<a>` elements",
+          "instruction": "Search templates for `<a [attr.href]>`, `<a [attr.xlink:href]>`, or `<a [href]>` inside SVG contexts. For each binding where the value is from a trusted source, wrap with `DomSanitizer.bypassSecurityTrustUrl(url)`. For values from untrusted sources, remove the dynamic binding and use a static URL. Run `ng build` to surface any compile-time i18n attribute security warnings.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Browser console shows no sanitization warnings for SVG `<a>` href bindings. Application renders correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "ICU Message Sensitive URI Attribute Sanitization",
+      "jira_keys": [],
+      "source_url": "https://advisories.gitlab.com/npm/@angular/core/CVE-2026-32635/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-32635: Angular now blocks creation of security-sensitive URI attributes (`href`, `src`, etc.) from ICU messages and restricts translated ICU content to known HTML attributes. Unknown attributes are silently dropped. i18n ICU blocks that produce URL attributes must be audited. Patched in Angular 20.3.17.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit i18n ICU blocks producing `href`, `src`, or URL attributes",
+          "instruction": "Search your templates for i18n ICU expressions (using `{value, select, ...}` or `{value, plural, ...}` syntax) that generate `href`, `src`, `action`, `formaction`, or `data` attributes. These are now blocked by the sanitizer. Migrate such ICU blocks to generate the URL value as a bound expression in TypeScript and apply `DomSanitizer.bypassSecurityTrustUrl(url)` or `bypassSecurityTrustResourceUrl(url)` where appropriate. If the attribute is an unknown/non-standard HTML attribute, it will now be silently dropped — switch to a known attribute or a `data-*` attribute. Per CVE-2026-32635 advisory.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All i18n ICU blocks render their intended content. Browser console shows no attribute-dropped warnings. Security-sensitive URL attributes render only from sanitized sources.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "`iframe[src]` Translation Blocked and i18n Binding Sanitization",
+      "jira_keys": [],
+      "source_url": "https://www.herodevs.com/blog-posts/new-angular-vulnerabilities-expose-xss-xsrf-token-leakage-and-ssr-data-leaks-across-multiple-versions",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Translations of `iframe[src]` are now blocked to prevent XSS injection via translated content. Translated attribute bindings with interpolations and translated form attributes are also sanitized. Patched in Angular 20.3.18.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "DomSanitizer", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate `iframe[src]` i18n bindings to programmatic `DomSanitizer` usage",
+          "instruction": "Search templates for `<iframe>` elements that use `i18n-src` or `i18n` attributes on the `src` binding. These are now blocked. Replace with a TypeScript property that constructs the iframe URL programmatically and sanitizes it via `this.sanitizer.bypassSecurityTrustResourceUrl(url)` before assigning to a bound property. In the template, use `[src]=\"trustedIframeUrl\"` where `trustedIframeUrl` is the sanitized value. Also review any translated attribute bindings (`i18n-*`) that contain interpolations — these now go through sanitization and may have values stripped if they contain security-sensitive content.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `iframe[src]` i18n binding remains in templates. Iframes render their intended URLs. `ng build` completes without i18n security blocking warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "SSRF Bypasses via Protocol-Relative and Backslash URLs in SSR",
+      "jira_keys": [],
+      "source_url": "https://www.herodevs.com/blog-posts/new-angular-vulnerabilities-expose-xss-xsrf-token-leakage-and-ssr-data-leaks-across-multiple-versions",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Server-side bootstrapping in `ServerPlatformLocation` now blocks SSRF and path-hijack attacks via protocol-relative or backslash-normalized URLs. Applications using custom `renderModule`/`renderApplication` wrappers may need to configure `allowedHosts`. Patched in Angular 20.3.19 and 20.3.21.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ServerPlatformLocation", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure `allowedHosts` on `renderModule`/`renderApplication` for SSR",
+          "instruction": "If your application uses Angular Universal or custom `renderModule(AppModule, { url, document })` / `renderApplication(bootstrap, { url, document })` calls, add an `allowedHosts` option to restrict bootstrapping to trusted origins. Example: `renderApplication(bootstrap, { url, document, allowedHosts: ['yourdomain.com', 'api.yourdomain.com'] })`. Protocol-relative URLs (starting with `//`) and backslash-normalized URLs (containing `\\`) are now rejected outright by `ServerPlatformLocation` regardless of `allowedHosts`. Review any server-side request URL handling that may construct URLs from user input before passing to `renderModule`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR renders successfully for all legitimate origins. Requests with protocol-relative or backslash URLs return an error rather than rendering. No SSRF path-hijack is possible via URL manipulation.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Event Attribute Bindings in Host Bindings Blocked",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Angular now unconditionally disallows `on*` event attribute bindings in `@Component` and `@Directive` host binding declarations. This removes a XSS injection vector. Additionally, security-sensitive attributes in i18n bindings are validated at compile time. Patched in Angular 20.3.20.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `on*` host binding string attributes with `(event)` host listener syntax",
+          "instruction": "Search your `@Component` and `@Directive` decorators for `host` object entries or `@HostBinding()` decorators that bind to `on*` event attribute strings (e.g. `host: { 'onclick': 'myHandler()' }` or `@HostBinding('onclick')`). Replace each with the `@HostListener` decorator: `@HostListener('click') myHandler() { ... }`. Or use the `host` shorthand listener syntax: `host: { '(click)': 'myHandler()' }`. After refactoring, run `ng build` to confirm the compiler no longer reports host `on*` attribute binding errors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `on*` string keys in `host: {}` objects and `@HostBinding('on*')` returns zero results. `ng build` succeeds without host event attribute binding errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "TransferCache Excludes `withCredentials` / Cookie Requests",
+      "jira_keys": [],
+      "source_url": "https://www.herodevs.com/blog-posts/new-angular-vulnerabilities-expose-xss-xsrf-token-leakage-and-ssr-data-leaks-across-multiple-versions",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "The Angular Transfer Cache now skips `withCredentials` requests and cookie-bearing requests by default to prevent credential leakage across SSR/client boundaries. Applications that deliberately cache credentialed responses must opt back in explicitly via transfer cache configuration. Patched in Angular 20.3.22.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Opt in to caching credentialed responses if intentional",
+          "instruction": "Review your Angular SSR application's use of the Transfer Cache. If you have `HttpClient` requests that use `withCredentials: true` or send cookies, these will no longer be cached by the Transfer Cache by default. If you intentionally cache such responses (e.g. authenticated API responses that are safe to transfer from server to client), opt back in by configuring the transfer cache: in your server providers, use `provideClientHydration(withHttpTransferCache({ includeCredentialedRequests: true }))`. Confirm that caching credentialed responses does not leak user-specific data between SSR requests.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Credentialed requests are either excluded from the transfer cache (default) or explicitly opted in. No user-specific credentialed response data leaks between concurrent SSR requests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Zoneless Migration Schematic",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/zoneless",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Angular 21 removes the internal Zone-based scheduler by default. All applications still using Zone-based change detection must run the `ng generate @angular/core:zoneless-migration` schematic, which updates providers, removes `zone.js` imports from `polyfills`, and applies `OnPush` strategies. Required for all Zone-based apps migrating to Angular 21.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:zoneless-migration` on Angular 21",
+          "instruction": "After upgrading to Angular 21, run `ng generate @angular/core:zoneless-migration`. The schematic will: (1) Replace `provideZoneChangeDetection()` with `provideZonelessChangeDetection()` in `app.config.ts` or root `AppModule`. (2) Remove `import 'zone.js'` from `polyfills` in `angular.json`. (3) Add `ChangeDetectionStrategy.OnPush` to components where the schematic can safely determine it is appropriate. Review the changes, run `ng build` and `ng test`. Fix any components that relied on default (Zone-triggered) change detection by adding explicit `ChangeDetectorRef.markForCheck()` or signal-based state management. Per https://angular.dev/guide/zoneless.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "`ng build` and `ng test` pass. Application runs with no Zone.js dependency. No `zone.js` import in polyfills. Change detection works correctly in all components.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`ngClass` → `[class]` Binding Migration",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `[ngClass]` binding is part of the legacy structural directive API surface being removed. A schematic is available to migrate to the native `[class]` binding. The schematic had a bug in Angular 20 that is fixed in 21 — migration should be run on Angular 21.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "NgClass", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:ngclass-to-class` migration schematic",
+          "instruction": "On Angular 21 (not 20, due to a bug fix), run `ng generate @angular/core:ngclass-to-class`. The schematic replaces `[ngClass]=\"expression\"` with `[class]=\"expression\"` across all templates. Review the changes — the `[class]` binding accepts the same object, string, and array forms as `[ngClass]`. Confirm that `NgClass` is no longer imported in `NgModule` `imports` arrays or in standalone component `imports`. Run `ng build` and `ng test` to verify no visual regressions.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `[ngClass]` in templates returns zero results. `ng build` succeeds. Component class bindings render correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`ngStyle` → `[style]` Binding Migration",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `[ngStyle]` binding is part of the legacy structural directive API surface being phased out. The `ng generate @angular/core:ngstyle-to-style` schematic replaces all `[ngStyle]` usages with the native `[style]` binding.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "NgStyle", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:ngstyle-to-style` migration schematic",
+          "instruction": "Run `ng generate @angular/core:ngstyle-to-style`. The schematic replaces `[ngStyle]=\"{ 'color': myColor }\"` with `[style]=\"{ color: myColor }\"` and `[ngStyle.color]=\"myColor\"` with `[style.color]=\"myColor\"` across all templates. Review each modified template for correctness. Confirm `NgStyle` is removed from `NgModule` imports and standalone component imports. Run `ng build` and `ng test` to confirm no styling regressions.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `[ngStyle]` in templates returns zero results. `ng build` succeeds. Component inline styles render correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`CommonModule` Handling in Standalone Migration",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "bugfix",
+      "reason": "The standalone migration schematic (`ng generate @angular/core:standalone`) now correctly handles `CommonModule` imports that were previously mishandled, blocking adoption. Applications that deferred standalone migration due to this bug should re-run the schematic on Angular 21.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" },
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "CommonModule", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Re-run `ng generate @angular/core:standalone` on Angular 21",
+          "instruction": "If you previously attempted the standalone migration and encountered issues with `CommonModule` imports being incorrectly handled, re-run `ng generate @angular/core:standalone` on Angular 21 where the bug is fixed. The schematic converts `NgModule`-based components to standalone components, replacing `CommonModule` imports with the individual directives (`NgIf`, `NgFor`, `AsyncPipe`, etc.) that are actually used. Review the generated changes, ensure no `CommonModule` import is left where individual imports would suffice, and run `ng build` and `ng test`.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "`ng build` succeeds. Standalone components correctly import only the directives they use. No `CommonModule` import errors remain.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`lastSuccessfulNavigation` Converted to Signal",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/Router",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "`Router.lastSuccessfulNavigation` is now a signal in Angular 21. All read access using the previous property form (`router.lastSuccessfulNavigation`) must be updated to call the signal (`router.lastSuccessfulNavigation()`).",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "Router.lastSuccessfulNavigation", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Update `router.lastSuccessfulNavigation` reads to `router.lastSuccessfulNavigation()`",
+          "instruction": "Search your codebase for `router.lastSuccessfulNavigation` and `this.router.lastSuccessfulNavigation` (without trailing parentheses). Replace each read access with the signal invocation form: `router.lastSuccessfulNavigation()`. Where the value is used in a template, use Angular's `async`-less signal binding: `{{ router.lastSuccessfulNavigation()?.url }}`. In a `computed()` or `effect()`, read it directly as `router.lastSuccessfulNavigation()`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `lastSuccessfulNavigation[^(]` returns zero results. Application navigates correctly and last navigation state is accessible.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`Router.getCurrentNavigation()` Replaced by Signal",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/Router",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "`Router.currentNavigation` is now a signal and `Router.getCurrentNavigation()` is deprecated. The method-based API will be removed in a future major version. All call sites should be migrated to the signal form.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "Router.getCurrentNavigation", "role": "removed" },
+        { "kind": "property", "name": "Router.currentNavigation", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `router.getCurrentNavigation()` with `router.currentNavigation()`",
+          "instruction": "Search your TypeScript files for `router.getCurrentNavigation()` and `this.router.getCurrentNavigation()`. Replace each call with `router.currentNavigation()` — the new signal-based accessor. The return type remains `Navigation | null`. In reactive contexts (e.g. `computed()`, `effect()`, Angular template expressions), this integrates naturally with Angular's signal graph. Per the Angular Router signal API documentation at https://angular.dev/api/router/Router.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `getCurrentNavigation()` returns zero results. Application navigation state is read correctly via `currentNavigation()` signal.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "ARIA Property Bindings No Longer Renamed to Attributes",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "Angular no longer automatically renames ARIA property bindings (e.g. `[ariaLabel]`) to ARIA attribute bindings (`aria-label`) at compile time. Templates relying on this implicit renaming will silently fail to set the correct ARIA attributes, breaking accessibility. The explicit `[attr.aria-label]` form must be used.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace `[ariaLabel]`-style bindings with `[attr.aria-label]`",
+          "instruction": "Search your templates for ARIA property bindings that use camelCase property names without the `attr.` prefix (e.g. `[ariaLabel]`, `[ariaDescribedby]`, `[ariaHidden]`, `[ariaExpanded]`, `[ariaDisabled]`, `[ariaRole]`). Replace each with the explicit attribute binding form: `[attr.aria-label]`, `[attr.aria-describedby]`, `[attr.aria-hidden]`, `[attr.aria-expanded]`, `[attr.aria-disabled]`, `[role]`. Check if a migration schematic is available: `ng generate @angular/core:aria-to-attribute`. Run `ng build` and verify ARIA attributes are correctly rendered in the DOM by inspecting the element in browser developer tools.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `\\[aria[A-Z]` in templates returns zero results. Browser devtools confirm ARIA attributes (`aria-label`, etc.) are present in the rendered DOM.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Router Navigation May Take Extra Async Ticks",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The Router's internal `recognize` stage has switched from synchronous processing to `async/await`. Navigation now takes additional microtasks/async ticks. Tests that assert synchronous navigation completion will fail, requiring updates to await the full navigation cycle.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update router navigation tests to await async navigation completion",
+          "instruction": "Search your test files for navigation-related expectations that use `fixture.detectChanges()` or `tick()` immediately after `router.navigate()` or `router.navigateByUrl()` calls without awaiting or flushing the full async pipeline. For each such test: (1) If using `fakeAsync`, add `await fixture.whenStable()` or additional `tick()` calls after the `navigate()` call to drain the microtask queue. (2) If using `async/await`, `await router.navigate(...)` and then `await fixture.whenStable()`. (3) If using `RouterTestingHarness`, call `await harness.navigateByUrl(url)` which already awaits completion. Run `ng test` and fix all remaining timing-related test failures.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng test` passes with no navigation-related timing failures. All router navigation tests complete their assertions correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`BootstrapContext` Eliminates Global Platform Injector in SSR",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Server-side bootstrapping no longer relies on a global platform injector. Custom SSR code using `PlatformRef` directly or relying on singleton platform state must be updated to pass a `BootstrapContext`. This is required for correct request isolation in concurrent SSR environments.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "BootstrapContext", "role": "replacement" },
+        { "kind": "class", "name": "PlatformRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update custom SSR bootstrapping to use `BootstrapContext`",
+          "instruction": "Review all custom server-side rendering bootstrapping code — specifically any code that calls `platformDynamicServer().bootstrapModule()`, `platformServer().bootstrapModule()`, or `renderModule()`/`renderApplication()` with a custom `PlatformRef`. If your code relies on a singleton or global `PlatformRef` instance shared across requests, migrate to the `BootstrapContext` API: pass a `BootstrapContext` to `renderApplication(bootstrap, { url, document, bootstrapContext })` where the context is created per-request. Consult the Angular SSR guide at https://angular.dev/guide/ssr for updated examples.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR renders each request in full isolation with no state leakage between concurrent requests. `PlatformRef` is not accessed as a global singleton.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`@defer` Misconfiguration Produces Diagnostic",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The Angular compiler now produces an error diagnostic for misconfigured `@defer` triggers (e.g. `on viewport` without a valid element reference). Previously these misconfigurations caused silent runtime issues. Upgrading will surface compile-time errors for previously broken `@defer` blocks.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Fix `@defer` blocks producing new compiler diagnostics",
+          "instruction": "Run `ng build` after upgrading to Angular 21. For each compiler diagnostic about a misconfigured `@defer` block, fix the root cause: (1) `on viewport` without a `#templateRef` — add a template reference variable to the trigger element and reference it: `@defer (on viewport(myRef)) { ... }`. (2) `on interaction` or `on hover` without a valid reference — same approach. (3) Conflicting trigger combinations — remove redundant triggers. Fix each diagnostic and re-run `ng build` until no `@defer` errors remain.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` produces zero `@defer` configuration diagnostics. Lazy-loaded blocks load as expected in the browser.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`provideZoneChangeDetection` + Zoneless Combination Disallowed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/zoneless",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Combining `provideZoneChangeDetection` and `provideZonelessChangeDetection` in the same injector is now actively detected and triggers a runtime error or warning. Applications that previously had both providers registered (e.g. from incremental migration) will break on startup.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideZoneChangeDetection", "role": "mentioned" },
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove conflicting zone/zoneless provider from root injector",
+          "instruction": "Search your `app.config.ts` and root `AppModule` providers for simultaneous registration of `provideZoneChangeDetection()` and `provideZonelessChangeDetection()`. Remove one — keep only the scheduler appropriate for your application. If migrating to zoneless, keep `provideZonelessChangeDetection()` and remove `provideZoneChangeDetection()`. If staying on Zone-based CD, keep `provideZoneChangeDetection()` and remove `provideZonelessChangeDetection()`. Also check lazy-loaded module providers and feature providers for accidental inclusion.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without runtime errors or warnings about conflicting zone schedulers. Grep confirms only one of `provideZoneChangeDetection` or `provideZonelessChangeDetection` is present in the root injector provider list.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`@angular/animations` Package Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The entire `@angular/animations` package is deprecated in Angular 21. While not yet removed, teams should plan migration to native CSS-based animations or the new `animate.enter`/`animate.leave` bindings introduced in 20.2. The package will likely be removed in a future major version.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" },
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "@angular/animations", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit `@angular/animations` usage and plan migration",
+          "instruction": "Run `grep -r '@angular/animations' src/` to identify all components and modules using Angular animations. For each: (1) Evaluate whether the animation can be replaced with a CSS transition or CSS animation (e.g. `@keyframes` + `animation` property). (2) Evaluate the new `animate.enter`/`animate.leave` directive bindings introduced in Angular 20.2 for enter/leave transitions. (3) Remove `AnimationsModule` / `BrowserAnimationsModule` imports from modules that no longer use animations. (4) Remove `@Component.animations` arrays from components migrated to CSS. Plan to complete this migration before the Angular 22 cycle.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "A migration plan exists documenting which components use `@angular/animations` and their intended replacement approach. At minimum, all new components avoid `@angular/animations`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`animations` Field on `@Component` Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `animations` field on the `@Component` decorator is deprecated alongside the `@angular/animations` package. New components should use native CSS transitions or the `animate.*` bindings. Existing components should be migrated during the Angular 21 upgrade cycle.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "animations", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate `@Component.animations` to CSS transitions or `animate.*` bindings",
+          "instruction": "For each component with an `animations: [...]` array in its `@Component` decorator: (1) Identify the trigger names and states used in the template (e.g. `[@fadeIn]=\"state\"`). (2) Replace each trigger with a CSS class toggle and a corresponding CSS `transition` or `animation` rule in the component's styles. (3) For enter/leave animations, use Angular 20.2+ `animate.enter` and `animate.leave` directive bindings on the element. (4) Remove the `animations: [...]` array from the decorator after migration. (5) If `BrowserAnimationsModule` or `provideAnimations()` was imported only for this component, remove it from the module/providers list. Prioritize simple fade/slide animations for mechanical migration; complex state-machine animations require architectural review.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `animations:` array remains in any `@Component` decorator. Animated transitions render correctly using CSS. `@angular/animations` imports are removed from migrated files.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`RouterTestingModule` Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`RouterTestingModule` is deprecated in Angular 21. Tests using it should migrate to the modern `provideRouter()` + `RouterTestingHarness` pattern. A migration schematic is available.",
+      "scopes": [
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "RouterTestingModule", "role": "removed" },
+        { "kind": "class", "name": "RouterTestingHarness", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:router-testing-module` to migrate tests",
+          "instruction": "Run `ng generate @angular/core:router-testing-module`. The schematic replaces `RouterTestingModule` imports in `TestBed.configureTestingModule` with `provideRouter(routes)` in the `providers` array. After running the schematic, for tests that navigate and assert on routed components, replace `RouterTestingModule.withRoutes(routes)` and direct `ActivatedRoute` manipulation with `RouterTestingHarness`: `const harness = await RouterTestingHarness.create(); const component = await harness.navigateByUrl('/path', MyComponent)`. Import `RouterTestingHarness` from `@angular/router/testing`. Run `ng test` to confirm all routing tests pass.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Grep for `RouterTestingModule` in test files returns zero results. `ng test` passes with all routing tests using `provideRouter` and `RouterTestingHarness`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`Router.getCurrentNavigation()` Deprecated",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/Router",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`Router.getCurrentNavigation()` is deprecated in Angular 21 in favour of the `Router.currentNavigation` signal. All call sites should be migrated to the signal form now to avoid build warnings and future removal.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "Router.getCurrentNavigation", "role": "removed" },
+        { "kind": "property", "name": "Router.currentNavigation", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `router.getCurrentNavigation()` calls with `router.currentNavigation()`",
+          "instruction": "Search for all `this.router.getCurrentNavigation()` and `router.getCurrentNavigation()` call sites. Replace each with `this.router.currentNavigation()` (the signal accessor). The return type is identical: `Navigation | null`. In templates, access it as `router.currentNavigation()`. In `computed()` or `effect()` bodies, read it as `router.currentNavigation()` — it integrates with Angular's reactive graph automatically.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No deprecation warning for `getCurrentNavigation` appears during `ng build`. Grep for `getCurrentNavigation` returns zero results.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`HttpResponseBase.statusText` Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`HttpResponseBase.statusText` is deprecated in Angular 21. Modern HTTP/2 and HTTP/3 protocols do not transmit the status text, making this property unreliable. Code that reads `statusText` should be migrated to rely solely on `status` (the numeric code).",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "HttpResponseBase.statusText", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `statusText` reads from `HttpResponse`/`HttpErrorResponse` handling code",
+          "instruction": "Search your codebase for `.statusText` accessed on `HttpResponse`, `HttpErrorResponse`, or `HttpResponseBase` instances. Remove or replace each usage: (1) In error handling code, replace `error.statusText` messages with a lookup based on `error.status` (e.g. a custom status code to message map). (2) In logging or display code, remove `statusText` from error display strings — use `error.status` and `error.message` instead. (3) In type definitions or interfaces that extend `HttpResponseBase`, remove the `statusText` property if it is no longer used.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Grep for `.statusText` on HTTP response/error objects returns zero results. No `statusText`-related deprecation warnings during `ng build`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Experimental Signal-Based Forms",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 21 introduces an experimental signal-based forms API in `@angular/forms` including `FormField`, `FormArrayDirective`, `debounce()` rule, and `ControlValueAccessor` interoperability. This is informational — no migration required, but worth evaluating for new feature work.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "FormArrayDirective", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Navigation API Experimental Support",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 21 adds experimental integration with the browser Navigation API via `withNavigationApi()`. Allows Angular Router to participate in the native browser navigation lifecycle on supported browsers. No migration required.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Regular Expressions in Templates",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Template expressions now support regular expression literals (e.g. `/foo/gi`). No migration required — new syntax available for template logic.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`SimpleChanges` Now Generic",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`SimpleChanges<T>` is now generic, providing typed access to `ngOnChanges` change properties. Optionally update `ngOnChanges` signatures incrementally for improved type safety — no breaking change.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "SimpleChanges", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`httpResource` Expanded Options",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`httpResource()` now supports `cache`, `priority`, `timeout`, `credentials`, `mode`, `redirect`, `referrerPolicy`, and `integrity` options, aligning it with the full Fetch API surface. Informational — evaluate for reactive data fetching patterns.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Zoneless Change Detection Stable (20.2)",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/zoneless",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "`provideZonelessChangeDetection()` was promoted to stable in Angular 20.2.0 and can now be used in production without experimental caveats. Informational — use in production is now fully supported.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "provideZonelessChangeDetection", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`loadComponent`/`loadChildren` in Route's Injection Context",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/21.0.0",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Lazy-loading functions (`loadComponent`, `loadChildren`) now run inside the route's injection context, enabling `inject()` calls within these functions. No migration required — new capability for use in new route definitions.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

@@ -1,0 +1,931 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Standard WildFly moves to Jakarta EE 11; EE 10 variant added",
+      "jira_keys": ["WFLY-21722", "WFLY-21698"],
+      "source_url": "https://www.wildfly.org/news/2026/05/21/WildFly-40-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 40's standard distribution now implements Jakarta EE 11. Applications deployed to the standard distribution must use EE 11 API coordinates. A separate wildfly-ee-10 feature-pack is provided for teams that need to remain on EE 10 while still receiving bug fixes.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly:wildfly-galleon-pack", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.wildfly:wildfly-ee-10-feature-pack", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Decide EE 11 vs EE 10 target for your application",
+          "instruction": "Check whether your application and all its third-party libraries support Jakarta EE 11. If any dependency does not yet support EE 11, provision the EE 10 variant by switching your Galleon feature-pack coordinate from org.wildfly:wildfly-galleon-pack to org.wildfly:wildfly-ee-10-feature-pack:40.0.0.Final (Maven GAV). Download the pre-built EE 10 server zips from https://wildfly.org/downloads if you do not use Galleon provisioning.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts and logs show 'Jakarta EE 11 Platform ...' (or 'Jakarta EE 10 Platform ...' for the EE 10 variant) in the boot banner.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Update all jakarta.* API dependency coordinates to EE 11 versions",
+          "instruction": "In pom.xml (or build.gradle), update the Jakarta EE BOM to the EE 11 version: replace <artifactId>jakarta.platform:jakarta.jakartaee-bom</artifactId> version 10.0.0 with version 11.0.0. Individually ensure: jakarta.persistence:jakarta.persistence-api 3.2.x, jakarta.servlet:jakarta.servlet-api 6.1.x, jakarta.faces:jakarta.faces-api 4.1.x, jakarta.pages:jakarta.pages-api 4.0.x. For scope=provided dependencies already provided by the server, verify the version range is compatible with EE 11. Remove any explicit dependency on removed EE APIs such as javax.annotation:javax.annotation-api (replaced by jakarta.annotation). Note: EE ManagedBeans (@ManagedBean annotation from javax.annotation.ManagedBean) have been removed from standard WildFly; migrate any usages to CDI @Named beans.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "mvn dependency:tree shows no jakarta.* artifacts below EE 11 version numbers. Application compiles without unresolved-symbol errors for jakarta.* imports.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Run full integration test suite against EE 11 server",
+          "instruction": "Deploy the application to the WildFly 40 EE 11 server and execute all integration tests. Pay particular attention to CDI injection, JPA entity lifecycle, servlet/filter chain, and JAX-RS endpoint tests — these are the areas most disrupted by EE 11 spec changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [1],
+          "verification": "All integration tests pass with zero ClassCastException, NoSuchMethodError, or LinkageError log entries.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "JGroups default stacks switch from NAKACK4/UNICAST4 to NAKACK2/UNICAST3",
+      "jira_keys": ["WFLY-21667", "WFLY-21671"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The default JGroups protocol stacks revert from NAKACK4/UNICAST4 (and the transfer-queue bundler) back to NAKACK2/UNICAST3. Clusters customised based on the previous defaults, or those relying on NAKACK4/UNICAST4 fixed-buffer semantics, must be reviewed. Mixed-version (WildFly 39 and 40) rolling upgrades may see transient topology issues during the transition window.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "pbcast.NAKACK4", "role": "removed" },
+        { "kind": "class", "name": "UNICAST4", "role": "removed" },
+        { "kind": "class", "name": "pbcast.NAKACK2", "role": "replacement" },
+        { "kind": "class", "name": "UNICAST3", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Review and update custom JGroups stack protocol entries",
+          "instruction": "Open your standalone-ha.xml, standalone-full-ha.xml, or domain.xml and locate all <subsystem xmlns=\"urn:jboss:domain:jgroups:*\"> sections. If you have a custom stack or overrides that reference pbcast.NAKACK4 or UNICAST4, replace them with pbcast.NAKACK2 and UNICAST3 respectively. Remove any STABLE protocol if it was absent from your NAKACK4 configuration (NAKACK2 still requires STABLE for purging). Re-add UFC/MFC flow-control protocols if they were removed for NAKACK4/UNICAST4 (those protocols used fixed buffers that made UFC/MFC optional; NAKACK2 with unbounded buffers benefits from flow control). If you relied on the transfer-queue bundler, verify that the default bundler setting for NAKACK2 is acceptable or explicitly configure it.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts with no JGroups configuration warnings. Cluster forms correctly: /subsystem=jgroups/channel=ee:read-attribute(name=cluster) returns the expected cluster name and all expected members appear in the view.",
+          "cli_operation": "/subsystem=jgroups/stack=udp/protocol=pbcast.NAKACK2:read-resource"
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate cluster topology after full-cluster restart",
+          "instruction": "Rather than performing a rolling upgrade between WildFly 39 (NAKACK4/UNICAST4) and WildFly 40 (NAKACK2/UNICAST3) nodes, plan a full-cluster stop and start. Start all WildFly 40 nodes simultaneously and confirm the cluster forms before accepting traffic. If a rolling upgrade is unavoidable, monitor for split-brain events and verify all members merge correctly before proceeding to the next node.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All cluster nodes appear in the JGroups view on each node. No WARN-level split-brain or merge-view messages appear in server.log during the upgrade window.",
+          "cli_operation": "/subsystem=jgroups/channel=ee:read-attribute(name=cluster)"
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "AppClient module isolation fixed to match EE spec",
+      "jira_keys": ["WFLY-21514"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "AppClient module resources are no longer visible to the web container, EJB container, or other AppClient modules. Applications that exploited the previous classpath leakage to share classes between AppClient and WAR deployments will fail at runtime.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit EAR deployments for cross-AppClient class sharing",
+          "instruction": "Inspect your EAR module: open the EAR's application.xml and MANIFEST.MF for any <module type=\"java\"> (AppClient) entries. Identify classes used by these AppClient modules that are also referenced from WAR modules or EJB modules within the same EAR. Move any shared code that was previously accessible via classpath leakage into a dedicated JAR module at the EAR root, declare it as a <module type=\"java\"> library entry in application.xml (with no <alt-dd>), and ensure the WAR and EJB module MANIFEST.MF files include it in their Class-Path attribute. Re-test deployment to confirm no ClassNotFoundException or NoClassDefFoundError occurs in the WAR or EJB modules.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without ClassNotFoundException. WAR and EJB integration tests that exercise the previously shared code pass without errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "WebSocket client endpoint scanning disabled by default",
+      "jira_keys": ["WFLY-21528"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "UndertowJSRWebSocketDeploymentProcessor no longer scans for @ClientEndpoint-annotated types by default, so annotation-discovered WebSocket client endpoints will not be registered automatically. Programmatic registration is now required.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.websocket.ClientEndpoint", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.websocket.WebSocketContainer", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace annotation-scanned @ClientEndpoint with programmatic connectToServer()",
+          "instruction": "Find all classes annotated with @jakarta.websocket.ClientEndpoint in your WAR/EAR. For each such class, remove any reliance on annotation scanning to register the endpoint. Instead, programmatically obtain a WebSocketContainer via jakarta.websocket.ContainerProvider.getWebSocketContainer() and call container.connectToServer(MyClientEndpoint.class, uri) at application startup (e.g. in a @ApplicationScoped @Observes void onStart(StartupEvent ev) method or a @WebListener ServletContextListener). Ensure the URI and lifecycle (connect, disconnect, reconnect) is handled explicitly in code.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without WARN messages about unregistered @ClientEndpoint types. WebSocket client connections are established successfully and receive expected messages from the server endpoint.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Netty upgraded to 4.1.133.Final (multiple CVEs)",
+      "jira_keys": ["WFLY-21862", "WFLY-21694"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Multiple CVEs in Netty (CVE-2026-33870, CVE-2026-33871, CVE-2026-41417, CVE-2026-42578 through CVE-2026-42587, CVE-2026-44248) were resolved in two upgrade steps ending at io.netty 4.1.133.Final. Projects that override io.netty versions in their BOM must update to avoid retaining the vulnerable versions.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-bom", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.netty:netty-all", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update io.netty BOM/version to 4.1.133.Final",
+          "instruction": "Search pom.xml (and any parent POMs or dependency-management BOMs) for any explicit version property or dependencyManagement entry for io.netty artifacts. Update the version to 4.1.133.Final. If you import io.netty:netty-bom as a BOM, set its version to 4.1.133.Final. Run mvn dependency:tree | grep netty to confirm no transitive dependency pulls in an older version. If a transitive dependency forces an earlier version, add an explicit exclusion or override in the parent POM's dependencyManagement section.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no io.netty artifact below version 4.1.133.Final. HTTP and HTTP/2 integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Apache Artemis upgraded to 2.53.0 (CVE-2026-32642)",
+      "jira_keys": ["WFLY-21816"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-32642 in Apache Artemis is addressed by upgrading to 2.53.0. Projects that explicitly pin the Artemis version in their build must update to avoid exposure.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq:artemis-bom", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Artemis version to 2.53.0 in build",
+          "instruction": "Locate any <version> property or dependencyManagement entry for org.apache.activemq:artemis-* artifacts in your pom.xml. Update the version to 2.53.0. Run mvn dependency:tree | grep artemis to verify no transitive pull introduces an older version. Execute messaging integration tests (MDB delivery, queue failover, clustered singleton MDB deployment) after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.apache.activemq:artemis-* at 2.53.0. Messaging and MDB integration tests pass with no broker connectivity errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Jackson components upgraded to 2.21.x (CVE-2026-29062)",
+      "jira_keys": ["WFLY-21586"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-29062 in Jackson is patched by upgrading Jackson to the 2.21.x line. Projects that manage com.fasterxml.jackson versions explicitly must update.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.fasterxml.jackson:jackson-bom", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.fasterxml.jackson:jackson-bom to 2.21.3",
+          "instruction": "Search pom.xml for any property or dependencyManagement entry referencing com.fasterxml.jackson BOM or individual jackson-* artifacts. Update the version to 2.21.3 (the patch release in the 2.21.x line). Run mvn dependency:tree | grep jackson and confirm no artifact is pinned below 2.21.3. Run JSON serialisation and deserialisation integration tests after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no com.fasterxml.jackson artifact below 2.21.3. JSON round-trip tests pass with correct output.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Apache Neethi upgraded to 3.2.2 (CVE-2026-42402/3/4)",
+      "jira_keys": ["WFLY-21848"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Three CVEs (CVE-2026-42402, CVE-2026-42403, CVE-2026-42404) in org.apache.neethi:neethi are addressed by upgrading to 3.2.2. JAX-WS projects that manage Neethi directly must update.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.neethi:neethi", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.apache.neethi:neethi to 3.2.2",
+          "instruction": "Search pom.xml and any BOM files for org.apache.neethi:neethi. Update the version to 3.2.2. Run mvn dependency:tree | grep neethi to confirm no transitive pull introduces an older version. Run JAX-WS policy and WS-Security integration tests after upgrading.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.apache.neethi:neethi at 3.2.2. JAX-WS integration tests pass without policy-processing errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Vert.x upgraded to 4.5.24 (CVE-2026-1002)",
+      "jira_keys": ["WFLY-21415"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2026-1002 in Vert.x is addressed at version 4.5.24. Projects that override version.io.vertx.vertx must update to at least this version.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.vertx:vertx-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Vert.x version property to 4.5.24",
+          "instruction": "Search pom.xml for any property named version.io.vertx.vertx or any dependencyManagement entry for io.vertx:vertx-*. Update to version 4.5.24. Run mvn dependency:tree | grep vertx to confirm. Note: the vertx-kafka-client artifact has been removed from WildFly (WFLY-21434); if your provisioning references it, remove that dependency entry separately.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no io.vertx artifact below 4.5.24. Applications using Vert.x start and complete their reactive request flows without CVE-related error messages.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Elytron brute-force authentication protection (CVE-2025-23368)",
+      "jira_keys": ["WFLY-20765"],
+      "source_url": "https://github.com/advisories/GHSA-3jxr-23ph-c89g",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-23368 (CVSS 8.1 HIGH) — WildFly Elytron lacked rate-limiting on failed CLI authentication attempts, allowing brute-force attacks. WildFly 40 introduces a brute-force protection policy in the Elytron security realm. The new default threshold may affect applications that programmatically test authentication failures.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.wildfly.core:wildfly-elytron-integration", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Review and tune Elytron brute-force protection policy threshold",
+          "instruction": "In standalone.xml (or domain.xml), locate the <subsystem xmlns=\"urn:wildfly:elytron:*\"> section and find your security-realm definitions. Review the new brute-force-protection policy attributes (max-failed-logins and related lockout-time parameters introduced in WildFly 40). If the default threshold causes excessive account lockouts in your environment (e.g. service accounts with automated retry logic), adjust the policy: /subsystem=elytron/security-realm=<your-realm>:write-attribute(name=brute-force-protection.max-failed-logins,value=<desired-number>). Consult the WildFly Elytron documentation for the full list of configurable attributes. For integration tests that expect to make multiple failed authentication attempts (e.g. error-path tests), either increase the threshold for the test realm or programmatically reset the lockout state between test runs.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without Elytron policy errors. Legitimate users can authenticate after multiple consecutive failed attempts equal to max-failed-logins - 1. A single account is locked after exceeding the threshold and unlocks after the configured lockout period.",
+          "cli_operation": "/subsystem=elytron/security-realm=ManagementRealm:read-resource(recursive=true)"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Jakarta Authorization: missing WebRoleRefPermission for security-role-ref",
+      "jira_keys": ["WFLY-21647"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Implicit security roles mapped via <security-role-ref> in web.xml were missing from Web App metadata, causing WebRoleRefPermission checks to fail silently. Any application relying on these mappings for JACC authorization must be re-tested.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.security.jacc.WebRoleRefPermission", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-test security-role-ref JACC authorization after upgrade",
+          "instruction": "Identify all <security-role-ref> entries in your web.xml. For each one, write or run an integration test that: (1) authenticates as a principal holding the referenced role-link, (2) calls HttpServletRequest.isUserInRole(role-name) using the alias (role-name), and (3) confirms the call returns true. Verify that role-based access to protected URL patterns also functions correctly. If you previously worked around this bug by granting the full role-link name directly, you may be able to simplify the workaround after confirming the fix.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HttpServletRequest.isUserInRole(alias) returns true for a principal holding the mapped role-link. JACC-protected resources are accessible to the correct roles and blocked for incorrect roles.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "WAR JACC WebResourcePermission wrong actions value fixed",
+      "jira_keys": ["WFLY-21896"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "WarJACCService was emitting an incorrect actions value in WebResourcePermission for all-methods (wildcard) HTTP method constraints. JACC policy providers that inspect permission actions for such constraints may have been enforcing incorrect access decisions.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.security.jacc.WebResourcePermission", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify JACC policy behaviour for wildcard HTTP method constraints",
+          "instruction": "Identify all URL patterns in your web.xml that use an HTTP method omitted constraint (i.e. a <web-resource-collection> with no <http-method> element, which implies all methods). For each such pattern, execute integration tests that access the protected resource using GET, POST, PUT, and DELETE. Confirm that your JACC policy allows or denies access as intended. If you maintain a custom jakarta.security.jacc.Policy implementation that reads WebResourcePermission.getActions() for branching logic, review how it handles the corrected actions string for wildcard constraints.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "HTTP requests to wildcard-constrained URL patterns are correctly permitted or denied according to the JACC policy. No AccessControlException is thrown unexpectedly for requests that should be permitted.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM 7.3.2.Final (EE 11) / 6.6.49.Final (EE 10)",
+      "jira_keys": ["WFLY-21718", "WFLY-21782", "WFLY-21781", "WFLY-21780", "WFLY-21644"],
+      "source_url": "https://docs.hibernate.org/orm/7.0/migration-guide/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Standard WildFly (EE 11) ships Hibernate ORM 7.3.2.Final, a major version that migrates to Jakarta Persistence 3.2. The EntityManager and all *Query interfaces gain new Persistence 3.2 methods (bytecode incompatibility for wrappers/subclasses). Bidirectional association management is disabled when bytecode enhancement is active. The EE 10 variant ships 6.6.49.Final.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.persistence.EntityManager", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.persistence.Query", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.persistence.TypedQuery", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Implement new Jakarta Persistence 3.2 methods in EntityManager/Query wrappers",
+          "instruction": "Search your codebase for classes that implement or extend jakarta.persistence.EntityManager, jakarta.persistence.Query, jakarta.persistence.TypedQuery, jakarta.persistence.StoredProcedureQuery, or jakarta.persistence.EntityManagerFactory. For each such class, compile it against the EE 11 / Jakarta Persistence 3.2 API jar (jakarta.persistence:jakarta.persistence-api:3.2.x). The compiler will report unimplemented methods added in Persistence 3.2; implement each one. Key additions include: EntityManager#find(Class, Object, FindOption...), EntityManager#refresh(Object, RefreshOption...), TypedQuery#setLockMode(LockModeType), and SchemaManager methods on EntityManagerFactory. Per Hibernate ORM 7.0 migration guide: https://docs.hibernate.org/orm/7.0/migration-guide/migration-guide.html.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without 'does not implement abstract method' errors for jakarta.persistence.* types. All JPA unit tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Audit bidirectional @OneToMany/@ManyToOne with bytecode enhancement active",
+          "instruction": "With Hibernate bytecode enhancement now enabled by default in WildFly 40, bidirectional association management (auto-synchronisation of both sides of @OneToMany/@ManyToOne when one side is set) is automatically disabled (WFLY-21644). Review all entity classes that have bidirectional @OneToMany + @ManyToOne or @OneToOne pairs. If your code sets only one side of the relationship and relies on Hibernate to auto-sync the other, you must now explicitly set both sides (e.g. parent.getChildren().add(child); child.setParent(parent);). Review orphan-removal and cascade-persist behaviour in tests — previously auto-management could mask missing explicit assignments.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "JPA integration tests for bidirectional associations pass. Orphan removal tests correctly delete entities when removed from parent collections. No LazyInitializationException or unexpected null-association errors appear in logs.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Remove workarounds for StatelessSession unwrap() failure",
+          "instruction": "Search the codebase for workarounds that were applied to handle jakarta.data or Hibernate StatelessSession unwrap(SharedSessionContractImplementor.class) failures (WFLY-21461). Remove those workarounds. TransactionScopedStatelessSession now correctly implements all public interfaces of StatelessSessionImpl, so unwrap() succeeds directly.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [0],
+          "verification": "jakarta.data repository operations execute without UnsupportedOperationException. statelessSession.unwrap(SharedSessionContractImplementor.class) returns a non-null instance.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Authorization 3.0 in standard WildFly",
+      "jira_keys": ["WFLY-19558", "WFLY-21791", "WFLY-21746", "WFLY-21790"],
+      "source_url": "https://jakarta.ee/specifications/authorization/3.0/jakarta-authorization-spec-3.0",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "Standard WildFly (EE 11) uses Jakarta Authorization 3.0. The PolicyConfigurationFactory resolver pattern has changed (now uses a static getPolicyConfigurationFactory() method and a system property jakarta.security.jacc.PolicyConfigurationFactory.provider), and WebPolicyContextRegistrationUtility is used for policy context registration. Custom JACC policy providers must be updated.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.security.jacc.PolicyConfigurationFactory", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.security.jacc.PolicyConfiguration", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update custom PolicyConfigurationFactory to Jakarta Authorization 3.0 API",
+          "instruction": "If you have a custom jakarta.security.jacc.PolicyConfigurationFactory implementation: (1) Update the dependency to jakarta.authorization:jakarta.authorization-api:3.0.x. (2) The resolver mechanism has changed — the static getPolicyConfigurationFactory() method is now the primary lookup path using the system property jakarta.security.jacc.PolicyConfigurationFactory.provider. If your custom factory was previously registered via the jacc subsystem in WildFly's management model, verify the /subsystem=elytron/policy=jacc:add(jacc-policy={}) configuration is still correct and that the factory class is on the module classpath. (3) If your factory has a public constructor accepting a single PolicyConfigurationFactory argument, Jakarta Authorization 3.0 uses this to chain factory instances — implement this constructor to wrap the passed-in default factory. Per Jakarta Authorization 3.0 specification: https://jakarta.ee/specifications/authorization/3.0/jakarta-authorization-spec-3.0.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Deployment succeeds without PolicyConfigurationFactory lookup failures in server.log. JACC policy decisions are evaluated by the custom factory. Run end-to-end JACC-protected endpoint tests.",
+          "cli_operation": "/subsystem=elytron/policy=jacc:read-resource"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Security 4.0 + Elytron EE 4.0.0.Final (EE 11)",
+      "jira_keys": ["WFLY-21147", "WFLY-21836", "WFLY-21837", "WFLY-21766"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "Standard WildFly ships Elytron EE 4.0.0.Final implementing Jakarta Security 4.0. CDI-based authentication mechanisms, custom IdentityStore implementations, and RunAs handling in EJBs must be verified for compatibility.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.security.enterprise.identitystore.IdentityStore", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.security.enterprise.authentication.mechanism.http.HttpAuthenticationMechanism", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.wildfly.security:wildfly-elytron-ee", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Verify custom IdentityStore and HttpAuthenticationMechanism against Jakarta Security 4.0",
+          "instruction": "Compile all classes that implement jakarta.security.enterprise.identitystore.IdentityStore or jakarta.security.enterprise.authentication.mechanism.http.HttpAuthenticationMechanism against the Jakarta Security 4.0 API (jakarta.security.enterprise:jakarta.security.enterprise-api:4.0.x). Resolve any new abstract methods introduced in Jakarta Security 4.0. For @RememberMe, @LoginToContinue, and @SecurityDomain usages, review the updated annotation parameter lists in the 4.0 spec — some attributes were renamed or their semantics changed. For EJBs using @RunAs, verify that the delegation path through elytron-ee 4.0.0.Final is correctly evaluated; the RunAs identity propagation now delegates to elytron-ee (WFLY-21766) and the previously hard-coded container identity may differ.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without CDI resolution errors for IdentityStore or HttpAuthenticationMechanism beans. End-to-end login/logout and role-based access control integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Undertow EE 2.0.0.Final + Undertow Core 2.4.1.Final",
+      "jira_keys": ["WFLY-21831", "WFLY-21832", "WFLY-21913"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Undertow has been split into undertow-core (2.4.1.Final) and undertow-ee (2.0.0.Final) for Jakarta Servlet/WebSocket. Custom Undertow extensions, handlers, or direct Undertow API usage must update dependency coordinates. A binary incompatibility in SessionCookieConfig/ServletSessionConfig between Undertow 2.3 and 2.4 existed but was previously worked around via reflection.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.undertow:undertow-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.undertow:undertow-servlet", "role": "mentioned" },
+        { "kind": "class", "name": "io.undertow.servlet.api.SessionCookieConfig", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.servlet.SessionCookieConfig", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update io.undertow dependency coordinates to 2.4.1.Final / 2.0.0.Final",
+          "instruction": "In pom.xml, update io.undertow:undertow-core to 2.4.1.Final and io.undertow:undertow-servlet (and io.undertow:undertow-websockets-jsr if used) to 2.0.0.Final. If your code compiles against Undertow classes directly (e.g. io.undertow.server.HttpHandler, io.undertow.servlet.handlers.*, or io.undertow.websockets.*), recompile against the new jars and resolve any API changes. In particular, review any code that calls SessionCookieConfig.setName(), setPath(), setDomain(), setSecure(), setHttpOnly(), or setMaxAge() — the interface was extended in 2.4 and previously worked around via reflection.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds with no NoSuchMethodError for Undertow classes. Session cookie configuration behaves correctly (name, path, domain, secure flag, maxAge) in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Pages 4.0 integrated in standard WildFly",
+      "jira_keys": ["WFLY-19555", "WFLY-21152"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "Standard WildFly now implements Jakarta Pages 4.0. Applications using JSP/tag files must update their API dependency and verify EL expression evaluation under the new spec.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.pages:jakarta.pages-api", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update jakarta.pages:jakarta.pages-api dependency to 4.0.x",
+          "instruction": "In pom.xml, update the scope=provided dependency jakarta.pages:jakarta.pages-api (or its legacy coordinate jakarta.servlet.jsp:jakarta.servlet.jsp-api) to version 4.0.x. Review JSP tag file behaviour and EL expression evaluation changes in the Jakarta Pages 4.0 specification. In particular, EL method invocation syntax changes and deferred-expression evaluation order may differ from Pages 3.1. Run all JSP-based view integration tests after upgrading.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JSP pages render without JasperException or ELException. EL expressions in tag files produce the expected output in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Kafka client upgraded to 4.2.0; vertx-kafka-client removed",
+      "jira_keys": ["WFLY-21585", "WFLY-21434"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "The Kafka client has been upgraded to 4.2.0 (new major version). The vertx-kafka-client artifact has been removed from the WildFly distribution. MicroProfile Reactive Messaging Kafka users and any code with explicit vertx-kafka-client references must be updated.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.kafka:kafka-clients", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.vertx:vertx-kafka-client", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove vertx-kafka-client dependency from provisioning and build",
+          "instruction": "Search pom.xml and any Galleon provisioning XML for io.vertx:vertx-kafka-client. Remove it entirely. Kafka connectivity through MicroProfile Reactive Messaging continues to work through the updated Kafka client (4.2.0) without vertx-kafka-client. If you used vertx-kafka-client APIs directly (io.vertx.kafka.client.consumer.KafkaConsumer, io.vertx.kafka.client.producer.KafkaProducer), you must migrate those usages to the Apache Kafka client 4.2.0 API (org.apache.kafka.clients.consumer.KafkaConsumer, org.apache.kafka.clients.producer.KafkaProducer) or to the MicroProfile Reactive Messaging @Incoming/@Outgoing channel abstraction.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "mvn dependency:tree shows no io.vertx:vertx-kafka-client artifact. Application deploys without ClassNotFoundException for Vert.x Kafka classes.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Review Kafka 4.x breaking changes for MicroProfile Reactive Messaging",
+          "instruction": "Review the Apache Kafka 4.x migration guide at https://kafka.apache.org/documentation/#upgrade for breaking API and protocol changes. Key areas: (1) Kafka 4.x drops legacy KIP-35 producer/consumer API methods deprecated in 3.x — check for usages of deprecated Consumer.poll(long) (replaced by Consumer.poll(Duration)). (2) Ensure your Kafka broker is compatible with the Kafka client 4.2.0 protocol version; Kafka clients are forward-compatible within one major version. Run MicroProfile Reactive Messaging integration tests covering message production and consumption.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "MicroProfile Reactive Messaging channels produce and consume messages without KafkaException or IncompatibleApiVersionException.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "RESTEasy 6.2.16.Final; resteasy-2-0-request-matching deprecated",
+      "jira_keys": ["WFLY-21721", "WFLY-21751", "WFLY-19876"],
+      "source_url": "",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Standard WildFly ships RESTEasy 6.2.16.Final; WildFly Preview ships 7.0.2.Final. The resteasy-2-0-request-matching attribute in the jaxrs subsystem is now deprecated and should be removed from configuration.",
+      "scopes": [
+        { "scope": "config", "severity": "low" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove resteasy-2-0-request-matching from jaxrs subsystem config",
+          "instruction": "Open standalone.xml (and domain.xml if applicable) and locate the <subsystem xmlns=\"urn:jboss:domain:jaxrs:*\"> element. Remove any resteasy-2-0-request-matching=\"true\" attribute. If you configured it via CLI, run: /subsystem=jaxrs:undefine-attribute(name=resteasy-2-0-request-matching). Run JAX-RS endpoint integration tests after the removal to confirm request matching behaviour is unaffected.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "standalone.xml contains no resteasy-2-0-request-matching attribute. /subsystem=jaxrs:read-attribute(name=resteasy-2-0-request-matching) returns undefined. All JAX-RS integration tests pass.",
+          "cli_operation": "/subsystem=jaxrs:undefine-attribute(name=resteasy-2-0-request-matching)"
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Hibernate bidirectional association management disabled with bytecode enhancement",
+      "jira_keys": ["WFLY-21644"],
+      "source_url": "https://docs.hibernate.org/orm/7.0/migration-guide/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "When Hibernate bytecode enhancement is active (now on by default in WildFly 40), bidirectional association management is automatically disabled, preventing double-synchronisation. Orphan removal and cascade behaviour for bidirectional @OneToMany/@ManyToOne associations may change if only one side was previously set.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.persistence.OneToMany", "role": "mentioned" },
+        { "kind": "class", "name": "jakarta.persistence.ManyToOne", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Explicitly sync both sides of all bidirectional associations",
+          "instruction": "Search the codebase for all entity classes with @OneToMany(mappedBy=...) paired with @ManyToOne, and @OneToOne(mappedBy=...) paired with @OneToOne. For each pair, audit all places in service/repository code that set the relationship. Ensure both sides are explicitly assigned: e.g. for a bidirectional Order-OrderLine relationship: orderLine.setOrder(order); order.getLines().add(orderLine);. Do not rely on Hibernate to auto-propagate. Re-run orphan removal tests: collections marked @OneToMany(orphanRemoval=true) must explicitly remove the child from the parent collection to trigger orphan deletion.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JPA integration tests for bidirectional associations pass. Orphan removal correctly deletes child entities when removed from the collection. No unexpected null FK columns appear after persist/merge.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "CDI contextual proxy no longer wraps runtime exceptions in UndeclaredThrowableException",
+      "jira_keys": ["WFLY-21469"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "CDI contextual proxies previously wrapped certain runtime exceptions in UndeclaredThrowableException before propagating them. This is now fixed. Code that catches UndeclaredThrowableException to detect CDI proxy errors will no longer receive the wrapped exception.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "java.lang.reflect.UndeclaredThrowableException", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace UndeclaredThrowableException catches with direct exception type catches",
+          "instruction": "Search the codebase for catch(UndeclaredThrowableException e) blocks. For each block, determine the original exception type that was being unwrapped from e.getCause() and replace the catch to directly catch that underlying exception type. If the code was catching UndeclaredThrowableException generically for logging or error handling, remove the UndeclaredThrowableException handler and add the specific runtime exception types that are now thrown directly.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Integration tests that previously relied on catching UndeclaredThrowableException pass. The correct exception type is now caught and handled.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Jakarta Data promoted to community stability; update --stability flag",
+      "jira_keys": ["WFLY-21080"],
+      "source_url": "",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "The jakarta-data subsystem has been promoted from preview to community stability in standard WildFly. Applications already using Jakarta Data with --stability=preview must update to --stability=community.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Change server launch flag from --stability=preview to --stability=community",
+          "instruction": "In your server launch script (standalone.sh, standalone.bat, Docker CMD, or OpenShift deployment config), replace --stability=preview with --stability=community. If you use the Galleon jakarta-data layer, verify it is still included in your provisioning configuration (it is enabled at community stability in WildFly 40). If you were not yet using Jakarta Data but want to enable it, add --stability=community to the launch arguments and include the jakarta-data Galleon layer in provisioning.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server boots with --stability=community and Jakarta Data repositories inject and execute queries without ClassNotFoundException or service-lookup errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JVM minimum version enforced at JDK 17",
+      "jira_keys": ["WFLY-21807", "WFLY-21373"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "WildFly 40 enforces a JDK 17 minimum at boot via the jboss.require-java-version constraint, aligned with the JDK 17 compiler target. Any environment still running WildFly on JDK 11 will fail to start.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Ensure all environments run JDK 17 or later",
+          "instruction": "Run java -version on every host, container, or CI agent that will run WildFly 40. If any environment reports a version below 17, upgrade JDK to the latest JDK 17 LTS update (or JDK 21 LTS, which is recommended). For containerised deployments, update the base image FROM eclipse-temurin:17 (or 21). For CI pipelines, update the java-version input in the GitHub Actions setup-java step or equivalent.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "java -version reports 17.x or later on all target environments. WildFly 40 starts without 'jboss.require-java-version' boot failure messages.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "EJB proxies no longer invoke constructor on creation",
+      "jira_keys": ["WFLY-19120"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "EJB proxy creation no longer calls the constructor of the proxy class, aligning with the spec requirement that proxy construction must not trigger application logic. EJB proxy subclasses that relied on constructor logic being called on proxy instantiation will no longer have that logic executed.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Remove constructor logic from EJB proxy subclasses",
+          "instruction": "Search the codebase for classes that extend EJB proxy classes (look for subclasses of classes annotated with @Stateless, @Stateful, @Singleton, or @MessageDriven, that are themselves not EJBs). Identify any constructor logic in those subclasses that was previously executed during proxy instantiation. Move any required initialisation logic into a @PostConstruct method on the EJB, or into an explicit factory method. Do not rely on the proxy constructor being called.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "EJB integration tests pass. No NullPointerException or IllegalStateException caused by uninitialised fields that were previously set in the proxy constructor.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "AJP allowed-request-attributes-pattern promoted to default stability",
+      "jira_keys": ["WFLY-19808"],
+      "source_url": "",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "The AJP listener allowed-request-attributes-pattern attribute is now at default stability. Any --stability=community flag that was required solely for this attribute can be removed.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Remove --stability=community flag if used only for AJP attribute",
+          "instruction": "If the sole reason for --stability=community in your server launch arguments was to configure the AJP listener's allowed-request-attributes-pattern attribute, remove the stability flag (or downgrade to --stability=default if no other community-stability features are in use). The attribute is now accessible at default stability. Verify the attribute is still correctly set in your AJP listener configuration after the flag change.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "/subsystem=undertow/server=default-server/ajp-listener=ajp:read-attribute(name=allowed-request-attributes-pattern) returns the expected pattern value without requiring --stability=community.",
+          "cli_operation": "/subsystem=undertow/server=default-server/ajp-listener=ajp:read-attribute(name=allowed-request-attributes-pattern)"
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "resteasy-2-0-request-matching attribute deprecated in jaxrs subsystem",
+      "jira_keys": ["WFLY-19876"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The resteasy-2-0-request-matching attribute in the jaxrs subsystem is deprecated and will be removed in a future WildFly release.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove resteasy-2-0-request-matching from jaxrs configuration",
+          "instruction": "Run the CLI command: /subsystem=jaxrs:undefine-attribute(name=resteasy-2-0-request-matching) and reload the server. Alternatively, edit standalone.xml to remove the attribute from the <subsystem xmlns=\"urn:jboss:domain:jaxrs:*\"> element. Run JAX-RS integration tests after removal.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "/subsystem=jaxrs:read-attribute(name=resteasy-2-0-request-matching) returns undefined. No WARN-level deprecation messages appear in server.log at boot.",
+          "cli_operation": "/subsystem=jaxrs:undefine-attribute(name=resteasy-2-0-request-matching)"
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "mod_cluster migrated from deprecated ServerActivity to SuspendableActivity",
+      "jira_keys": ["WFLY-21244"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "mod_cluster's UndertowEventHandlerAdapterService has been migrated away from the deprecated org.jboss.as.server.suspend.ServerActivity to SuspendableActivity. Custom extensions depending on ServerActivity implementations from mod_cluster must update to the new SPI.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.suspend.ServerActivity", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.as.server.suspend.SuspendableActivity", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update custom extensions from ServerActivity to SuspendableActivity",
+          "instruction": "Search your WildFly extension or subsystem code for implementations of org.jboss.as.server.suspend.ServerActivity. Replace each with org.jboss.as.server.suspend.SuspendableActivity, which is the current SPI. Update method signatures as required by the SuspendableActivity interface. Recompile against the WildFly 40 server API artifacts (org.wildfly.core:wildfly-server).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom extension deploys without ClassNotFoundException or linkage errors for ServerActivity. Graceful shutdown suspends and resumes mod_cluster-aware deployments correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "modcluster"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "New EE 10 feature-pack (wildfly-ee-10) for legacy consumers",
+      "jira_keys": ["WFLY-21698", "WFLY-21763"],
+      "source_url": "https://www.wildfly.org/news/2026/05/21/WildFly-40-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new org.wildfly:wildfly-ee-10-feature-pack:40.0.0.Final is available for teams that need Jakarta EE 10 compliance while still running WildFly 40. This allows deferring the EE 11 migration while still receiving bug fixes and non-EE-specific features.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly:wildfly-ee-10-feature-pack", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Switch Galleon feature-pack to wildfly-ee-10-feature-pack if staying on EE 10",
+          "instruction": "In your Galleon provisioning configuration (wildfly-maven-plugin or galleon-maven-plugin pom.xml, or galleon.xml), change the feature-pack groupId:artifactId from org.wildfly:wildfly-galleon-pack or org.wildfly:wildfly-ee to org.wildfly:wildfly-ee-10-feature-pack with version 40.0.0.Final. For non-Galleon users, download the pre-built WildFly EE 10 server zip from https://wildfly.org/downloads. This server ships Hibernate ORM 6.6.49.Final, Elytron EE 3.2.1.Final (Jakarta Security 3.0), and Jakarta EE 10 APIs.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server boot banner shows 'Jakarta EE 10 Platform ...'. /core-service=capability-registry:read-children-names(child-type=capability) confirms EE 10 capabilities are active.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "HashiCorp Vault as Elytron credential source (community stability)",
+      "jira_keys": ["WFLY-21572"],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly now supports HashiCorp Vault as an Elytron credential store source at community stability, enabling retrieval of credentials (datasource passwords, keystores) from Vault without embedding secrets in configuration files.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Enable vault-credential-store in Elytron subsystem",
+          "instruction": "Launch WildFly with --stability=community. In the Elytron subsystem, configure the new vault-credential-store resource. Example CLI sequence: /subsystem=elytron/vault-credential-store=myVault:add(vault-url=\"https://vault.example.com\", vault-auth-method=token, vault-token=<token>, vault-path=\"secret/wildfly\"). Reference the credential store in datasource or SSL context credential-reference entries. Consult the WildFly 40 documentation for the full vault-credential-store attribute reference.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts with no elytron credential-store errors. A datasource configured to read its password from the vault-credential-store connects successfully to the database.",
+          "cli_operation": "/subsystem=elytron/vault-credential-store=*:read-resource"
+        }
+      ],
+      "subsystem": "elytron"
+    }
+  ]
+}

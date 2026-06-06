@@ -1,0 +1,646 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "TypeScript < 5.5 Support Dropped",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide?v=18.0-19.0&l=3",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 19 requires TypeScript 5.5 or higher; builds targeting TypeScript 5.4 or below will fail at compile time. This is a prerequisite change that must be completed before beginning the Angular upgrade itself.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "typescript", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade `typescript` dependency to >=5.5",
+          "instruction": "In `package.json`, update the `typescript` devDependency to `\">=5.5.0 <5.9.0\"` (Angular 19 supports up to TypeScript 5.6/5.7; check the Angular version compatibility matrix at https://angular.dev/reference/versions for the exact upper bound). Run `npm install` or `yarn` to install the new version. Then run `npx tsc --version` to confirm the installed version is 5.5 or above. Fix any TypeScript compilation errors introduced by the stricter type checking in TS 5.5+ before proceeding with the Angular upgrade.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Running `npx tsc --noEmit` exits with code 0 and `npx tsc --version` outputs a version >= 5.5.0.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`this.foo` Template Property Disambiguation",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide?v=18.0-19.0&l=3",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "In Angular 19, `this.foo` in a template is always resolved to the component class property, never to a template context variable (e.g. a variable declared with `let` inside `*ngFor` or `@for`). Previously, usage of `this.` to disambiguate was inconsistent. Templates relying on `this.someVar` to read an iteration-context variable will silently read a stale or undefined component property instead, causing subtle runtime data bugs.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit all templates for `this.` property reads",
+          "instruction": "Search the entire codebase for `this.` inside HTML templates (`.html` files and inline `template:` strings in `.ts` files). Run: `grep -rn 'this\\.' --include='*.html' src/` and `grep -rn 'this\\.' --include='*.ts' src/`. For each match inside a `*ngFor`, `@for`, or other structural-directive block, determine whether the intent was to access a template context variable. If so, remove the `this.` prefix and rely on the bare variable name (which refers to the template context by precedence). If the intent was to access a component class property that happened to share a name with a context variable, rename the component property to avoid the collision.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `this.` occurrences remain inside structural-directive template blocks. All `*ngFor`/`@for` rendered lists display correct data at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`Router.errorHandler` Property Removed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/withNavigationErrorHandler",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `Router.errorHandler` property has been hard-removed in Angular 19. Code that set this property directly on the `Router` instance will produce a TypeScript compile error. The replacement API is the `withNavigationErrorHandler()` feature function passed to `provideRouter()`, or the `errorHandler` option in `RouterModule.forRoot()` for module-based apps.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "Router.errorHandler", "role": "removed" },
+        { "kind": "class", "name": "withNavigationErrorHandler", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `Router.errorHandler` with `withNavigationErrorHandler()`",
+          "instruction": "Find every place in the codebase where `router.errorHandler = ...` or `this.router.errorHandler = ...` is assigned. For standalone applications using `provideRouter()`, pass `withNavigationErrorHandler((error: NavigationError) => { /* your handler */ })` as an additional feature to `provideRouter()` in `app.config.ts`. Import `withNavigationErrorHandler` from `@angular/router`. For module-based applications still using `RouterModule.forRoot()`, pass the handler as `RouterModule.forRoot(routes, { errorHandler: (error) => { /* your handler */ } })`. Note: `withNavigationErrorHandler` cannot change the return value of the router navigation promise or prevent it from rejecting; if you need that, also pass `withRouterConfig({ resolveNavigationPromiseOnError: true })`. Per the Angular `withNavigationErrorHandler` API docs.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds with no references to `Router.errorHandler`. Navigation error scenarios are handled as expected at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`BrowserModule.withServerTransition` Removed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide?v=18.0-19.0&l=3",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The deprecated `BrowserModule.withServerTransition()` static method has been hard-removed in Angular 19. Applications using SSR that called this method to set an application ID for server-to-client hydration handoff will fail to compile. The replacement is to provide the `APP_ID` DI token directly in the application providers.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "BrowserModule.withServerTransition", "role": "removed" },
+        { "kind": "property", "name": "APP_ID", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace `BrowserModule.withServerTransition()` with `APP_ID` provider",
+          "instruction": "Find every call to `BrowserModule.withServerTransition({ appId: 'your-app-id' })` in your `NgModule` imports array or in `app.config.ts`. Remove the call. Instead, add `{ provide: APP_ID, useValue: 'your-app-id' }` to the `providers` array of the same module or `ApplicationConfig`. Import `APP_ID` from `@angular/core`. If the application also calls `provideClientHydration()`, ensure it remains in the providers array alongside the `APP_ID` provider. The `appId` value used should match the one previously passed to `withServerTransition()` so the SSR hydration handoff continues to work correctly.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Compilation succeeds with no import or reference to `BrowserModule.withServerTransition`. SSR-rendered pages hydrate without console errors or content flicker.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`KeyValueDiffers.factories` Property Removed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/pull/58064",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The deprecated `factories` property on `KeyValueDiffers` has been hard-removed in Angular 19. Any code that accessed `KeyValueDiffers.factories` directly will produce a compile error. Direct access to the internal factory registry was never part of the public differ API and was only used for advanced custom differ implementations.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "KeyValueDiffers.factories", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove all direct access to `KeyValueDiffers.factories`",
+          "instruction": "Search the codebase for any reference to `.factories` on a `KeyValueDiffers` instance: `grep -rn 'KeyValueDiffers' --include='*.ts' src/`. For each hit that accesses the `.factories` property, rewrite the code to use the public differ API instead: inject `KeyValueDiffers` and call `differs.find(obj).create()` to obtain a differ for a specific object. The `find()` method returns the first `KeyValueDifferFactory` that supports the given object, which is the correct replacement for any code that previously iterated or inspected `factories` directly. If you were registering a custom differ factory, use the `KeyValueDiffers.extend(factories)` static method (available up to Angular 18) — note this approach may itself require review for Angular 19 compatibility.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds with no reference to `KeyValueDiffers.factories`. Custom differ behavior (if any) is validated by running the relevant unit tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "RxJS 6.x Runtime Incompatibility",
+      "jira_keys": [],
+      "source_url": "https://rxjs.dev/6-to-7-change-summary",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 19 has a confirmed runtime breaking change when used with RxJS 6.x. Upgrading to RxJS 7.x is a prerequisite before migrating to Angular 19. RxJS 7 introduces its own set of breaking changes (operator argument validation, import path changes) that must also be resolved.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "rxjs", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade `rxjs` to ^7.4.0",
+          "instruction": "Update `rxjs` in `package.json` to `\"^7.8.0\"` (the latest stable 7.x release). Run `npm install` or `yarn`. RxJS 7 introduces the following breaking changes to address: (1) Operators imported from `'rxjs/operators'` continue to work but are now also exported directly from `'rxjs'` — consider migrating imports to `'rxjs'` for consistency; (2) `take`, `takeLast`, and similar operators now throw `TypeError` for invalid arguments (negative numbers, NaN) at runtime instead of silently completing; (3) `throwError` no longer accepts a function as a direct error value — wrap it in a factory: `throwError(() => new Error('msg'))` instead of `throwError(new Error('msg'))`; (4) `Subject` is no longer re-exported from `'rxjs/internal/Subject'`. Run the RxJS migration lint rules or review the full change list at https://rxjs.dev/6-to-7-change-summary.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts and all RxJS-dependent features work correctly at runtime. No `TypeError` thrown by RxJS operators. `npm list rxjs` shows version 7.x.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`createComponent` Empty `projectableNodes` Behavior",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/issues/57471",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "In Angular 19, passing an empty array `[]` as a slot in the `projectableNodes` parameter of `createComponent()` now renders the `<ng-content>` fallback content for that slot, instead of leaving it empty. This aligns dynamic component creation with the template-based `<ng-content>` fallback behavior introduced in Angular 18. Code that relied on empty slots suppressing fallback content will render unexpected fallback content after the upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "createComponent", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit `createComponent` calls with empty `projectableNodes` slots",
+          "instruction": "Search the codebase for all calls to `createComponent(`: `grep -rn 'createComponent(' --include='*.ts' src/`. For each call that passes a `projectableNodes` argument, inspect whether any slot in the array is an empty array `[]`. If you depend on empty slots producing no output (i.e. suppressing `<ng-content>` fallback rendering), replace the empty array `[]` with `[document.createTextNode('')]` for that slot to preserve the previous behavior. Example: change `projectableNodes: [[], [secondNode]]` to `projectableNodes: [[document.createTextNode('')], [secondNode]]`. If you want the fallback content to render (the new default), no change is needed.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Dynamically created components render the expected content in each projected slot, with or without fallback content as intended.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Standalone `true` Default for All Declarations",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/migrations/standalone",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Angular 19 changes the default value of the `standalone` property to `true` for all components, directives, and pipes. Any declaration still registered in an `@NgModule` but not explicitly marked `standalone: false` will be treated as standalone and will fail to bootstrap because Angular will not register it in the module's declaration scope. The automated `ng update @angular/core` schematic handles this migration.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng update @angular/core` to apply standalone schematic",
+          "instruction": "Run `ng update @angular/core@19` in the project root. This command runs the automated migration schematic that: (1) adds `standalone: false` to every component, directive, and pipe that is declared in an `@NgModule` and does not already have an explicit `standalone` property; (2) removes redundant `standalone: true` from declarations that are not declared in any `@NgModule` (since `true` is now the default). After the schematic runs, review all modified files to confirm correctness. Do not manually add `standalone: false` before running the schematic — the schematic is the authoritative migration tool and avoids double-application.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application bootstraps without errors. `ng build` succeeds. No `@NgModule` declarations are missing an explicit `standalone: false`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Verify `@NgModule` declarations have `standalone: false`",
+          "instruction": "After running `ng update`, search for any remaining `@NgModule` `declarations` arrays: `grep -rn 'declarations:' --include='*.ts' src/`. For each listed class, confirm that its `@Component`, `@Directive`, or `@Pipe` decorator includes `standalone: false`. If any are missing the flag (because the schematic did not detect them), add `standalone: false` manually.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Running `ng build` succeeds with no `NG6007` or `NG0001` errors about standalone/NgModule conflicts.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`ExperimentalPendingTasks` Renamed to `PendingTasks`",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/PendingTasks",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `ExperimentalPendingTasks` service has been promoted to stable and renamed to `PendingTasks` in Angular 19. Any code importing or injecting `ExperimentalPendingTasks` will fail to compile after the upgrade. The `ng update @angular/core` schematic applies this rename automatically.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ExperimentalPendingTasks", "role": "removed" },
+        { "kind": "class", "name": "PendingTasks", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename `ExperimentalPendingTasks` to `PendingTasks`",
+          "instruction": "Run `ng update @angular/core@19` — the schematic will automatically rename all usages of `ExperimentalPendingTasks` to `PendingTasks` across the codebase, including the import from `@angular/core`. If you need to apply the rename manually, find all occurrences with `grep -rn 'ExperimentalPendingTasks' --include='*.ts' src/` and replace both the import statement (`import { ExperimentalPendingTasks } from '@angular/core'` → `import { PendingTasks } from '@angular/core'`) and all usages of the class name in constructor parameters, injection tokens, and type annotations.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Compilation succeeds with no reference to `ExperimentalPendingTasks` in the codebase. `grep -rn 'ExperimentalPendingTasks' src/` returns no results.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`ng add @angular/localize` `name` Option Removed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide?v=18.0-19.0&l=3",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `--name` option for the `ng add @angular/localize` schematic has been removed in Angular 19, superseded by `--project`. Any CI/CD pipelines or build scripts that pass `--name` to this schematic will fail with an unknown option error after the upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace `--name` with `--project` in `ng add @angular/localize` calls",
+          "instruction": "Search all CI/CD pipeline scripts, Makefile targets, `package.json` scripts, and documentation for calls to `ng add @angular/localize --name <value>`. Replace every `--name <value>` argument with `--project <value>`. The `--project` option accepts the same project name that was previously passed to `--name`. Verify in `angular.json` that the project name matches the value being passed.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Running `ng add @angular/localize --project <name>` succeeds without any `Unknown option: '--name'` error in CI and locally.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`effect()` Execution Timing Changed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/pull/57874",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "In Angular 19, effects are now scheduled as part of the component change-detection cycle rather than as independent microtasks. Effects triggered outside of change detection run during the next application tick; effects triggered during change detection run after it completes. Additionally, the `allowSignalWrites` flag is now a no-op — effects can always write to signals. Tests relying on microtask-based effect timing will break.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `allowSignalWrites: true` from all `effect()` calls",
+          "instruction": "Search for all `effect(` calls in the codebase: `grep -rn 'effect(' --include='*.ts' src/`. Remove the `allowSignalWrites: true` option from every call — it is now a no-op and leaving it in is harmless but should be cleaned up to avoid confusion. Change `effect(() => { ... }, { allowSignalWrites: true })` to `effect(() => { ... })`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `allowSignalWrites` option remains in any `effect()` call. `grep -rn 'allowSignalWrites' src/` returns no results.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Update unit tests that rely on synchronous effect execution",
+          "instruction": "Find all unit tests that assert on the result of an `effect()` call synchronously. With the new timing, effects no longer run as microtasks — they run during the next change detection cycle. Update such tests to: (1) call `TestBed.flushEffects()` (if available in your Angular 19 testing utilities) or `fixture.detectChanges()` after the signal write that should trigger the effect; (2) use `await fixture.whenStable()` for async tests; (3) if using faked clocks (`jasmine.clock()` or Jest fake timers), flush the clock/macrotask queue after the signal write. Review tests that use `tick()` in `fakeAsync` — ensure the microtask queue is not the primary mechanism for driving effect execution.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All unit tests that exercise `effect()` pass. No tests fail due to effects not having run when assertions are evaluated.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`afterRender` / `afterNextRender` API Redesigned",
+      "jira_keys": [],
+      "source_url": "https://v19.angular.dev/api/core/afterRender",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The phase-flag style API for `afterRender` and `afterNextRender` (passing a `{read, write, mixedReadWrite}` object with phase flags introduced in Angular 18.1) is now deprecated in Angular 19. The preferred API uses separate callback-based phases. A migration schematic is provided to automate most of this transition.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Run `ng generate @angular/core:after-render-phase` schematic",
+          "instruction": "Run the provided migration schematic: `ng generate @angular/core:after-render-phase`. This will update calls using the deprecated phase-flag API (`afterRender({ read: () => {...}, write: () => {...} })`) to the new callback-based API. After the schematic runs, manually review the diff to ensure the phase assignments are semantically correct: use `afterRender({ earlyRead: () => {...} })` for reading before writes, `afterRender({ write: () => {...} })` for DOM writes, `afterRender({ read: () => {...} })` for reads after writes, and `afterRender({ mixedReadWrite: () => {...} })` only when phases cannot be separated. Per the Angular `afterRender` API documentation.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No usages of the deprecated phase-flag object form remain. `ng build` succeeds without deprecation warnings related to `afterRender` phase flags.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`ComponentFixture.autoDetect` Aligned with Production",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/testing/ComponentFixture",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Angular 19 aligns `ComponentFixture.autoDetect` (controlled by the `ComponentFixtureAutoDetect` provider) with production change-detection behavior. The previous extra synchronous check that ran in tests no longer fires. Tests that relied on implicit eager detection may now miss pending updates without an explicit `fixture.detectChanges()` call.",
+      "scopes": [
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ComponentFixtureAutoDetect", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Add explicit `fixture.detectChanges()` where auto-detection no longer fires",
+          "instruction": "Run the full test suite after upgrading. Find tests that now fail with assertion errors on component output (e.g. DOM text does not reflect updated state). In those tests, add an explicit call to `fixture.detectChanges()` immediately after any state change that should trigger re-rendering. Do not rely on `autoDetect` to fire a synchronous detection pass on test setup — call `fixture.detectChanges()` after `TestBed.createComponent()` if the initial render is needed before assertions.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All component tests pass. No test assertions fail due to stale component views.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "CSS Pseudo-Selector Scoping Changed",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/update-guide?v=18.0-19.0&l=3",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Angular 19 fixes the compiled output for `:where()`, `:is()`, and `:host-context()` pseudo-selectors in emulated view encapsulation. For example, `:where(:host)` previously compiled to `:where()[ng-host]` and now correctly compiles to `:where([ng-host])`. This affects CSS specificity calculations and may change which styles are applied to elements if selector specificity was relied upon.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify component styles using `:where()`, `:is()`, `:host-context()`",
+          "instruction": "Search for components whose styles use `:where(`, `:is(`, or `:host-context(`: `grep -rn ':where(\\|:is(\\|:host-context(' --include='*.scss' --include='*.css' --include='*.ts' src/`. After upgrading, inspect the rendered styles in the browser for each such component. Use browser DevTools to confirm that the compiled attribute-scoped selectors are correct (e.g. `:where([_nghost-abc])` rather than `:where()[_nghost-abc]`) and that the intended styles are applied. Pay special attention to any component where style precedence relies on specificity — the corrected compilation may change which rule wins.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All components using `:where()`, `:is()`, or `:host-context()` render with the correct styles in the browser after the upgrade.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`Resolve` Interface Return Type Expanded",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/router/Resolve",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The `Resolve<T>` interface's `resolve()` method return type now includes `RedirectCommand` alongside `T`, making it `MaybeAsync<T | RedirectCommand>`. Classes that implement `Resolve<T>` with strict TypeScript and do not handle `RedirectCommand` may produce type errors. This change brings the class-based interface to parity with the function-based `ResolveFn<T>`.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "RedirectCommand", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update `Resolve<T>` implementations to handle `RedirectCommand`",
+          "instruction": "Search for all classes that implement the `Resolve` interface: `grep -rn 'implements Resolve' --include='*.ts' src/`. For each resolver, check whether the return type needs to be broadened to `Observable<T | RedirectCommand>`, `Promise<T | RedirectCommand>`, or `T | RedirectCommand`. If the resolver should only return data (never a redirect), the return type of the `resolve()` method signature inside the class remains unchanged — TypeScript infers compatibility with the broader interface. However, if strict type checking causes errors, explicitly update the method signature. To leverage the new capability, inject `Router` and return `new RedirectCommand(this.router.parseUrl('/error'))` from the resolver on error conditions instead of throwing.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All `Resolve` implementations compile without type errors. Router resolvers behave as expected in routing scenarios.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`ApplicationRef.tick` Errors Rethrown in TestBed",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/releases/tag/19.0.0",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "In Angular 19, `TestBed` introduces a `rethrowApplicationErrors` option (defaulting to `true`) that causes errors thrown during `ApplicationRef.tick()` to be rethrown and surface as test failures. Tests that previously passed despite tick-time component errors (because Angular swallowed them) will now fail, revealing hidden component bugs.",
+      "scopes": [
+        { "scope": "test", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "ApplicationRef", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Fix component errors surfaced by `rethrowApplicationErrors: true`",
+          "instruction": "Run the full test suite after upgrading. For any test that now fails with an unexpected error from `ApplicationRef.tick()`, investigate and fix the underlying component or service error rather than suppressing it. If a specific test is intentionally testing error scenarios and must expect a tick-time error, use one of: (1) `expect(() => TestBed.inject(ApplicationRef).tick()).toThrow()` for synchronous error assertions; (2) `expectAsync(fixture.whenStable()).toBeRejected()` for async assertions. As a last resort only for legacy tests that cannot be immediately fixed, configure `TestBed.configureTestingModule({ rethrowApplicationErrors: false })` to restore the old behavior, but file a follow-up to fix the underlying errors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All tests pass. No tests are silently masking component errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`afterRender` Phase Flag API Deprecated",
+      "jira_keys": [],
+      "source_url": "https://v19.angular.dev/api/core/afterRender",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The phase-flag object style options (`read`, `write`, `mixedReadWrite`) for `afterRender` and `afterNextRender` are deprecated as of Angular 18.1 and will be removed in a future major version. The migration schematic `ng generate @angular/core:after-render-phase` automates the transition to the new callback-based API.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate to new `afterRender` callback-based phase API",
+          "instruction": "This deprecation is addressed by the same schematic as the behavioral change entry above. Run `ng generate @angular/core:after-render-phase` if not already done as part of the behavioral change migration. After the schematic, review usage and ensure the correct phase (earlyRead, write, read, or mixedReadWrite) is used based on whether the callback reads from or writes to the DOM.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No deprecation warnings for `afterRender` or `afterNextRender` phase flags in the build output.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`ignoreChangesOutsideZone` Option Deprecated",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/pull/57029",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `ignoreChangesOutsideZone` option in `NgZone` configuration (introduced in Angular 18 as an opt-out for the new hybrid scheduling mode) is deprecated as of Angular 18.2. The Angular team has confirmed that changes outside the zone are correctly managed by the zoneless scheduler and the opt-out is unnecessary. The option will be removed in a future major version.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "ignoreChangesOutsideZone", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove `ignoreChangesOutsideZone` from `NgZone` configuration",
+          "instruction": "Search for `ignoreChangesOutsideZone` across the codebase: `grep -rn 'ignoreChangesOutsideZone' --include='*.ts' src/`. Remove the property from wherever it appears in `NgZone` configuration objects (typically in `bootstrapApplication()` or `bootstrapModule()` calls, or in providers). The hybrid scheduling mode introduced in Angular 18 is now the standard behavior, and changes outside the zone are handled correctly without this flag.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No reference to `ignoreChangesOutsideZone` remains in the codebase. Application change detection behaves correctly for events originating outside the Angular zone.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Signal APIs Stabilized (`input`, `output`, `model`, queries)",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/reference/migrations/signal-queries",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `input()`, `output()`, `model()`, and signal-based query APIs (`viewChild`, `viewChildren`, `contentChild`, `contentChildren`) are now stable in Angular 19. Migration schematics are provided to incrementally migrate `@Input`, `@Output`, and `@ViewChild` decorators to the new signal-based equivalents.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Optionally migrate `@Input` to `input()` via schematic",
+          "instruction": "To migrate `@Input` decorators to the stable `input()` signal function, run: `ng generate @angular/core:signal-input-migration`. To migrate `@Output` decorators to `output()`, run: `ng generate @angular/core:output-migration`. To migrate `@ViewChild`, `@ViewChildren`, `@ContentChild`, `@ContentChildren` to signal queries, run: `ng generate @angular/core:signal-queries-migration`. Each schematic can also be combined in a single interactive run by running `ng generate @angular/core:signals`. After migration, component properties read via signal APIs must be called as functions (e.g. `this.myInput()` instead of `this.myInput`). Review all templates and code referencing migrated inputs/outputs/queries for call-syntax updates.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application builds and all tests pass after migration schematics are applied. Signal-based inputs/outputs/queries are invoked with `()` syntax where required.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`@let` Template Syntax Stabilized",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/api/core/@let",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `@let` declaration syntax for defining template-local read-only variables (introduced as a developer preview in Angular 18.1) is now stable in Angular 19. No migration is required; the syntax can be adopted at any time to replace complex `as` bindings or repeated async-pipe expressions.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Incremental Hydration Public API",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/incremental-hydration",
+      "change_type": "informational",
+      "reason_type": "performance",
+      "reason": "Angular 19 provides a stable public API for incremental SSR hydration, enabling fine-grained control over when individual `@defer` blocks are hydrated on the client. This can significantly reduce initial JavaScript execution and improve time-to-interactive for SSR applications.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "withIncrementalHydration", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Enable incremental hydration with `withIncrementalHydration()`",
+          "instruction": "In your SSR application's `app.config.ts` (or server bootstrap file), add `withIncrementalHydration()` to `provideClientHydration()`: `provideClientHydration(withIncrementalHydration())`. Import `withIncrementalHydration` from `@angular/platform-browser`. Then annotate `@defer` blocks with hydration triggers: `@defer (hydrate on viewport) { <app-lazy-component /> }`. Available triggers are `hydrate on idle`, `hydrate on viewport`, `hydrate on interaction`, `hydrate on hover`, and `hydrate when <condition>`. Note: enabling incremental hydration also automatically enables event replay — remove any existing `withEventReplay()` from the providers list to avoid duplication.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "SSR application hydrates incrementally; components inside `@defer` blocks with `hydrate on viewport` do not hydrate until they scroll into view, confirmed via browser DevTools network tab (deferred JS bundle loads on scroll).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`linkedSignal` Reactive Primitive",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/signals",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 19 introduces `linkedSignal()`, a writable signal that is linked to a source signal and resets its value based on a computation whenever the source changes. It is available as a stable API and is useful for managing derived writable state without resorting to manual effect-based synchronization.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "linkedSignal", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`resource()` and `rxResource()` Experimental APIs",
+      "jira_keys": [],
+      "source_url": "https://angular.dev/guide/signals/resource",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Angular 19 introduces `resource()` and `rxResource()` as experimental developer-preview APIs for managing asynchronous resource dependencies reactively. `resource()` uses a Promise-based loader; `rxResource()` uses an RxJS Observable-based loader. Both APIs are marked unstable and may change before stabilization.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "resource", "role": "mentioned" },
+        { "kind": "class", "name": "rxResource", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

@@ -1,0 +1,800 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "ModuleIdentifier removed from multiple WildFly subsystems",
+      "jira_keys": ["WFLY-20005", "WFLY-20007", "WFLY-20008", "WFLY-20009", "WFLY-20011", "WFLY-20014", "WFLY-20015", "WFLY-20017", "WFLY-20018", "WFLY-20019", "WFLY-20020", "WFLY-20021", "WFLY-20022", "WFLY-20023", "WFLY-20024", "WFLY-20152"],
+      "source_url": "https://docs.wildfly.org/35/Migration_Guide.html",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "The `org.jboss.modules.ModuleIdentifier` type has been removed from the public subsystem APIs across JPA/Persistence, Messaging, Pojo, MP Config, Naming, Weld, Web Services, IIOP, XTS, EE (twice), Application Client, Undertow, JSF, Concurrency, and SAR subsystems. Any custom WildFly extension, SPI implementation, or subsystem code that passes a `ModuleIdentifier` into these APIs will fail to compile or deploy. The replacement is the string-based module name (e.g. `ModuleLoader.findModule(String)`) as required by the updated subsystem public API.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.modules.ModuleIdentifier", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.modules.ModuleLoader", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ModuleIdentifier usages with String-based module names",
+          "instruction": "Search all custom WildFly extension and subsystem source code for any import or usage of `org.jboss.modules.ModuleIdentifier`. Replace each occurrence with the equivalent `String` module name (e.g. `\"com.example.mymodule\"`) as expected by the updated subsystem APIs. Where `ModuleLoader.findModule(ModuleIdentifier)` was called, switch to `ModuleLoader.findModule(String)`. Where subsystem parsers or add-handlers accepted a `ModuleIdentifier` parameter, update the method signatures and callers accordingly. Per the WildFly 35 Migration Guide (https://docs.wildfly.org/35/Migration_Guide.html) and the Keycloak WildFly subsystem update PR #41672 as a real-world reference.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without errors. No import of `org.jboss.modules.ModuleIdentifier` remains in extension or subsystem source. Deployment of the custom extension on WildFly 35 completes without `ClassNotFoundException` or `NoSuchMethodError`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Minimum Java SE version raised to 17; Java 11 no longer supported",
+      "jira_keys": ["WFLY-19888"],
+      "source_url": "https://www.wildfly.org/news/2024/10/28/WildFly-35-moves-to-SE-17-drops-SE-11/",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly 35 requires Java SE 17 as the minimum JDK. Applications, CI pipelines, and production environments still running on Java 11 will fail to start the server. This is a hard platform requirement with no compatibility shim.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade JDK to Java 17 or newer in all environments",
+          "instruction": "Update the JDK used by the WildFly server process to Java SE 17 or newer. In CI/CD pipelines, change the `java-version` (or equivalent) to `17`. In Maven or Gradle build files, update `<maven.compiler.source>` / `<maven.compiler.target>` (or `sourceCompatibility` / `targetCompatibility`) from `11` to `17`. In Docker images, change the base image from a JDK 11 variant (e.g. `eclipse-temurin:11-jre`) to a JDK 17 variant (e.g. `eclipse-temurin:17-jre`). Verify any `JAVA_HOME` environment variable or toolchain plugin configuration in `pom.xml` is updated. Per WildFly 35 release announcement (https://www.wildfly.org/news/2024/10/28/WildFly-35-moves-to-SE-17-drops-SE-11/).",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Running `java -version` in the server process environment prints a version of 17 or higher. WildFly starts without `UnsupportedClassVersionError`. CI pipeline completes without a Java-version-related build failure.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-8391 — Vert.x gRPC server upgraded to 4.5.10 to fix DoS",
+      "jira_keys": ["WFLY-19730"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-8391",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-8391 (CVSS 5.8) affects the Vert.x gRPC server (`io.vertx:vertx-grpc-server` and `io.vertx:vertx-grpc-client`) in versions 4.3.0–4.5.9. The gRPC server does not limit the maximum message payload size, enabling an attacker to send excessively large messages and cause resource exhaustion (denial of service). WildFly 35 ships Vert.x 4.5.10 which introduces the message size limit. Applications that pin or bundle their own Vert.x dependency must align to 4.5.10 or later.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.vertx:vertx-grpc-server", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.vertx:vertx-grpc-client", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Align Vert.x dependency to 4.5.10 or later",
+          "instruction": "Search your Maven `pom.xml` or Gradle build files for any explicit version declaration of `io.vertx:vertx-grpc-server`, `io.vertx:vertx-grpc-client`, or the parent `io.vertx:vertx-stack-depchain`. If found, update the version to `4.5.10` or later. If your project imports WildFly's BOM and does not override the Vert.x version, no change is needed — the server provides the patched version. After updating, run `mvn dependency:tree | grep vertx` (or `./gradlew dependencies | grep vertx`) to confirm no older transitive Vert.x version is being pulled in.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree` shows no `io.vertx:vertx-grpc-server` or `io.vertx:vertx-grpc-client` artifacts below version 4.5.10. Application deploys and gRPC endpoints respond normally.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-7254 — protobuf-java upgraded to 3.25.5 to fix StackOverflow DoS",
+      "jira_keys": ["WFLY-19757"],
+      "source_url": "https://github.com/advisories/GHSA-735f-pc8j-v9w8",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-7254 (CVSS 8.7) affects all versions of `com.google.protobuf:protobuf-java` prior to 3.25.5. Parsing nested groups or unknown fields with `DiscardUnknownFieldsParser` or the Lite parser causes unbounded recursion, which a crafted message can exploit to trigger a `StackOverflowError` and crash the JVM process. The fix in 3.25.5 enforces a recursion depth limit. Applications that explicitly declare `protobuf-java` must align to ≥ 3.25.5.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.google.protobuf:protobuf-java", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Align protobuf-java to 3.25.5 or later",
+          "instruction": "Search your Maven `pom.xml` or Gradle build files for any explicit version declaration of `com.google.protobuf:protobuf-java`, `com.google.protobuf:protobuf-java-util`, or `com.google.protobuf:protobuf-kotlin`. Update each pinned version to `3.25.5` or later (or `4.27.5` / `4.28.2` if you are on the 4.x series). Run `mvn dependency:tree | grep protobuf` to verify no older version is pulled transitively. Per the GitHub Security Advisory GHSA-735f-pc8j-v9w8.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree` shows `com.google.protobuf:protobuf-java` at version 3.25.5 or higher. Application starts and protobuf serialization/deserialization tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-51127 — HornetQ upgraded to 2.4.11.Final to fix file overwrite and info disclosure",
+      "jira_keys": ["WFLY-20027", "WFLY-20118"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-51127",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-51127 affects `org.hornetq:hornetq-core-client` up to and including 2.4.9. An issue in the `createTempFile` method allows attackers to arbitrarily overwrite files or access sensitive information. WildFly 35 ships HornetQ 2.4.11.Final which remediates this CVE. Deployments using the legacy HornetQ client or that explicitly pin HornetQ artifacts must align to 2.4.11.Final.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hornetq:hornetq-core-client", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Align HornetQ artifacts to 2.4.11.Final",
+          "instruction": "Search your Maven `pom.xml` or Gradle build files for any explicit version declaration of `org.hornetq:hornetq-core-client` or other `org.hornetq:*` artifacts. Update each pinned version to `2.4.11.Final`. Run `mvn dependency:tree | grep hornetq` to verify no older version is included transitively. If you use the legacy HornetQ subsystem in WildFly, no subsystem configuration change is needed — updating WildFly to 35.0.0.Final is sufficient.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree` shows `org.hornetq:hornetq-core-client` at `2.4.11.Final`. WildFly server starts and legacy messaging functionality operates without errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-10234 — HAL management console upgraded to 3.7.7.Final to fix XSS",
+      "jira_keys": ["WFLY-19969", "WFLY-20100"],
+      "source_url": "https://github.com/hal/console/security/advisories/GHSA-64gp-r758-8pfm",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-10234 is a Cross-Site Scripting (XSS) vulnerability in the WildFly management console (HAL). An attacker with access to the deployment upload flow can inject and execute malicious scripts in the browser of any admin user viewing the affected page. The fix is included in HAL 3.7.7.Final, which is bundled with WildFly 35. No user code change is required — upgrading WildFly to 35.0.0.Final picks up the patched console automatically.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.hal:hal-console", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm WildFly installation is on 35.0.0.Final with HAL 3.7.7.Final",
+          "instruction": "Upgrade the WildFly server installation to 35.0.0.Final (or later). Verify the bundled HAL console version by checking `modules/system/layers/base/org/jboss/as/console/main/module.xml` inside the WildFly installation directory, or by navigating to the management console at http://<host>:9990 and checking the version shown in the footer. No application code changes are required.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "The WildFly management console at port 9990 shows HAL version 3.7.7.Final or later in its footer. The server startup log confirms `WildFly Full 35.0.0.Final`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "MicroProfile Platform 7 promoted to standard WildFly distribution",
+      "jira_keys": ["WFLY-19588", "WFLY-19591", "WFLY-19592", "WFLY-19846", "WFLY-19866"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 35 promotes MicroProfile Platform 7 — including MP OpenAPI 4.0, Fault Tolerance 4.1, Telemetry 2.0, and REST Client 4.0 — from Preview to the standard distribution. MP OpenAPI 4.0 generates OpenAPI 3.1 documents by default and has breaking API changes in the Schema model (type property changed from `SchemaType` to `List<SchemaType>`, `nullable` removed, `exclusiveMinimum`/`exclusiveMaximum` changed to `BigDecimal`). MP REST Client 4.0 migrates from RESTEasy MicroProfile 2.1 to 3.0 and adds two new methods to `RestClientBuilder`. Applications that used MicroProfile from the Preview feature pack must validate against the now-standard APIs.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.eclipse.microprofile.openapi:microprofile-openapi-api", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.eclipse.microprofile.rest.client:microprofile-rest-client-api", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.eclipse.microprofile.faulttolerance:microprofile-fault-tolerance-api", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update MP OpenAPI 4.0 Schema API usages for type/nullable changes",
+          "instruction": "Search your code for programmatic use of `org.eclipse.microprofile.openapi.models.media.Schema`. Update any call to `Schema.getType()` that previously returned `org.eclipse.microprofile.openapi.models.media.Schema.SchemaType` — it now returns `java.util.List<SchemaType>`. Remove any call to `Schema.getNullable()` / `Schema.setNullable()` (the `nullable` property was removed; express nullability by adding `SchemaType.NULL` to the type list). Update any call to `Schema.getExclusiveMinimum()` or `Schema.getExclusiveMaximum()` — these now return `java.math.BigDecimal` instead of `Boolean`. Update the `@RequestBody.required` default awareness: it now defaults to `true`. Remove any code referencing the removed `Scopes` or `ServerVariables` interfaces, replacing with `Map<String, ServerVariable>`. Per the MicroProfile OpenAPI 4.0 specification (https://download.eclipse.org/microprofile/microprofile-open-api-4.0.2/microprofile-openapi-spec-4.0.2.html) and Open Liberty diff guide (https://openliberty.io/docs/latest/reference/diff/mp-61-70-diff.html).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without errors. No import of removed `Scopes` or `ServerVariables` interfaces remains. OpenAPI document served at `/openapi` is valid OpenAPI 3.1 JSON/YAML.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate MP REST Client 4.0 interface compatibility",
+          "instruction": "Review all interfaces annotated with `@RegisterRestClient`. MP REST Client 4.0 (RESTEasy MicroProfile 3.0) adds two new methods to `RestClientBuilder` but introduces no backwards-incompatible interface changes per the official proposal. Confirm that your Maven or Gradle dependency coordinates for `org.eclipse.microprofile.rest.client:microprofile-rest-client-api` resolve to version `4.0` (via the WildFly BOM) and that no older version is being pinned. Run integration tests that exercise REST client proxy interfaces.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All `@RegisterRestClient` proxies invoke correctly in integration tests. `mvn dependency:tree` shows `microprofile-rest-client-api` at version 4.0.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Infinispan upgraded 14.x to 15.x and JGroups 5.2.x to 5.3.x — major version bump",
+      "jira_keys": ["WFLY-19905", "WFLY-19904", "WFLY-19903"],
+      "source_url": "https://infinispan.org/docs/stable/titles/upgrading/upgrading.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Infinispan was upgraded from 14.0.x to 15.0.x and JGroups from 5.2.x to 5.3.x. Infinispan 15 drops Java EE support entirely (Jakarta EE only), removes Kryo and Protostuff marshallers, removes deprecated `keySet`, `values`, `entrySet`, and `executeTask` Cache API methods, and changes Off Heap address-count configuration. Cache configurations serialized to XML or JSON are now always in the new format. Applications with custom cache configurations, custom marshallers, or programmatic Infinispan API usage must be validated. Rolling upgrades of mixed-version clusters require special care due to serialisation format changes.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.jgroups:jgroups", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Remove Kryo/Protostuff marshallers and replace with supported alternatives",
+          "instruction": "Search your codebase and Infinispan configuration XML for references to `org.infinispan:infinispan-marshaller-kryo` or `org.infinispan:infinispan-marshaller-protostuff`. These artifacts and their `KryoMarshaller` / `ProtostuffMarshaller` classes have been removed in Infinispan 15. Migrate serialization to the built-in ProtoStream marshaller (`org.infinispan:infinispan-protostream`) or Java serialization with appropriate `AllowList` configuration. Update `cache-container` configuration XML to remove `<marshaller class=\"...KryoMarshaller\"/>` or equivalent. Per the Infinispan 15 upgrade guide (https://infinispan.org/docs/stable/titles/upgrading/upgrading.html).",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `KryoMarshaller` or `ProtostuffMarshaller` import or configuration reference remains. Infinispan cache operations succeed and stored data can be read back correctly.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace removed Cache API methods: keySet, values, entrySet, executeTask",
+          "instruction": "Search your codebase for calls to `org.infinispan.Cache.keySet()`, `Cache.values()`, `Cache.entrySet()`, and `Cache.executeTask()`. These methods were deprecated in earlier versions and have been removed in Infinispan 15. Replace `cache.keySet()` with `cache.keySet().iterator()` using the streaming API, or use `cache.entrySet().stream()`. Replace `cache.executeTask()` with the Distributed Executor Service or `cache.entrySet().stream().filter(...).forEach(...)` as appropriate. Per the Infinispan 15 changes documentation.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Project compiles without errors. No call to the removed `executeTask`, `keySet`, `values`, or `entrySet` methods on `org.infinispan.Cache` remains (note: `ConcurrentMap` methods on `Cache` are still available via the standard interface).",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Validate cluster rolling-upgrade serialization compatibility before upgrading all nodes",
+          "instruction": "Before upgrading all cluster nodes simultaneously, verify that the Infinispan wire protocol and serialization format is compatible between nodes running WildFly 34 (Infinispan 14) and WildFly 35 (Infinispan 15). Consult the Infinispan Rolling Upgrade documentation (https://github.com/jgroups-extras/RollingUpgrades) and perform a staged upgrade: upgrade one node, confirm it joins the cluster and cache data is readable, then proceed with remaining nodes. Ensure no custom Off Heap `address-count` XML attribute is present in cache-container configuration (it is no longer parsed and must be removed).",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0, 1],
+          "verification": "All cluster nodes show as `ONLINE` in the Infinispan cluster view. Cache entries created before the upgrade are readable by nodes running WildFly 35. No `ClassCastException` or deserialization errors appear in server logs.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Jakarta Data promoted from Preview to standard WildFly distribution",
+      "jira_keys": ["WFLY-19776"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "dependency_upgrade",
+      "reason_type": "spec_compliance",
+      "reason": "Jakarta Data, previously available only via the WildFly Preview feature pack, is now included in the standard WildFly 35 distribution. Applications that were consuming Jakarta Data through the Preview feature pack may need to adjust their provisioning configuration to use the standard inclusion.",
+      "scopes": [
+        { "scope": "build", "severity": "low" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Remove Jakarta Data Preview feature pack reference from provisioning config",
+          "instruction": "If your `pom.xml` or Galleon provisioning configuration references the WildFly Preview feature pack (`wildfly-preview`) solely to gain access to Jakarta Data, remove or replace that reference with the standard WildFly feature pack (`wildfly`). Review your `<feature-pack>` declarations in the WildFly Maven Plugin configuration. If you are using the standard WildFly distribution already, no change is needed.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application provisions and deploys against standard WildFly 35. Jakarta Data repositories inject correctly at runtime without `ClassNotFoundException`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Narayana transaction manager upgraded to 7.1.0.Final",
+      "jira_keys": ["WFLY-19859"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Narayana (the JTA/JTS transaction manager embedded in WildFly) was upgraded to 7.1.0.Final. Applications that rely on Narayana-internal APIs or advanced XA/JTS configurations should be validated. The upgrade may affect recovery log formats and XA node identifier behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.narayana.jta:narayana-jta", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate XA and JTS transaction recovery after Narayana 7.1.0 upgrade",
+          "instruction": "After upgrading to WildFly 35, run your XA transaction integration tests end-to-end, including crash recovery scenarios if your application depends on JTS. Verify that the `transactions` subsystem in WildFly's `standalone.xml` or `domain.xml` has a unique `node-identifier` set (required for proper XA recovery): `/subsystem=transactions:write-attribute(name=node-identifier,value=<unique-id>)`. If you import any Narayana internal packages (outside `javax.transaction` / `jakarta.transaction`), review the Narayana 7.1.0 release notes for removed or changed internals.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "XA transaction commit and rollback tests pass. Recovery log is written and replayed correctly after a simulated crash. No `ClassNotFoundException` for Narayana internal classes at deployment.",
+          "cli_operation": "/subsystem=transactions:write-attribute(name=node-identifier,value=my-unique-node-id)"
+        }
+      ],
+      "subsystem": "transactions"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Woodstox StAX parser upgraded from 6.4.0 to 7.0.0 — major version bump",
+      "jira_keys": ["WFLY-19936"],
+      "source_url": "https://github.com/FasterXML/woodstox/releases",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Woodstox (the StAX XML parser used throughout WildFly) was upgraded from 6.4.0 to 7.0.0. Version 7.0.0 removes the `QNameCreator` helper class, changes `WstxInputLocation.setLocation()`, and updates `WstxSAXParser` error handling. Any application that ships its own Woodstox JAR may experience classpath conflicts or `NoSuchMethodError` due to the API differences.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.fasterxml.woodstox:woodstox-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Align or remove bundled Woodstox dependency to 7.0.0",
+          "instruction": "Search your Maven `pom.xml` or Gradle build files for any explicit version declaration of `com.fasterxml.woodstox:woodstox-core`. If present, update to `7.0.0`. If your application bundles Woodstox inside a WAR/EAR (e.g. in `WEB-INF/lib`), remove it and rely on the server-provided version, or update it to 7.0.0. Search source code for any import of `com.ctc.wstx.util.QNameCreator` (removed in 7.0) and remove or replace that usage. Run `mvn dependency:tree | grep woodstox` to verify no conflicting version.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`mvn dependency:tree` shows `com.fasterxml.woodstox:woodstox-core` at `7.0.0`. No `NoSuchMethodError` or `ClassNotFoundException` related to Woodstox appears during application startup or XML processing.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview switches to Jakarta Authentication 3.1.0 — ServerAuthModule update required",
+      "jira_keys": ["WFLY-19991", "WFLY-19993"],
+      "source_url": "https://docs.wildfly.org/35/WildFly_Elytron_Security.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview now uses Jakarta Authentication 3.1.0 (via elytron-ee 4.0.x). Applications running on WildFly Preview that implement custom `ServerAuthModule` or use JASPI configuration must update their code to the Jakarta Authentication 3.1 API. This primarily means ensuring imports are from `jakarta.security.auth.message` (not `javax.security.auth.message`) and reviewing any changed method contracts in the 3.1 specification.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.security.auth.message.module.ServerAuthModule", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update ServerAuthModule imports to jakarta.security.auth.message 3.1",
+          "instruction": "Search all custom `ServerAuthModule` implementations for any import from `javax.security.auth.message.*`. Replace with the corresponding `jakarta.security.auth.message.*` package (e.g. `jakarta.security.auth.message.module.ServerAuthModule`, `jakarta.security.auth.message.MessagePolicy`). Update the Maven dependency coordinate from `javax.security.auth.message:javax.security.auth.message-api` to `jakarta.security:jakarta.security.auth.message-api` at version 3.1.0. Review the Jakarta Authentication 3.1 specification for any method signature changes relative to 2.x. Per WildFly Elytron JASPI documentation (https://github.com/wildfly/wildfly/blob/main/docs/src/main/asciidoc/_elytron/Elytron_and_Java_Authentication_SPI_for_Containers-JASPI.adoc).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom `ServerAuthModule` class compiles against `jakarta.security.auth.message-api:3.1.0`. WildFly Preview server starts and JASPI authentication succeeds end-to-end for the affected deployment.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Security Policy access switched exclusively to Elytron PolicyUtil",
+      "jira_keys": ["WFLY-20001"],
+      "source_url": "https://docs.wildfly.org/35/WildFly_Elytron_Security.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "WildFly 35 now accesses `java.security.Policy` exclusively via `PolicyUtil` from the Elytron EE library, removing the previous direct `java.security.Policy.getPolicy()` call in subsystem code. Any custom WildFly extension or SPI implementation that directly calls `java.security.Policy.getPolicy()` in subsystem code must be updated to use the Elytron EE `PolicyUtil` approach.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "java.security.Policy", "role": "removed" },
+        { "kind": "class", "name": "org.wildfly.security.manager.WildFlySecurityManager", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace java.security.Policy.getPolicy() calls with Elytron PolicyUtil",
+          "instruction": "Search your custom WildFly extension and subsystem code for any direct call to `java.security.Policy.getPolicy()` or `java.security.Policy.setPolicy(Policy)`. Replace these calls with the equivalent from the Elytron EE `PolicyUtil` class (from the `org.wildfly.security.elytron-ee` module). The exact replacement API is `PolicyUtil.getPolicy()` / `PolicyUtil.setPolicy(Policy)`. Ensure your extension's `module.xml` declares a dependency on the `org.wildfly.security.elytron-ee` module. This change is required only for custom server-side extension or SPI code — application code that does not directly call `Policy.getPolicy()` is not affected.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom extension deploys on WildFly 35 without `AccessControlException` or `UnsupportedOperationException` related to `java.security.Policy`. No direct `Policy.getPolicy()` call remains in extension source code.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Security Manager support dropped for Java SE 24 and later",
+      "jira_keys": ["WFLY-20120", "WFLY-20122", "WFLY-20124"],
+      "source_url": "https://lists.jboss.org/archives/list/wildfly-dev@lists.jboss.org/thread/477ZY435S3ZSQV4VNDWLZDQFVLWWGSZN/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Java SE 24 permanently removed the Java Security Manager (JEP 486). WildFly 35 no longer passes `-Djava.security.manager=allow` on SE 24+. Deployment scripts or startup configurations that explicitly set the Security Manager for WildFly on SE 24 will fail silently or produce warnings. Environments running SE 17–23 are unaffected by this specific change.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove -Djava.security.manager=allow from SE 24+ startup scripts",
+          "instruction": "Search all WildFly startup scripts (`standalone.sh`, `standalone.conf`, `standalone.conf.bat`, `domain.sh`, `domain.conf`, systemd unit files, and any custom wrapper scripts) for the JVM argument `-Djava.security.manager` or `-Djava.security.manager=allow`. If running on Java SE 24 or later, remove these arguments entirely. If running on SE 17–23 and Security Manager is still required, retain the argument but be aware it is deprecated for removal. Do not set `SECMGR=true` in `standalone.conf` on SE 24+ environments.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "WildFly starts on Java 24 without warnings about the Security Manager being ignored or unsupported. Server log shows no `java.lang.UnsupportedOperationException: The Security Manager is deprecated and will be removed in a future release` at startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Security Manager regressions fixed in Micrometer, Reactive Messaging, SmallRye OTel",
+      "jira_keys": ["WFLY-19994", "WFLY-20035", "WFLY-20043"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Three Security Manager regressions that broke Micrometer 1.14.1, SmallRye Reactive Messaging, and SmallRye OpenTelemetry integrations have been fixed in WildFly 35.0.0.Final. If you run with Security Manager enabled (SE 17–23), earlier WildFly 35.0.0.Beta1 builds had broken behaviour in these subsystems. Upgrading to the Final release picks up all fixes; no application code change is required.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm 35.0.0.Final is used; re-enable Security Manager tests",
+          "instruction": "Ensure the WildFly installation is 35.0.0.Final (not a Beta build). If you disabled Micrometer metrics, Reactive Messaging, or SmallRye OpenTelemetry tests due to Security Manager failures observed in Beta1, re-enable those tests. No application code changes are required — the regressions were in WildFly subsystem code.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys with Security Manager enabled on SE 17–23 without `AccessControlException` in Micrometer, SmallRye Reactive Messaging, or SmallRye OpenTelemetry code paths. Metric collection and reactive messaging function normally.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "New resteasy-patchfilter-disabled attribute added to jaxrs subsystem",
+      "jira_keys": ["WFLY-19981"],
+      "source_url": "https://docs.wildfly.org/35/Admin_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "A new `resteasy-patchfilter-disabled` boolean attribute was added to the `jaxrs` subsystem configuration. If the PATCH filter behaviour changes unexpectedly after upgrading to WildFly 35, this attribute can be used to restore the previous behaviour. The default value of the attribute determines whether RESTEasy's built-in PATCH filter is active.",
+      "scopes": [
+        { "scope": "config", "severity": "low" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "jaxrs.resteasy-patchfilter-disabled", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify PATCH endpoint behaviour after upgrade",
+          "instruction": "If your application exposes JAX-RS `PATCH` endpoints, test them after upgrading to WildFly 35 to confirm that content-type negotiation and request body handling match the expected behaviour. If PATCH filter behaviour has changed unexpectedly, set `resteasy-patchfilter-disabled` to `true` in the `jaxrs` subsystem using the WildFly management CLI: `/subsystem=jaxrs:write-attribute(name=resteasy-patchfilter-disabled,value=true)` and reload the server.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "PATCH requests to JAX-RS endpoints return the expected HTTP status codes and response bodies. No `415 Unsupported Media Type` errors appear for previously working PATCH calls.",
+          "cli_operation": "/subsystem=jaxrs:write-attribute(name=resteasy-patchfilter-disabled,value=true)"
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JSON Merge Patch RFC 7396 support added to RESTEasy",
+      "jira_keys": ["WFLY-13412"],
+      "source_url": "https://docs.wildfly.org/35/Admin_Guide.html",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "RESTEasy now natively supports `application/merge-patch+json` (RFC 7396). If existing REST endpoints handle `PATCH` requests manually and match on `*/*` or `application/json` content types, the new built-in handler may intercept requests that previously fell through to custom code, changing PATCH content-type negotiation behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" },
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify PATCH content-type negotiation with merge-patch+json",
+          "instruction": "Review all JAX-RS resource methods annotated with `@PATCH`. If any of them previously handled `application/merge-patch+json` manually (e.g. by consuming `application/json` and inspecting the `Content-Type` header), validate that the new built-in RESTEasy merge patch support does not conflict. Specifically, test `PATCH` requests with `Content-Type: application/merge-patch+json` to confirm they are routed to the intended method. If a conflict is found, add an explicit `@Consumes(\"application/merge-patch+json\")` annotation to the intended resource method.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "HTTP `PATCH` requests with `Content-Type: application/merge-patch+json` return 200 and apply the patch as expected. Existing `PATCH` requests with other content types are not broken.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "OpenTelemetry integrated into MP Reactive Messaging Kafka and AMQP connectors",
+      "jira_keys": ["WFLY-19835", "WFLY-19836"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "OpenTelemetry tracing is now automatically active in MicroProfile Reactive Messaging Kafka and AMQP connectors. In environments without a configured OTel exporter endpoint, warning-level log messages about the missing exporter will appear at application startup.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure or suppress OTel exporter for Reactive Messaging connectors",
+          "instruction": "If your application uses MicroProfile Reactive Messaging with Kafka or AMQP connectors and you have an OpenTelemetry backend, configure the exporter endpoint in `microprofile-config.properties` or `application.properties`: set `otel.exporter.otlp.endpoint=http://<collector>:4317` (for OTLP gRPC) or the appropriate exporter properties. If you do not want tracing, set `otel.sdk.disabled=true` or `mp.opentelemetry.enabled=false` to suppress the OTel integration and silence the exporter warning.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server startup log contains no `WARN` messages about a missing OTel exporter, or (if intentionally disabled) no unexpected trace data is sent to an exporter.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "@WithSpan annotation regression from WildFly 34 fixed",
+      "jira_keys": ["WFLY-19869"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "`@WithSpan` (SmallRye OpenTelemetry) stopped producing spans in WildFly 34 due to a regression. WildFly 35 restores the correct span-producing behaviour. Any tests or monitoring dashboards that were disabled because of this regression should be re-enabled.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-enable @WithSpan tests and monitoring disabled due to WildFly 34 regression",
+          "instruction": "Re-enable any integration tests or monitoring assertions that were disabled because `@WithSpan`-annotated methods produced no spans on WildFly 34. Verify that methods annotated with `@io.opentelemetry.instrumentation.annotations.WithSpan` or `@org.eclipse.microprofile.telemetry.tracing.Traced` produce spans visible in your configured OTel backend or test tracer after upgrading to WildFly 35.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Integration tests asserting span creation for `@WithSpan`-annotated methods pass. Traces appear in the configured OpenTelemetry backend for the annotated code paths.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Graceful shutdown freeze with active transactions fixed",
+      "jira_keys": ["WFLY-20048"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "A bug causing WildFly's graceful shutdown to freeze indefinitely when active transactions were present has been resolved in WildFly 35. No configuration change is required, but production environments with aggressive shutdown timeout configurations should be verified.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify graceful shutdown completes within expected timeout",
+          "instruction": "After upgrading to WildFly 35, test graceful shutdown (`./bin/jboss-cli.sh --connect --command=:shutdown(timeout=30)`) in a staging environment with in-flight transactions active. Confirm that the server shuts down within the configured timeout. If you previously increased the shutdown timeout as a workaround for the freeze, consider restoring the original value.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server shuts down gracefully within the configured timeout period. No `WFLYSRV0220` (graceful shutdown timed out) or indefinite hang is observed.",
+          "cli_operation": ":shutdown(timeout=30)"
+        }
+      ],
+      "subsystem": "transactions"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JMS XA crash recovery with JTS fixed",
+      "jira_keys": ["WFLY-19883"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "JMS XA transaction crash recovery was not functioning correctly when JTS (Java Transaction Service) was enabled. WildFly 35 fixes this regression. Deployments that use JMS XA together with JTS should validate their recovery configuration after upgrading.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate JMS XA + JTS crash recovery after upgrade",
+          "instruction": "For deployments using JMS XA transactions with JTS enabled, run a recovery test scenario: simulate a crash during an in-flight JMS XA transaction (e.g. by killing the JVM after `prepare` but before `commit`), then restart WildFly 35 and confirm that Narayana's recovery manager replays the transaction log and completes the commit or rollback. Check the server log for `ARJUNA` recovery log entries confirming that orphaned transactions are resolved.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "After a simulated crash and restart, Narayana recovery manager log shows `ARJUNA016037: Could not find new XAResource to match` resolved and no in-doubt transactions remain. JMS messages are not duplicated or lost.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JPA bytecode enhancement disabled by default in 35.0.0.Final",
+      "jira_keys": ["WFLY-20078"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "JPA container bytecode enhancement was briefly enabled by default in WildFly 35 Beta1 (WFLY-19393) but was subsequently disabled again before the 35.0.0.Final release. The net result for 35.0.0.Final is no change versus WildFly 34. However, if any code was explicitly relying on automatic bytecode enhancement being active (tested only on Beta builds), it must be configured explicitly.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Explicitly configure bytecode enhancement in persistence.xml if required",
+          "instruction": "If your JPA application requires bytecode enhancement (e.g. lazy loading for basic fields, dirty tracking), configure it explicitly in `persistence.xml` by adding `<property name=\"hibernate.enhancer.enableDirtyTracking\" value=\"true\"/>`, `<property name=\"hibernate.enhancer.enableLazyInitialization\" value=\"true\"/>`, and/or `<property name=\"hibernate.enhancer.enableAssociationManagement\" value=\"true\"/>` inside the `<properties>` block. Do not rely on container-level automatic enhancement being enabled. Per Hibernate ORM 6.x documentation.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "JPA entity enhancement behaves as expected. Dirty tracking and lazy loading function correctly at runtime. No `HibernateException` about bytecode enhancement configuration appears in the log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "javax.servlet.jstl.api module replaced by jakarta.servlet.jstl.api",
+      "jira_keys": ["WFLY-20150"],
+      "source_url": "https://docs.wildfly.org/35/Migration_Guide.html",
+      "change_type": "deprecation",
+      "reason_type": "spec_compliance",
+      "reason": "The legacy `javax.servlet.jstl.api` WildFly module name is deprecated in favour of `jakarta.servlet.jstl.api`. Deployments that reference the old module name in `jboss-deployment-structure.xml` or `module.xml` will generate deprecation warnings and may break in a future WildFly release.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "javax.servlet.jstl.api", "role": "removed" },
+        { "kind": "property", "name": "jakarta.servlet.jstl.api", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace javax.servlet.jstl.api module reference with jakarta.servlet.jstl.api",
+          "instruction": "Search all `jboss-deployment-structure.xml` and `module.xml` files in your deployment for the string `javax.servlet.jstl.api`. Replace each occurrence with `jakarta.servlet.jstl.api`. Example: change `<module name=\"javax.servlet.jstl.api\"/>` to `<module name=\"jakarta.servlet.jstl.api\"/>`. This change is required in `WEB-INF/jboss-deployment-structure.xml`, `META-INF/jboss-deployment-structure.xml`, or any custom module descriptor that references the old name.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts with no WARN-level deprecation message about `javax.servlet.jstl.api` module reference. Deployment completes without module-not-found errors. JSP pages using JSTL tags render correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "ModuleDependency constructor deprecated; use ModuleDependency.Builder in extensions",
+      "jira_keys": ["WFLY-20165", "WFLY-20166", "WFLY-20167", "WFLY-20170", "WFLY-20172", "WFLY-20175", "WFLY-20176", "WFLY-20182"],
+      "source_url": "https://github.com/wildfly/wildfly-core/blob/master/server/src/main/java/org/jboss/as/server/deployment/module/ModuleDependency.java",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The direct `ModuleDependency` constructor used across TXN, NAMING, APPCLIENT, EE, CLUSTERING, JAKARTA DATA, JSF, and SECURITY subsystems is deprecated. Authors of custom WildFly extensions that create `ModuleDependency` objects will receive compile-time deprecation warnings. Continued use of the deprecated constructor will not cause immediate failures in WildFly 35 but the constructor is targeted for removal in a future release.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" },
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleDependency", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace new ModuleDependency(...) with ModuleDependency.Builder",
+          "instruction": "Search your custom WildFly extension source code for `new ModuleDependency(` constructor calls on `org.jboss.as.server.deployment.module.ModuleDependency`. Replace each invocation with the builder pattern: use `ModuleDependency.Builder.of(moduleLoader, moduleName).build()` (adjusting builder method calls to match the optional flags previously passed to the constructor, such as `.setExport(true)`, `.setOptional(true)`, `.setImportServices(true)`). Consult the `ModuleDependency.Builder` Javadoc in `wildfly-core` for the exact method names. Per WildFly community PR #41672 (Keycloak) as a real-world migration reference.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Extension source compiles without `@Deprecated` warnings for `ModuleDependency` constructor. Deployment of the custom extension succeeds on WildFly 35.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Vert.x extension added to WildFly Preview",
+      "jira_keys": ["WFLY-19954"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "informational",
+      "reason_type": "",
+      "reason": "The Vert.x extension and subsystem from `wildfly-vertx-feature-pack` is now available in WildFly Preview, enabling native Vert.x integration for applications running on the Preview distribution. No action is required unless you choose to opt in.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "WildFly User BOMs include channel configuration for automated version management",
+      "jira_keys": ["WFLY-19871"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "informational",
+      "reason_type": "",
+      "reason": "WildFly User BOMs now include channel configuration metadata, enabling automated version management via WildFly Channels. Projects importing the WildFly BOM (`org.wildfly.bom`) can benefit from channel-based dependency version governance.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly.bom:wildfly-ee", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Non-shaded wildfly-cli artifact added to tools user BOM",
+      "jira_keys": ["WFLY-20072"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "informational",
+      "reason_type": "",
+      "reason": "A non-shaded `wildfly-cli` artifact is now included in the WildFly tools user BOM, allowing consumers to depend on the CLI library without introducing fat-jar classpath conflicts.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Systemd service unit documentation added for WildFly",
+      "jira_keys": ["WFLY-19745"],
+      "source_url": "https://www.wildfly.org/news/2025/01/09/WildFly-35-is-released/",
+      "change_type": "informational",
+      "reason_type": "",
+      "reason": "Community documentation for running WildFly as a systemd service is now available, useful for bare-metal or VM deployments on systemd-based Linux distributions. No code change required.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

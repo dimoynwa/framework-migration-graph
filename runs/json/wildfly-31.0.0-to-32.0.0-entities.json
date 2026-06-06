@@ -1,0 +1,602 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Removal of legacy security capability org.wildfly.legacy-security",
+      "jira_keys": ["WFLY-18997", "WFLY-19006", "WFLY-19007", "WFLY-19008", "WFLY-19009", "WFLY-19012", "WFLY-19051"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "The `org.wildfly.legacy-security` capability (PicketBox-based legacy security framework) is entirely removed in WildFly 32. Any deployment or server configuration that depends on the legacy `<security-domain>` elements in the `security` subsystem, or on the legacy security realms, will fail to start. All security must be provided exclusively through the Elytron subsystem.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "subsystem.security", "role": "removed" },
+        { "kind": "property", "name": "subsystem.elytron", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit all uses of legacy security subsystem in server config",
+          "instruction": "Search all WildFly configuration files (standalone.xml, standalone-full.xml, standalone-ha.xml, standalone-full-ha.xml, and any domain.xml profiles) for the `<subsystem xmlns=\"urn:jboss:domain:security:` namespace prefix. Also grep deployment descriptors (jboss-web.xml, jboss-ejb3.xml, jboss-app.xml) for `<security-domain>` elements. Collect every security-domain name referenced. These must all be re-implemented as Elytron `<security-domain>` resources in the `elytron` subsystem before upgrading.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "A complete list of legacy security-domain names used across all configuration files and deployment descriptors is produced with no unknowns remaining.",
+          "cli_operation": "/subsystem=security:read-children-names(child-type=security-domain)"
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Migrate each legacy security-domain to Elytron security-domain",
+          "instruction": "For each legacy security-domain identified in step 0, create equivalent Elytron resources in the `elytron` subsystem. The standard migration path is: (1) Create an Elytron `<properties-realm>`, `<filesystem-realm>`, `<jdbc-realm>`, `<ldap-realm>`, or `<token-realm>` depending on the LoginModule type used in the legacy configuration. (2) Create an Elytron `<security-domain>` referencing the new realm. (3) Create an Elytron `<http-authentication-factory>` or `<sasl-authentication-factory>` as appropriate. (4) In deployment descriptors, replace `<security-domain>legacy-name</security-domain>` with the Elytron security domain name and add `<elytron-enabled>true</elytron-enabled>`. The full step-by-step procedure with CLI examples is documented in the official WildFly guide at https://docs.jboss.org/author/display/WFLY/Migrate+Legacy+Security+to+Elytron+Security. An automated migration script is available under `docs/examples/enable-elytron.cli` within the WildFly distribution.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts without `WFLYCTL0030` or `WFLYSEC` errors. All formerly secured applications authenticate and authorize users successfully. The `security` subsystem is absent from the running model (`/subsystem=security:read-resource` returns `WFLYCTL0030`).",
+          "cli_operation": "/subsystem=elytron:read-children-names(child-type=security-domain)"
+        },
+        {
+          "index": 2,
+          "step_type": "remove",
+          "summary": "Remove legacy security subsystem from server configuration XML",
+          "instruction": "After all applications have been migrated to Elytron (step 1), remove the entire `<subsystem xmlns=\"urn:jboss:domain:security:*\">` block from all WildFly configuration files. Also remove any `<security-domain>` references still present in deployment descriptors. Verify that no module dependencies on `org.picketbox` or `org.jboss.security` remain in `jboss-deployment-structure.xml` files.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [1],
+          "verification": "WildFly starts without warnings about unknown namespaces. `grep -r 'jboss:domain:security:' /opt/wildfly/standalone/configuration/` returns no matches.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "security"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Undertow mod_cluster filter with legacy security realms throws OperationFailedException",
+      "jira_keys": ["WFLY-19133"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "WildFly 32 adds a validation that prevents configuring an Undertow `mod_cluster` filter with a legacy security realm. The previously silently-broken combination now throws an `OperationFailedException` during server boot or management operation, forcing administrators to switch to Elytron-based security configurations for mod_cluster.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "subsystem.undertow.configuration.filter.mod-cluster", "role": "mentioned" },
+        { "kind": "property", "name": "subsystem.elytron.http-authentication-factory", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Identify mod_cluster filter security-realm references in undertow config",
+          "instruction": "In your WildFly configuration files, locate the `<subsystem xmlns=\"urn:jboss:domain:undertow:*\">` section and find any `<mod-cluster ...>` filter definitions that include a `security-realm` attribute pointing to a legacy management security realm (e.g. `security-realm=\"ApplicationRealm\"`). List each such occurrence.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "All mod-cluster filter entries have been inventoried and any that reference a legacy security realm are identified.",
+          "cli_operation": "/subsystem=undertow/configuration=filter/mod-cluster=*:read-resource(include-defaults=false)"
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace legacy security-realm on mod_cluster filter with Elytron http-authentication-factory",
+          "instruction": "For each mod_cluster filter found in step 0 that references a legacy `security-realm`: (1) Create or reuse an Elytron `<http-authentication-factory>` in the elytron subsystem that provides the same authentication mechanism (e.g. DIGEST or CLIENT-CERT). (2) In the Undertow mod_cluster filter definition, remove the `security-realm` attribute and add `elytron-ssl-context=\"<ssl-context-name>\"` (for SSL) and/or set the `ssl-context` attribute to an Elytron `<server-ssl-context>`. Consult the WildFly Elytron documentation at https://docs.wildfly.org/32/WildFly_Elytron_Security.html for the exact resource paths. If the realm was used only for SSL certificate validation, replacing `security-realm` with an Elytron `<server-ssl-context>` reference on the mod_cluster filter is sufficient.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts and management CLI shows the mod_cluster filter with an Elytron SSL context reference. No `OperationFailedException` is thrown during boot. The `/subsystem=undertow/configuration=filter/mod-cluster=*:read-resource` output contains no `security-realm` attribute.",
+          "cli_operation": "/subsystem=undertow/configuration=filter/mod-cluster=<name>:write-attribute(name=ssl-context,value=<elytron-ssl-context-name>)"
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Snappy Java to mitigate CVE-2023-34453, CVE-2023-34454, CVE-2023-34455, CVE-2023-43642",
+      "jira_keys": ["WFLY-19032"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Multiple DoS vulnerabilities in snappy-java (integer overflows in compress/shuffle functions and missing upper-bound checks on chunk length) allow remote attackers to trigger out-of-memory conditions or fatal memory access violations. WildFly 32 ships with a fixed version. If snappy-java is also declared as a direct dependency in your application, you must update it independently.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.xerial.snappy:snappy-java", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade org.xerial.snappy:snappy-java to 1.1.10.5 or later",
+          "instruction": "If your application or its dependencies declare a direct or managed dependency on `org.xerial.snappy:snappy-java`, update it to version `1.1.10.5` or later in your `pom.xml` or `build.gradle`. In Maven: `<dependency><groupId>org.xerial.snappy</groupId><artifactId>snappy-java</artifactId><version>1.1.10.5</version></dependency>`. Run `mvn dependency:tree | grep snappy-java` to confirm no transitive dependency brings in an older version; if one does, add a `<dependencyManagement>` override. WildFly's own bundled version is already updated; this step only applies to application-level declarations.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep snappy-java` shows only version `1.1.10.5` or newer. Security scanners (e.g., OWASP Dependency Check) no longer flag CVE-2023-34453, CVE-2023-34454, CVE-2023-34455, or CVE-2023-43642.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade nimbus-jose-jwt to 9.37.3 to patch CVE-2023-52428",
+      "jira_keys": ["WFLY-19034"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-52428 is a denial-of-service vulnerability in nimbus-jose-jwt where a maliciously crafted JWE token with an excessively large `p2c` (PBES2 iteration count) header value can cause unbounded CPU consumption. The fix in version 9.37.2+ adds validation that caps the iteration count. WildFly 32 bundles the patched version; applications that shade or directly depend on nimbus-jose-jwt must upgrade independently.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade com.nimbusds:nimbus-jose-jwt to 9.37.3 or later",
+          "instruction": "If your project declares a direct or managed dependency on `com.nimbusds:nimbus-jose-jwt`, update the version to `9.37.3` or later in `pom.xml` or `build.gradle`. In Maven: `<dependency><groupId>com.nimbusds</groupId><artifactId>nimbus-jose-jwt</artifactId><version>9.37.3</version></dependency>`. Add a `<dependencyManagement>` entry to override any transitive resolution of older versions. Verify with `mvn dependency:tree | grep nimbus-jose-jwt` that no earlier version is pulled in transitively.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep nimbus-jose-jwt` shows only version `9.37.3` or newer. OWASP Dependency Check no longer reports CVE-2023-52428.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Undertow CVE-2023-1973 suppressed — no longer applicable in WildFly",
+      "jira_keys": ["WFLY-19224"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "WildFly no longer uses Undertow's built-in authentication mechanisms that were the attack surface for CVE-2023-1973; authentication is handled entirely by the Elytron subsystem. Security scan reports that flag this CVE against WildFly 32 are false positives and must be suppressed to keep CI pipelines green.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add CVE-2023-1973 suppression to security scan configuration",
+          "instruction": "In your OWASP Dependency Check configuration (typically `dependency-check-suppression.xml`), add a suppression entry for CVE-2023-1973 targeting the `io.undertow:undertow-core` artifact. Example suppression entry: `<suppress><notes>WildFly 32 delegates all authentication to Elytron; Undertow's own auth mechanism referenced by CVE-2023-1973 is not used.</notes><cve>CVE-2023-1973</cve></suppress>`. For other scanners (Snyk, Trivy, etc.) follow the equivalent false-positive suppression mechanism for that tool.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Security scan pipeline completes without flagging CVE-2023-1973 as an actionable finding against the WildFly 32 deployment.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Multi-tenancy JWT security fix for cross-tenant token reuse (CVE-2023-6236)",
+      "jira_keys": ["WFLY-19225"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-6236 identifies a vulnerability where JWT tokens issued for one tenant can be reused to authenticate against a different tenant in multi-tenant WildFly deployments, resulting in unauthorized cross-tenant access. Deployments with a single tenant are not affected. Multi-tenant configurations must be reviewed and tested to ensure tenant isolation.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Verify multi-tenant JWT configuration enforces audience claim per tenant",
+          "instruction": "In your Elytron `<token-realm>` configuration for each tenant, ensure the `audience` attribute (or the JWT `aud` claim validation) is set to a tenant-specific value that is unique and cannot be shared across tenants. In the WildFly CLI: `/subsystem=elytron/token-realm=<realm-name>:read-attribute(name=jwt)` — confirm the `audience` list is non-empty and tenant-specific. If two tenant realms share the same audience value, update them to be distinct. Additionally, configure each realm's `issuer` validation to accept only the identity provider URL for that specific tenant.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "A JWT token issued for tenant A is rejected with HTTP 401 when presented to tenant B's endpoint. Integration tests covering cross-tenant token presentation pass with expected rejection responses.",
+          "cli_operation": "/subsystem=elytron/token-realm=<realm-name>:read-attribute(name=jwt)"
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Add integration tests for cross-tenant token isolation",
+          "instruction": "Write or extend existing security integration tests to explicitly verify cross-tenant token rejection. The test should: (1) Obtain a valid JWT for tenant A. (2) Present that token to a protected resource configured for tenant B. (3) Assert the response is HTTP 401 or 403. This test must run as part of the CI pipeline for every future WildFly upgrade.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "The cross-tenant token rejection test passes in CI with a 401/403 status code. No exceptions or stack traces appear in the WildFly server log for the rejected request.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Apache James mime4j to 0.8.10 to mitigate CVE-2024-21742",
+      "jira_keys": ["WFLY-19088"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-21742 is a MIME header injection vulnerability in Apache James mime4j versions prior to 0.8.10. The `RawField` constructor does not validate `\\r\\n` sequences in header values, allowing attackers to inject arbitrary MIME headers into composed messages. Version 0.8.10 adds strict validation. Applications that use mime4j for email composition must upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.james:apache-mime4j-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade org.apache.james:apache-mime4j-core to 0.8.10",
+          "instruction": "Update all `org.apache.james:apache-mime4j-*` artifacts to version `0.8.10` in your `pom.xml` or `build.gradle`. In Maven add to `<dependencyManagement>`: `<dependency><groupId>org.apache.james</groupId><artifactId>apache-mime4j-core</artifactId><version>0.8.10</version></dependency>` (and similarly for `apache-mime4j-dom`, `apache-mime4j-storage` if used). Run `mvn dependency:tree | grep mime4j` to verify no older transitive version remains. WildFly's own modules are already updated to 0.8.10.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep mime4j` shows only version `0.8.10` or newer. OWASP Dependency Check no longer reports CVE-2024-21742.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Suppress false-positive CVE-2024-23080 in security scans",
+      "jira_keys": ["WFLY-19237"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-23080 is flagged by automated security scanners against components bundled with WildFly 32, but has been assessed as a false positive or non-applicable in the WildFly runtime context. Security pipelines must add a suppression to prevent false build failures.",
+      "scopes": [
+        { "scope": "build", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add CVE-2024-23080 suppression to security scan tool configuration",
+          "instruction": "Add a suppression entry for CVE-2024-23080 to your project's security scan suppression file (e.g. `dependency-check-suppression.xml` for OWASP Dependency Check). Include a note stating that this was assessed as a false positive per WFLY-19237. For Snyk, use `.snyk` policy file with `ignore: CVE-2024-23080`. For Trivy, use `.trivyignore`. Ensure the suppression is reviewed at each major WildFly upgrade.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Security scan pipeline completes without flagging CVE-2024-23080 as an actionable finding.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Apache Santuario to 3.0.3 to address CVE-2023-44483",
+      "jira_keys": ["WFLY-18685"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-44483 affects Apache Santuario (xmlsec) versions prior to 2.2.6, 2.3.4, and 3.0.3. When generating an XML Signature with debug logging enabled, the private key used for signing may be written to log files (CWE-532). WildFly 32 upgrades to 3.0.3. Applications that bundle xmlsec as a direct dependency must also upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.santuario:xmlsec", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade org.apache.santuario:xmlsec to 3.0.3 or later",
+          "instruction": "If your project or any of its modules declare a direct dependency on `org.apache.santuario:xmlsec`, update it to `3.0.3` or later in `pom.xml`. In Maven `<dependencyManagement>`: `<dependency><groupId>org.apache.santuario</groupId><artifactId>xmlsec</artifactId><version>3.0.3</version></dependency>`. Confirm with `mvn dependency:tree | grep xmlsec` that no older version is pulled transitively. Note: if you use CXF or WSS4J, they may pull in xmlsec transitively — add an explicit `<dependencyManagement>` override.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep xmlsec` shows only `3.0.3` or newer. OWASP Dependency Check no longer reports CVE-2023-44483. XML signature operations complete successfully in smoke tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade ActiveMQ Artemis to 2.31.2 to resolve CVE-2023-46604 RCE",
+      "jira_keys": ["WFLY-18704"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-46604 is a critical (CVSS 10.0) remote code execution vulnerability in the OpenWire protocol marshaller used by ActiveMQ and ActiveMQ Artemis. A remote attacker with network access to the broker can instantiate arbitrary classes on the classpath via manipulated serialized class types. Artemis 2.31.2 is the fixed version. WildFly 32 ships this version; externally managed Artemis brokers must be upgraded independently.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq:artemis-server", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade ActiveMQ Artemis to 2.31.2 in pom.xml and standalone broker",
+          "instruction": "1. If your application pom.xml declares any `org.apache.activemq:artemis-*` dependency, update all of them to `2.31.2` or higher. Run `mvn dependency:tree | grep artemis` to identify all Artemis artifacts and confirm no older version remains. 2. If your environment uses a standalone Artemis broker (separate process, not embedded in WildFly), upgrade it to version `2.31.2` or higher by downloading the new release from https://activemq.apache.org/components/artemis/download/ and replacing the broker installation. 3. Restrict network access to the OpenWire port (default 61616) to trusted clients only via firewall rules, as a defence-in-depth measure.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep artemis` shows all Artemis artifacts at `2.31.2` or newer. Standalone broker version is confirmed with `./bin/artemis version`. OWASP Dependency Check no longer reports CVE-2023-46604. JMS send/receive smoke tests pass.",
+          "cli_operation": "/subsystem=messaging-activemq/server=default:read-attribute(name=journal-type)"
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Upgrade Apache CXF to 4.0.4 — Jakarta EE namespace and API migration required",
+      "jira_keys": ["WFLY-18520"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Apache CXF is upgraded to 4.0.4 in WildFly 32. CXF 4.x is based on Jakarta EE 9.1, which means all `javax.*` package imports are replaced by `jakarta.*`. Additionally, CXF 4.x requires JDK 11 minimum, drops Jetty 9.x Continuation support, and changes the default JWT authentication scheme from `JWT` to `Bearer`. Applications that use CXF for JAX-WS or JAX-RS web services must be reviewed against the CXF 4.0 migration guide.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.cxf:cxf-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Replace javax.* CXF imports with jakarta.* in all CXF-dependent classes",
+          "instruction": "Run a project-wide search-and-replace to change all `import javax.jws.*`, `import javax.xml.ws.*`, `import javax.xml.bind.*`, `import javax.xml.soap.*`, and `import javax.ws.rs.*` usages to their `jakarta.*` equivalents. Tooling options: (1) Use OpenRewrite with the `org.openrewrite.java.migrate.jakarta.JavaxToJakarta` recipe. (2) Use IntelliJ IDEA's built-in migration tool: Refactor > Migrate Packages and Classes > Java EE to Jakarta EE. After the rename, rebuild and resolve any compilation errors. Per the CXF 4.0 Migration Guide at https://cxf.apache.org/docs/40-migration-guide.html.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles with no `javax.jws`, `javax.xml.ws`, `javax.xml.bind`, or `javax.xml.soap` imports remaining. `grep -r 'import javax.jws\\|import javax.xml.ws\\|import javax.xml.bind' src/` returns no matches.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Update JWT authentication scheme from JWT to Bearer in CXF clients",
+          "instruction": "CXF 4.0 changes the default `JwtAuthenticationFilter` authentication scheme from `JWT` to `Bearer`. If your CXF JAX-RS clients or services set the `Authorization` header scheme explicitly or rely on the default scheme for JWT bearer token passing, update any explicit `jwt.scheme` or `rs.security.signature.algorithm` configuration to use `Bearer`. Check `cxf.xml` files and any programmatic `JwtAuthenticationFilter` configurations for a `setAuthorizationScheme` call set to `\"JWT\"` and change to `\"Bearer\"`. Per the CXF 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "CXF JAX-RS endpoints protected with JWT accept tokens presented with `Authorization: Bearer <token>` header and return HTTP 200. Requests with `Authorization: JWT <token>` are rejected or handled as expected by your security policy.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Upgrade Hibernate Search to 7.1 — verify search indexing and mapping API",
+      "jira_keys": ["WFLY-18804", "WFLY-19105"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Hibernate Search is upgraded to 7.1 in WildFly 32. Hibernate Search 7.x is aligned with Hibernate ORM 6.x and the Jakarta EE 10 namespace. Developers using Hibernate Search for full-text indexing must review their `@Indexed`, `@GenericField`, `@FullTextField`, and mapping implementations against the Hibernate Search 7.1 API.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.search:hibernate-search-mapper-orm", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.hibernate.search:hibernate-search-backend-lucene", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.hibernate.search:hibernate-search-backend-elasticsearch", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Hibernate Search dependency version to 7.1 in pom.xml",
+          "instruction": "Update all `org.hibernate.search:hibernate-search-*` dependency versions to `7.1.x` (use the latest `7.1.x.Final` release) in your `pom.xml` or `build.gradle`. Use the Hibernate Search BOM for consistent version management: `<dependencyManagement><dependency><groupId>org.hibernate.search</groupId><artifactId>hibernate-search-bom</artifactId><version>7.1.x.Final</version><type>pom</type><scope>import</scope></dependency></dependencyManagement>`. Rebuild and address any compilation errors caused by API changes. Refer to the Hibernate Search 7.0 migration guide at https://docs.hibernate.org/search/7.0/migration/html_single/ for the full list of API changes from 6.x to 7.x.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without errors referencing Hibernate Search types. Application starts and `@Indexed` entities are indexed at startup. Search queries return expected results in integration tests.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate search indexing and custom mapping implementations against HS 7.1 API",
+          "instruction": "Review all classes annotated with `@Indexed` (from `org.hibernate.search.mapper.pojo.mapping.definition.annotation.Indexed`) and all custom `PropertyBinder`, `TypeBinder`, `ValueBinder`, or `BridgeBuilder` implementations. Ensure they use the 7.x API signatures — notably, the generic type parameters on binder interfaces changed in 7.x. Run your full test suite with Hibernate Search 7.1 and fix any `ClassCastException` or API incompatibility errors. Check the Hibernate Search 7.2 migration guide at https://docs.hibernate.org/search/7.2/migration/html_single/ for known issues with the 7.1 release.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "All search-related integration tests pass. The Lucene or Elasticsearch backend starts without errors. Full reindex operation (`MassIndexer`) completes without exceptions.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "Filesystem Security Realm key-store attribute changes now require server reload",
+      "jira_keys": ["WFLY-18985"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "bugfix",
+      "reason": "Previously, modifying `key-store` attributes on a Filesystem Security Realm could appear to take effect without a server reload, leading to inconsistent behaviour. WildFly 32 correctly marks these attributes as requiring a server `reload` operation. Any automated scripts or deployment pipelines that update Filesystem Security Realm key-store attributes must now issue a `/:reload` CLI command afterwards.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "subsystem.elytron.filesystem-realm.key-store", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add /:reload after modifying filesystem-realm key-store attributes in automation scripts",
+          "instruction": "Locate all WildFly management CLI scripts, Ansible playbooks, Python Fabric scripts, or CI/CD pipeline steps that issue management operations against `/subsystem=elytron/filesystem-realm=<name>:write-attribute(name=key-store,...)` or any sub-attribute of `key-store`. Immediately after each such operation, add a `//:reload` CLI command (in standalone mode) or `/host=<host>/:reload` (in domain mode) to apply the change. Example CLI sequence: `/subsystem=elytron/filesystem-realm=MyRealm:write-attribute(name=key-store,value=MyKeyStore)` followed by `/:reload`. If the script uses the `--file` flag with the WildFly CLI, append `:reload` at the end of the operations block.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "After running the updated automation script, the server reload completes with exit code 0. The `/subsystem=elytron/filesystem-realm=<name>:read-attribute(name=key-store)` CLI command returns the newly written value and the server is not in `reload-required` state (`/:read-attribute(name=server-state)` returns `running`).",
+          "cli_operation": "/:reload"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "New wildfly.elytron.jwt.allowed.jku.values system property for CVE-2024-1233 SSRF mitigation",
+      "jira_keys": ["WFLY-19226"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-1233 is an SSRF vulnerability (CVSS 7.3) in `wildfly-elytron-realm-token` where the `JwtValidator.resolvePublicKey` method follows the `jku` (JWK Set URL) header in a JWT token without any URL whitelisting, enabling attackers to redirect key-fetch requests to internal services. WildFly 32 introduces the `wildfly.elytron.jwt.allowed.jku.values.<realm-name>` system property to explicitly whitelist permitted `jku` values. Deployments using JWT token realms must configure this property.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "wildfly.elytron.jwt.allowed.jku.values", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set wildfly.elytron.jwt.allowed.jku.values.<realm-name> system property for each JWT token realm",
+          "instruction": "For each Elytron `<token-realm>` in your WildFly configuration that validates JWTs using the `jku` header claim: set the system property `wildfly.elytron.jwt.allowed.jku.values.<realm-name>` to a space-separated list of trusted JWK Set URLs. Replace `<realm-name>` with the exact name of the token realm as defined in the Elytron subsystem. Example: if your realm is named `JwtRealm` and your IdP's JWKS endpoint is `https://idp.example.com/jwks`, set `wildfly.elytron.jwt.allowed.jku.values.JwtRealm=https://idp.example.com/jwks`. Set this in `standalone.conf` (or `domain.conf`) as a JVM argument: `-Dwildfly.elytron.jwt.allowed.jku.values.JwtRealm=https://idp.example.com/jwks`. If multiple JWKS endpoints are needed: `-Dwildfly.elytron.jwt.allowed.jku.values.JwtRealm=https://idp1.example.com/jwks https://idp2.example.com/jwks`. Per WFLY-19226 and WildFly PR #17812.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JWT tokens whose `jku` header matches an allowed value are validated successfully. JWT tokens with a `jku` header pointing to a non-allowed URL are rejected with token validation failure. WildFly server log shows no SSRF-related warnings. OWASP Dependency Check or CVE scanner no longer flags CVE-2024-1233.",
+          "cli_operation": "/system-property=wildfly.elytron.jwt.allowed.jku.values.JwtRealm:add(value=\"https://idp.example.com/jwks\")"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Deprecated ModuleSpecification API methods removed",
+      "jira_keys": ["WFLY-18808"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Obsolete deprecated methods in the `ModuleSpecification` class (part of WildFly's module system for custom extensions) have been removed. Any custom WildFly extension or module that called these deprecated methods will receive a `NoSuchMethodError` at runtime after upgrading to WildFly 32. Extensions must be updated to call the current replacement API methods.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleSpecification", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit custom extensions for deprecated ModuleSpecification method calls",
+          "instruction": "Search your custom WildFly extension and subsystem code for all usages of `org.jboss.as.server.deployment.module.ModuleSpecification`. Run: `grep -rn 'ModuleSpecification' src/ --include='*.java'`. For each usage, verify that the called method exists in the WildFly 32 API (check against the WildFly 32 source or Javadoc at https://wildfly.github.io/wildfly-core/). Methods that were previously `@Deprecated` are no longer present and must be replaced with their documented successors.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without `NoSuchMethodError` or unresolved method reference errors involving `ModuleSpecification`. All unit and integration tests for the custom extension pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "jakarta.annotation.ManagedBean annotation usage is now optional",
+      "jira_keys": ["WFLY-19184"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "spec_compliance",
+      "reason": "The `@jakarta.annotation.ManagedBean` annotation is now treated as optional by WildFly 32's CDI scanning and initialization process. Deployments that previously relied on this annotation to register managed beans may experience a change in CDI scanning behaviour. Beans that use only `@ManagedBean` without other CDI annotations should be reviewed to ensure they are still discovered as expected.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "jakarta.annotation.ManagedBean", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit deployments relying on @ManagedBean for CDI bean registration",
+          "instruction": "Search your application source for classes annotated with `@ManagedBean` (`import jakarta.annotation.ManagedBean`): `grep -rn '@ManagedBean' src/ --include='*.java'`. For each annotated class, verify that it is correctly discovered as a CDI managed bean after upgrading to WildFly 32 by deploying and confirming the bean can be injected with `@Inject`. If a bean is no longer discovered, add an explicit CDI scope annotation such as `@ApplicationScoped`, `@RequestScoped`, or `@Dependent` (from `jakarta.enterprise.context.*`) to ensure reliable discovery, as these annotations are the canonical CDI discovery mechanism.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All `@ManagedBean`-annotated classes are correctly instantiated and injectable via CDI. Application starts without `UnsatisfiedResolutionException` or `AmbiguousResolutionException`. CDI-related integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecated ModuleSpecification methods removed — update to current API",
+      "jira_keys": ["WFLY-18808"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/32.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "This entry surfaces the removal of deprecated `ModuleSpecification` methods as a hard `NoSuchMethodError` risk at runtime. Extensions and custom deployments that have not yet updated away from the deprecated methods will fail at runtime without a compilation-time warning because the methods were previously present but deprecated. Immediate removal of all calls to deprecated `ModuleSpecification` methods is required.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleSpecification", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace all deprecated ModuleSpecification method calls with current API equivalents",
+          "instruction": "Identify all deprecated method calls on `org.jboss.as.server.deployment.module.ModuleSpecification` by compiling your extension against WildFly 31 with `-Xlint:deprecation` and recording every deprecation warning involving this class. Then compile against WildFly 32 — methods with deprecation warnings in WildFly 31 are now absent and must be replaced. Consult the WildFly Core repository (https://github.com/wildfly/wildfly-core) and review the `ModuleSpecification` class history to identify each removed method's replacement. Replace each call site with the successor method. After replacement, compile against WildFly 32 to confirm no `NoSuchMethodError` at compile time.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Extension code compiles cleanly against WildFly 32 JARs with no deprecation or missing method errors. Deploying the extension to a WildFly 32 server does not produce `NoSuchMethodError` in the server log. All extension tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "JaasSecurityRealm configurable via custom-realm resource in Elytron subsystem",
+      "jira_keys": ["WFLY-18163"],
+      "source_url": "https://docs.wildfly.org/wildfly-proposals/elytron/ELY-2544-jaas-realm-via-custom-realm.html",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly 32 adds the ability to configure `JaasSecurityRealm` through the Elytron `custom-realm` resource type, providing a migration bridge for deployments that still rely on JAAS `LoginModule` chains for authentication. This makes it easier to integrate legacy JAAS-based authentication into an otherwise Elytron-managed security configuration without a full rewrite.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.wildfly.security.auth.realm.JaasSecurityRealm", "role": "mentioned" },
+        { "kind": "property", "name": "subsystem.elytron.custom-realm", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure JaasSecurityRealm using Elytron custom-realm resource",
+          "instruction": "To use a JAAS LoginModule chain via Elytron, add a `<custom-realm>` resource in the `elytron` subsystem pointing to the `org.wildfly.security.auth.realm.JaasSecurityRealm` class. Example CLI: `/subsystem=elytron/custom-realm=jaasRealm:add(module=org.wildfly.extension.elytron.jaas-realm, class-name=org.wildfly.security.auth.realm.JaasSecurityRealm, configuration={path=/path/to/jaas.config, entry=MyLoginConfig})`. The module `org.wildfly.extension.elytron.jaas-realm` is available in WildFly 32. Then reference `jaasRealm` in an Elytron `<security-domain>`. Full configuration details are at https://docs.wildfly.org/wildfly-proposals/elytron/ELY-2544-jaas-realm-via-custom-realm.html.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The custom-realm resource is present in the Elytron subsystem (`/subsystem=elytron/custom-realm=jaasRealm:read-resource` succeeds). Authentication through the JAAS LoginModule succeeds for a known-good username/password combination. Server log shows no class-loading errors for the custom-realm.",
+          "cli_operation": "/subsystem=elytron/custom-realm=jaasRealm:add(module=org.wildfly.extension.elytron.jaas-realm,class-name=org.wildfly.security.auth.realm.JaasSecurityRealm,configuration={path=/path/to/jaas.config,entry=MyLoginConfig})"
+        }
+      ],
+      "subsystem": "elytron"
+    }
+  ]
+}

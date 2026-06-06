@@ -1,0 +1,827 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "ModuleIdentifier removed from public JCA and core subsystem APIs",
+      "jira_keys": ["WFLY-19983", "WFLY-20025"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "org.jboss.modules.ModuleIdentifier has been removed from non-breaking usages across the JCA and core subsystems as part of an ongoing technical-debt cleanup. Any extension, subsystem, or application code that references ModuleIdentifier directly will fail to compile against WildFly 37 internals. The replacement is string-based module names constructed via ModuleDependency.Builder.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.modules.ModuleIdentifier", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleDependency", "role": "mentioned" },
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleDependency.Builder", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ModuleIdentifier usages with string-based module names",
+          "instruction": "Search your extension and subsystem code for all direct references to org.jboss.modules.ModuleIdentifier. Replace every occurrence with a plain String module name (e.g. 'com.example.mymodule'). Where ModuleIdentifier.create(groupId, slot) was used, replace with the module name string directly. Remove all imports of org.jboss.modules.ModuleIdentifier.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds and no import or reference to org.jboss.modules.ModuleIdentifier remains in the codebase.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace deprecated ModuleDependency constructors with ModuleDependency.Builder",
+          "instruction": "Replace all invocations of the deprecated ModuleDependency constructor (e.g. new ModuleDependency(moduleLoader, moduleIdentifier, optional, export, importServices, userSpecified)) with the builder API: ModuleDependency.Builder builder = ModuleDependency.Builder.of(moduleLoader, 'com.example.mymodule'); builder.setOptional(true); /* set other options */ ModuleDependency dep = builder.build(); Update the WildFly dependency in your build to wildfly-core 29.0.0.Final or later, which is the minimum version that includes the ModuleDependency.Builder API (per real-world migration experience with Keycloak SAML adapter on WildFly 37).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Extension deploys without NoSuchMethodError. No invocation of the deprecated ModuleDependency constructor remains in the codebase.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jca"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Legacy security and picketlink subsystems moved to legacy directory",
+      "jira_keys": ["WFLY-17478"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The old 'security' and 'picketlink' subsystems have been relocated under the 'legacy' directory in the server configuration layout. Configuration files or server-migration-tool scripts that reference the old subsystem path will no longer locate these extensions correctly and will break. Migration to the Elytron security subsystem is the supported path.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "org.jboss.as.security", "role": "removed" },
+        { "kind": "property", "name": "org.wildfly.extension.picketlink", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Update configuration paths for legacy security and picketlink subsystems",
+          "instruction": "Inspect your standalone.xml, standalone-ha.xml, domain.xml, or any server-migration-tool script for references to the 'org.jboss.as.security' extension or 'security' subsystem and 'org.wildfly.extension.picketlink' / 'picketlink-federation' / 'picketlink-idm' subsystems. These subsystems are now only usable in admin-only mode for migration purposes. If you still depend on them at runtime, you must migrate to Elytron: use the WildFly CLI migration script at https://docs.jboss.org/author/display/WFLY/Migrate+Legacy+Security+to+Elytron+Security to convert security domains and realms. Remove the legacy extension declarations from the configuration once migration is complete.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts in normal (non-admin-only) mode without errors referencing the 'security' or 'picketlink' subsystems. All security domains and realms function correctly under Elytron.",
+          "cli_operation": "/extension=org.jboss.as.security:remove\n/extension=org.wildfly.extension.picketlink:remove"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Security Manager extension removed from WildFly Preview default config",
+      "jira_keys": ["WFLY-19212"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The Security Manager extension is no longer included in the WildFly Preview default configuration. Applications or Galleon provisioning scripts that activate or reference the Security Manager extension in WildFly Preview will fail at server startup. WildFly Standard retains the extension.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "org.wildfly.extension.security.manager", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove Security Manager extension reference from WildFly Preview config",
+          "instruction": "If you are using WildFly Preview: open your standalone.xml (or domain.xml) and remove the '<extension module=\"org.wildfly.extension.security.manager\"/>' declaration and any corresponding '<subsystem xmlns=\"urn:jboss:domain:security-manager:...\">' block. Also update any Galleon provisioning XML (wildfly-config.xml or pom.xml Galleon plugin config) to exclude the security-manager layer. If your application requires the Security Manager at runtime, switch from WildFly Preview to WildFly Standard, which still includes the extension.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "WildFly Preview server starts without 'Extension not found: org.wildfly.extension.security.manager' or similar startup errors.",
+          "cli_operation": "/extension=org.wildfly.extension.security.manager:remove"
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "-Djava.security.manager=allow no longer added by default to JVM args",
+      "jira_keys": ["WFLY-20533"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "The server startup scripts (standalone.sh / standalone.bat / domain.sh) no longer unconditionally append -Djava.security.manager=allow to JVM arguments. The property is now only set when -secmgr is explicitly passed to the startup script. Deployments or test suites that implicitly relied on the Security Manager being silently available will fail at runtime with SecurityException.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit whether application requires Java Security Manager at runtime",
+          "instruction": "Search your application code, test suites, and startup scripts for any use of System.getSecurityManager(), SecurityManager.checkPermission(), or any explicit permission grants (e.g. in a .policy file). Also check JUnit test harnesses and CI configurations that invoke the server. If none of these are present, no action is required.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No SecurityException is thrown during server startup or during application test runs when the server is started without -secmgr.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Add -secmgr to startup scripts if Security Manager is required",
+          "instruction": "If your application requires the Security Manager, explicitly pass -secmgr to the startup command: standalone.sh -secmgr (or standalone.bat -secmgr on Windows). Do not rely on the JVM property being silently present. Ensure your .policy file covers all required SocketPermission, FilePermission, and RuntimePermission grants. For containerised deployments (Docker, Kubernetes), update the ENTRYPOINT or CMD to include -secmgr.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts with the Security Manager active (System.getSecurityManager() returns non-null). Application operates without SecurityException.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "JCA ResourceAdapterSubsystemParser security config bug fixed — silent drops now surface as errors",
+      "jira_keys": ["WFLY-20693"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "A bug in ResourceAdapterSubsystemParser caused security configuration within resource-adapter subsystem XML to be silently dropped during parsing. The fix changes parsing behaviour so that previously-silent misconfigurations now surface as explicit errors. Deployments with malformed or incomplete security blocks in their resource-adapter XML that previously started (silently broken) may now fail to deploy.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.connector.subsystems.resourceadapters.ResourceAdapterSubsystemParser", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate resource-adapter subsystem XML security configuration blocks",
+          "instruction": "Review all standalone.xml / domain.xml / *-ds.xml files that contain '<resource-adapters>' sections. In particular, inspect any '<security>' or '<security-impl>' child elements inside '<connection-definition>' and '<admin-object>' blocks. Ensure that all required child elements are present and correctly named according to the JCA subsystem schema. Deploy the resource adapter to a test WildFly 37 instance and check the server log for parsing errors or deployment failures that were not present on WildFly 36.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The resource adapter deploys without errors in the WildFly 37 server log. The security configuration is active and authentication to the backend system succeeds.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jca"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2025-2251: Additional deserialization exploit-gadget classes blocked in JBoss Remoting/EJB",
+      "jira_keys": ["WFLY-20550"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-2251",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-2251 is a critical improper deserialization vulnerability in WildFly's EJB remote invocation path (JBoss Marshalling). Additional classes identified by security researchers as useful in deserialization gadget chains (e.g. CommonsCollections-style gadgets) are now blocked by the server's class filter. Any application that intentionally or inadvertently transmits these classes over JBoss Remoting or EJB will receive a SecurityException at runtime after upgrade.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit remote EJB and JBoss Remoting payloads for newly blocked classes",
+          "instruction": "Identify all remote EJB invocations and JBoss Remoting message exchanges in your application. Review the object graphs being serialized in method parameters and return values. Cross-reference with the CVE-2025-2251 Red Hat advisory (https://access.redhat.com/articles/7114682) for the list of newly blocked classes. If any blocked class appears in your payload, redesign the remote interface to use DTO types that do not include these gadget-prone classes. Apply the latest WildFly 37 patch which includes the updated class filter.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No SecurityException is thrown during EJB remote invocations. Integration tests against a WildFly 37 server pass without deserialization errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Netty upgraded to 4.1.118-4.1.123.Final (CVE-2025-24970, CVE-2025-25193)",
+      "jira_keys": ["WFLY-20403"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-24970",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Netty is upgraded from 4.1.117.Final to 4.1.123.Final, resolving CVE-2025-24970 (native SSL crash via SslHandler processing invalid packets) and CVE-2025-25193 (DoS on Windows). Deployments that bundle their own Netty JARs may encounter classloading conflicts with the server-provided Netty module and remain exposed to the CVEs.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-all", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.netty:netty-handler", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove vendored Netty JARs from deployment artifacts",
+          "instruction": "Run 'mvn dependency:tree | grep netty' (or the Gradle equivalent) on each deployable module to locate any transitive or explicit Netty dependencies. If found, exclude them from your WAR/EAR/JAR using <exclusions> in pom.xml or an exclude() call in build.gradle. In jboss-deployment-structure.xml, ensure you do NOT re-add io.netty as a dependency — rely on the server module. If a library you depend on bundles Netty (uber-jar style), consider shading it out or using the WildFly-provided Netty module via a module dependency.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Deployment contains no io.netty JARs in WEB-INF/lib or APP-INF/lib. Server log shows no classloading conflict warnings for io.netty.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "commons-beanutils upgraded to 1.11.0 (CVE-2025-48734 critical deserialization)",
+      "jira_keys": ["WFLY-20662"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-48734",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-48734 is an Improper Access Control vulnerability in Apache Commons BeanUtils. When property paths from external sources are passed directly to PropertyUtilsBean.getProperty(), an attacker can access the enum's ClassLoader via the 'declaredClass' property and execute arbitrary code. commons-beanutils 1.11.0 blocks 'declaredClass' access by default. Deployments bundling an older version override the server module and remain vulnerable even after upgrading the server.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "commons-beanutils:commons-beanutils", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade all bundled commons-beanutils to 1.11.0 or remove",
+          "instruction": "Run 'mvn dependency:tree | grep commons-beanutils' on each deployable module. For every hit: (a) if your code directly depends on commons-beanutils, update the version to 1.11.0 in pom.xml (<groupId>commons-beanutils</groupId><artifactId>commons-beanutils</artifactId><version>1.11.0</version>); (b) if it comes in transitively, add a <dependencyManagement> entry pinning it to 1.11.0; (c) if it comes from an uber-jar, rebuild that artifact against 1.11.0. Note: in 1.11.0 the 'declaredClass' property is suppressed by default in PropertyUtilsBean. If your application legitimately accesses 'declaredClass' on enums, you must redesign that access pattern as re-enabling it re-exposes the vulnerability (per CVE-2025-48734 advisory).",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No commons-beanutils version older than 1.11.0 appears in 'mvn dependency:tree' output for any deployable module. CVE scanner (e.g. OWASP dependency-check) reports no CVE-2025-48734 findings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Nimbus JOSE JWT upgraded to 10.3/10.3.1 (CVE-2025-53864 DoS via nested JSON)",
+      "jira_keys": ["WFLY-20713"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53864",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-53864 is a Denial-of-Service vulnerability in Nimbus JOSE + JWT caused by uncontrolled recursion when parsing deeply nested JSON in a JWT claim set. An unauthenticated remote attacker can exhaust application resources. The fix is included in nimbus-jose-jwt 10.0.2+ or 9.37.4+. WildFly 37 ships 10.3/10.3.1. Applications embedding their own nimbus-jose-jwt remain vulnerable.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Remove or upgrade bundled nimbus-jose-jwt to 10.3.1+",
+          "instruction": "Run 'mvn dependency:tree | grep nimbus-jose-jwt' on each deployable module. If a version older than 9.37.4 (9.x branch) or older than 10.0.2 (10.x branch) is found, upgrade it: <groupId>com.nimbusds</groupId><artifactId>nimbus-jose-jwt</artifactId><version>10.3.1</version>. If the dependency comes transitively from a security or JWT library (e.g. Keycloak adapter, MicroProfile JWT), pin the version via <dependencyManagement>. Remove the bundled JAR from WEB-INF/lib if it is embedded directly.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No com.nimbusds:nimbus-jose-jwt version older than 9.37.4 or 10.0.2 appears in the dependency tree. JWT processing completes without StackOverflowError when tested with a deeply nested JSON claim set.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "wildfly-clustering 7.0 / Infinispan 15.2 / JGroups 5.4 major version upgrades",
+      "jira_keys": ["WFLY-20598", "WFLY-20599", "WFLY-20600"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "The entire WildFly clustering stack has been major-versioned: wildfly-clustering 7.0, Infinispan 15.2, and JGroups 5.4. These introduce API and configuration changes. Applications using embedded Infinispan caches, custom JGroups protocols, or directly referencing clustering internals must validate compatibility. Off-heap caches now additionally require deployment-specific media type configuration (see WFLY-20772).",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.jgroups:jgroups", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.wildfly.clustering:wildfly-clustering-common", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run full clustering compatibility test suite against WildFly 37",
+          "instruction": "If your application uses distributed sessions, clustered EJBs, embedded Infinispan caches (via @Inject Cache<K,V>), or custom JGroups stack protocols: (1) Deploy and run your full integration test suite against a WildFly 37 cluster of at least two nodes. (2) Verify that cluster formation succeeds and that cache entries replicate/distribute correctly. (3) Check for any API compilation errors if your code imports org.infinispan.* or org.jgroups.* classes directly — these may have changed in Infinispan 15.2 and JGroups 5.4. Consult the Infinispan 15.2 migration guide at https://infinispan.org/documentation and JGroups 5.4 release notes for specific API changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Cluster of two or more WildFly 37 nodes forms successfully. Distributed session data persists across node restarts. All clustered EJB tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Add media type configuration to off-heap Infinispan caches",
+          "instruction": "For any cache configured with off-heap storage (WFLY-20772): open your Infinispan subsystem configuration (standalone-ha.xml or domain.xml) and add an explicit media type to the cache definition. In the WildFly Infinispan subsystem schema, add a <encoding media-type=\"application/x-protostream\"/> (or the appropriate media type for your data) child element inside the relevant <distributed-cache> or <replicated-cache> element that uses off-heap memory. Without this, the cache will fail to start with a configuration validation error. Refer to the WildFly 37 Infinispan subsystem model reference for the exact schema location.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts without Infinispan configuration errors. Off-heap caches initialize correctly and cache operations succeed in integration tests.",
+          "cli_operation": "/subsystem=infinispan/cache-container=web/distributed-cache=dist:write-attribute(name=encoding,value=application/x-protostream)"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Apache Artemis upgraded to 2.41.0; brokerconfig. prefix causes startup failure",
+      "jira_keys": ["WFLY-20601", "WFLY-20609"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Artemis 2.41.0 introduces a behaviour change in system-property handling: any JVM system property with the 'brokerconfig.' prefix is now consumed by Artemis and conflicts with its internal broker configuration mechanism, causing Artemis (and therefore WildFly) to fail on startup. Applications or deployments that set JVM system properties with this prefix will be broken after upgrade.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit JVM system properties for brokerconfig. prefix",
+          "instruction": "Review all startup scripts, environment variable files, Kubernetes ConfigMaps, and CI pipeline configurations that pass -D system properties to the WildFly JVM. Search for any property name beginning with 'brokerconfig.' (case-sensitive). Also check standalone.xml and domain.xml <system-properties> blocks. If any such property exists, rename it to a different prefix that does not conflict with Artemis (e.g. rename 'brokerconfig.myProperty' to 'app.myProperty'). Update all references to the renamed property throughout the application.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without Artemis startup failure. No 'brokerconfig.' prefixed system properties appear in the JVM startup arguments.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM 7.0.2.Final available in WildFly Preview; legacy APIs dropped",
+      "jira_keys": ["WFLY-20160", "WFLY-20613", "WFLY-20732"],
+      "source_url": "https://docs.jboss.org/hibernate/orm/7.0/migration-guide/migration-guide.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "WildFly Preview now ships Hibernate ORM 7.0.2.Final alongside the standard Hibernate ORM 6.6.x that WildFly Standard continues to use. Hibernate ORM 7 drops a number of legacy APIs (e.g. hibernate.allow_refresh_detached_entity config, hibernate-ucp module, several deprecated dialect classes) and requires Java 17+. WildFly Preview users who have not already migrated to Hibernate ORM 7-compatible code will encounter failures.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" },
+        { "kind": "property", "name": "hibernate.allow_refresh_detached_entity", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run JPA integration tests against WildFly Preview with Hibernate ORM 7",
+          "instruction": "If using WildFly Preview: (1) Consult the Hibernate ORM 7.0 Migration Guide at https://docs.jboss.org/hibernate/orm/7.0/migration-guide/migration-guide.html for a complete list of removed APIs. (2) Remove all uses of 'hibernate.allow_refresh_detached_entity' — this configuration property is gone and Hibernate 7 always enforces strict detached-entity refresh behaviour. (3) Remove any dependency on 'org.hibernate.orm:hibernate-ucp', which was dropped. (4) Replace deprecated or removed Dialect classes with the updated equivalents. (5) Run your full JPA test suite against WildFly Preview 37. If you are on WildFly Standard, no action is required — it continues to ship Hibernate ORM 6.6.x.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JPA/Hibernate integration tests pass on WildFly Preview 37. No NoSuchMethodError or ClassNotFoundException referencing removed Hibernate 7 APIs appears in the server log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "JCA elytron-enabled attribute handling fixed for server-migration-tool",
+      "jira_keys": ["WFLY-20475"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "bugfix",
+      "reason": "A regression in the JBoss Server Migration Tool caused the 'elytron-enabled' attribute on JCA WorkManager and DistributedWorkManager resources to be silently discarded during migration. The fix in WildFly 37 ensures the attribute is correctly preserved. Teams that already ran the migration tool on a previous WildFly version may have silently lost Elytron security settings on JCA resources and should re-verify.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "elytron-enabled", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-verify elytron-enabled attribute on JCA WorkManager resources post-migration",
+          "instruction": "If you used the JBoss Server Migration Tool to migrate from a previous WildFly version: open your resulting standalone.xml or domain.xml and inspect all '<work-manager>' and '<distributed-work-manager>' elements inside the '<subsystem xmlns=\"urn:jboss:domain:jca:...\">' block. Verify that 'elytron-enabled=\"true\"' (or your intended value) is present where expected. If the attribute is missing, add it manually or re-run the migration tool against WildFly 37 (which includes the fix). Also verify via the WildFly CLI: /subsystem=jca/workmanager=default:read-attribute(name=elytron-enabled)",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "CLI read-attribute returns the expected value for elytron-enabled. JCA WorkManager uses Elytron security context as intended (verifiable by checking that security context propagation to EJB/resource-adapter is correct in integration tests).",
+          "cli_operation": "/subsystem=jca/workmanager=default:read-attribute(name=elytron-enabled)"
+        }
+      ],
+      "subsystem": "jca"
+    },
+    {
+      "source_section": "security_config",
+      "title": "EJB timer persistence with Security Manager requires SocketPermission grants",
+      "jira_keys": ["WFLY-20542"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "When the Security Manager is enabled via -secmgr, EJB timer persistence to a database requires SocketPermission grants for the database host and port. This was previously missing from documented policy requirements, causing timer persistence to fail silently or with a SecurityException at runtime.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add SocketPermission for database host to Security Manager policy",
+          "instruction": "If you run WildFly with -secmgr and use database-backed EJB timer persistence: open your security policy file (typically $JBOSS_HOME/bin/server.policy or a custom policy referenced by -Djava.security.policy=). Add a SocketPermission grant for the hostname and port of your timer datasource database: grant { permission java.net.SocketPermission \"<db-host>:<db-port>\", \"connect,resolve\"; }; Replace <db-host> and <db-port> with the actual values from your datasource configuration. If using a connection pool, also add grants for any pool management hosts.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "EJB timers persist to the database without SecurityException in the server log. Timer fires correctly after server restart, confirming persistence is working.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Direct dependency on org.wildfly.security:wildfly-elytron banned in application code",
+      "jira_keys": ["WFLY-20295"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "A direct Maven/Gradle dependency on org.wildfly.security:wildfly-elytron in application code is now explicitly banned at build validation time. This dependency was always a server-internal module not intended for direct application use. Projects that declare it will now fail at build or validation time rather than silently shipping an incorrect dependency.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly.security:wildfly-elytron", "role": "removed" },
+        { "kind": "dependency", "name": "org.wildfly.bom:wildfly-elytron-bom", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove direct org.wildfly.security:wildfly-elytron dependency from build files",
+          "instruction": "Search pom.xml and build.gradle files for any direct declaration of org.wildfly.security:wildfly-elytron. Remove the dependency declaration entirely. If your application code compiles against Elytron APIs, replace the direct dependency with the WildFly Elytron BOM import: in pom.xml, add to <dependencyManagement>: <dependency><groupId>org.wildfly.bom</groupId><artifactId>wildfly-elytron-bom</artifactId><version>${wildfly.version}</version><type>pom</type><scope>import</scope></dependency>. Then declare individual Elytron API artifacts (e.g. org.wildfly.security:wildfly-elytron-auth) with <scope>provided</scope>. If you do not compile against Elytron APIs directly, simply remove the dependency and rely on the server-provided module at runtime.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build succeeds without the org.wildfly.security:wildfly-elytron artifact in the dependency graph. 'mvn dependency:tree | grep wildfly-elytron' shows no direct compile-scoped dependency on the banned artifact.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "wildfly-elytron removed from WildFly user-facing BOMs",
+      "jira_keys": ["WFLY-20666", "WFLY-18097"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The wildfly-elytron artifact has been removed from the WildFly user-facing BOMs (e.g. wildfly-jakartaee-bom). Application projects that imported the WildFly BOM and relied on the transitive inclusion of Elytron to resolve compile-time dependencies will find those dependencies missing after upgrading to the WildFly 37 BOM.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly.security:wildfly-elytron", "role": "removed" },
+        { "kind": "dependency", "name": "org.wildfly.bom:wildfly-elytron-bom", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add explicit scoped Elytron dependency if code compiles against Elytron APIs",
+          "instruction": "If your application code imports org.wildfly.security.* types at compile time: (1) Add an explicit <dependencyManagement> import of org.wildfly.bom:wildfly-elytron-bom at the WildFly 37 version. (2) Add individual Elytron API module dependencies with <scope>provided</scope> (e.g. org.wildfly.security:wildfly-elytron-auth, org.wildfly.security:wildfly-elytron-credential). If your code does not compile against Elytron APIs, no action is needed — the server module provides the implementation at runtime regardless of BOM changes.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Maven/Gradle build compiles successfully without unresolved Elytron import errors. No compile-scope Elytron dependency is pulled in from the WildFly BOM import (run mvn dependency:tree to confirm).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "RESTEasy no longer exports module dependencies; Jackson 1 annotation scanning removed",
+      "jira_keys": ["WFLY-20682", "WFLY-20718"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "RESTEasy no longer exports its module dependencies from its main modules; they are now injected via Deployment Unit Processors (DUPs). Additionally, Jackson 1 annotation scanning support has been removed from the JAX-RS subsystem. Deployments that relied on RESTEasy's transitively exported classpath will see ClassNotFoundException at runtime. Deployments using Jackson 1 (org.codehaus.jackson.*) annotations will lose automatic processing.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-jackson-provider", "role": "removed" },
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-jackson2-provider", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate from Jackson 1 (org.codehaus.jackson) to Jackson 2 (com.fasterxml.jackson)",
+          "instruction": "Search your source code for imports of org.codehaus.jackson.*. Replace them with the Jakarta-namespace Jackson 2 equivalents from com.fasterxml.jackson.*. Specifically: replace @JsonProperty, @JsonIgnore, @JsonSerialize, @JsonDeserialize, and all other org.codehaus.jackson.annotate.* and org.codehaus.jackson.map.annotate.* annotations with their com.fasterxml.jackson.annotation.* and com.fasterxml.jackson.databind.annotation.* counterparts. In jboss-deployment-structure.xml, if you explicitly excluded resteasy-jackson-provider and depended on resteasy-jackson2-provider, verify the exclusion/inclusion is still correct — or remove it if RESTEasy now injects it via DUP automatically.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No org.codehaus.jackson imports remain in application source. JSON serialization/deserialization works correctly in REST endpoint integration tests. No ClassNotFoundException for org.codehaus.jackson appears in the server log.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Declare previously-transitive RESTEasy dependencies explicitly in deployment",
+          "instruction": "If your deployment relied on RESTEasy's transitively exported module dependencies (e.g. org.jboss.resteasy:resteasy-multipart-provider, resteasy-validator-provider, or similar) and encounters ClassNotFoundException after upgrading: add an explicit module dependency in jboss-deployment-structure.xml: <dependencies><module name=\"org.jboss.resteasy.resteasy-multipart-provider\" services=\"import\"/></dependencies>. Identify which classes are missing from the exception stack trace and add the corresponding RESTEasy module. Alternatively, include the JAR directly in WEB-INF/lib with the appropriate Maven compile-scope dependency.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application deploys without ClassNotFoundException. All JAX-RS endpoints respond correctly in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jaxrs"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "FD_SOCK2 removed from default JGroups TCP stacks",
+      "jira_keys": ["WFLY-20710"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The FD_SOCK2 protocol has been removed from WildFly's default TCP-based JGroups stack definitions. Clusters that explicitly referenced FD_SOCK2 in custom stack configurations, or that relied on its failure-detection behaviour, may experience changes in cluster failure detection semantics.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "FD_SOCK2", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove FD_SOCK2 protocol from custom JGroups TCP stack configurations",
+          "instruction": "Open your standalone-ha.xml or domain.xml and locate the '<subsystem xmlns=\"urn:jboss:domain:jgroups:...\">' section. If any '<stack name=\"tcp\">' or custom stack definition includes '<protocol type=\"FD_SOCK2\"/>', remove that element. Also remove any corresponding '<socket-binding name=\"jgroups-tcp-fd\"/>' socket binding if it was used exclusively by FD_SOCK2. Validate that the default failure detection protocol (FD_ALL3 or similar, depending on your JGroups 5.4 defaults) is present in the stack. Test cluster formation and node-failure detection in a staging environment.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Cluster forms successfully. Controlled node shutdown is detected by remaining nodes within the expected timeout. No 'Unknown protocol: FD_SOCK2' error appears in the server log.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Artemis fails to launch when brokerconfig. system properties are present",
+      "jira_keys": ["WFLY-20609"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Following the Artemis 2.41.0 upgrade, any JVM system property whose name begins with 'brokerconfig.' causes Artemis to fail on startup. This was previously silently handled. See also WFLY-20601 for the Artemis upgrade entry.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename JVM system properties with brokerconfig. prefix",
+          "instruction": "Audit all -D JVM arguments, environment variable mappings, standalone.xml <system-properties> entries, and Kubernetes ConfigMap or Helm chart values for property names beginning with 'brokerconfig.' (case-sensitive). Rename each such property to a different prefix (e.g. 'myapp.brokerconfig.myProperty') and update all code references that read System.getProperty(\"brokerconfig.X\") to use the new name.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Server starts without Artemis startup failure related to system-property conflicts. No 'brokerconfig.' prefixed properties appear in the JVM process arguments.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "java.sql.Date.toInstant() throws UnsupportedOperationException in JSON processing",
+      "jira_keys": ["WFLY-20723"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "JSON processing of java.sql.Date objects now correctly throws UnsupportedOperationException (as specified by the Java SE contract) where it previously silently produced incorrect output. This is a correctness fix but may cause runtime failures in REST endpoints or message processors that serialise java.sql.Date values.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "java.sql.Date", "role": "mentioned" },
+        { "kind": "class", "name": "java.time.LocalDate", "role": "replacement" },
+        { "kind": "class", "name": "java.util.Date", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace java.sql.Date in JSON-serialized types with java.time.LocalDate",
+          "instruction": "Search your model/DTO classes and JAX-RS resource methods for fields or parameters of type java.sql.Date. Replace these with java.time.LocalDate (preferred for JSON serialization) or java.util.Date. If using Jackson, ensure the jackson-datatype-jsr310 module is on the classpath and registered: ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule()); and configure WRITE_DATES_AS_TIMESTAMPS=false. If using JSON-B, java.time.LocalDate serializes correctly out of the box. Remove any custom serializers that were previously working around the silent-wrong-output behaviour.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All REST endpoints and message processors that previously serialised java.sql.Date values now serialize without UnsupportedOperationException. JSON output contains date values in ISO-8601 format (e.g. \"2025-06-06\").",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "CDI + Jakarta Persistence + app-defined datasources: bytecode enhancement constraint resolved",
+      "jira_keys": ["WFLY-20521"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Using CDI with Jakarta Persistence and application-defined datasources previously required explicitly disabling Hibernate bytecode enhancement. This constraint is resolved in WildFly 37. Developers who added the workaround property hibernate.enhancer.enableDirtyTracking=false should remove it, as keeping it disabled may reduce application performance.",
+      "scopes": [
+        { "scope": "config", "severity": "low" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "hibernate.enhancer.enableDirtyTracking", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove hibernate.enhancer.enableDirtyTracking=false workaround from persistence.xml",
+          "instruction": "Open persistence.xml and locate any <property name=\"hibernate.enhancer.enableDirtyTracking\" value=\"false\"/> element that was added as a workaround for the CDI + JPA + app-defined datasource issue. Remove this property. Re-run the full JPA test suite to confirm that dirty tracking now works correctly and no regressions are introduced.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "persistence.xml contains no hibernate.enhancer.enableDirtyTracking=false property. JPA integration tests pass. Hibernate dirty tracking is active (verifiable by checking that UPDATE statements are only issued for changed fields).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "ModuleDependency deprecated constructor and getIdentifier() removed across all subsystems",
+      "jira_keys": [
+        "WFLY-20164", "WFLY-20168", "WFLY-20169", "WFLY-20171", "WFLY-20173",
+        "WFLY-20174", "WFLY-20177", "WFLY-20183", "WFLY-20184", "WFLY-20185",
+        "WFLY-20186", "WFLY-20187", "WFLY-20188", "WFLY-20189", "WFLY-20192",
+        "WFLY-20193", "WFLY-20194", "WFLY-20196", "WFLY-20197", "WFLY-20198",
+        "WFLY-20199", "WFLY-20200", "WFLY-20201", "WFLY-20202", "WFLY-20203",
+        "WFLY-20204", "WFLY-20205"
+      ],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The deprecated ModuleDependency constructor (which accepted a ModuleIdentifier) and the getIdentifier() method have been removed from all WildFly subsystems including BATCH, IIOP, JCA, EJB, Undertow, REST, JPA, MAIL, JMS, POJO, SAR, WebServices, Weld, TXN, Micrometer, OpenTelemetry, and all MicroProfile extensions. Any extension or SPI code that uses these deprecated entry points will fail to compile against WildFly 37.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleDependency", "role": "mentioned" },
+        { "kind": "class", "name": "org.jboss.as.server.deployment.module.ModuleDependency.Builder", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace all deprecated ModuleDependency constructor calls with ModuleDependency.Builder",
+          "instruction": "Search across all WildFly extension and SPI code for: (1) calls to the deprecated ModuleDependency constructor that accepts ModuleIdentifier or ModuleLoader + ModuleIdentifier arguments; (2) calls to ModuleDependency.getIdentifier(). Replace constructor calls with the builder API: ModuleDependency.Builder.of(moduleLoader, \"module.name\").setOptional(true).setExport(false).setImportServices(true).build(). Replace getIdentifier() calls with getModuleName() (which returns a String). Minimum wildfly-core version required for the Builder API is 29.0.0.Final.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Extension compiles cleanly against WildFly 37 / wildfly-core 29+ with no deprecated-API compilation errors. Extension deploys and operates correctly on WildFly 37.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecated ModuleIdentifier and ModuleIdentifierUtil API usages removed from WildFly internals",
+      "jira_keys": ["WFLY-20591", "WFLY-20224", "WFLY-20230", "WFLY-20348", "WFLY-20623", "WFLY-20624"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Attachments.ADDITIONAL_ANNOTATION_INDEXES_BY_MODULE, Attachments.MODULE_IDENTIFIER, ModuleDependency.getIdentifier(), deprecated ModuleIdentifierUtil methods, and deprecated ServiceInstaller start-mode methods are all removed. Extension or embedding code that references these internal attachment keys or utility methods will fail to compile against WildFly 37.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.server.deployment.Attachments", "role": "mentioned" },
+        { "kind": "class", "name": "org.jboss.modules.ModuleIdentifierUtil", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace removed Attachments keys and ModuleIdentifierUtil methods with current API",
+          "instruction": "Search extension code for references to: (1) Attachments.MODULE_IDENTIFIER — replace with Attachments.MODULE_NAME (String-typed key); (2) Attachments.ADDITIONAL_ANNOTATION_INDEXES_BY_MODULE — consult WildFly 37 Attachments class for the replacement key; (3) ModuleDependency.getIdentifier() — replace with ModuleDependency.getModuleName(); (4) deprecated ModuleIdentifierUtil methods — use the replacement string-based utility methods in the same class; (5) deprecated ServiceInstaller start-mode methods — use the current ServiceInstaller.Builder API with the appropriate StartMode enum value. Review each compilation error individually as the replacement API may vary by context.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Extension compiles without errors against WildFly 37 internals. All deployment tests pass on a WildFly 37 test instance.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "driver-name attribute on h2-driver Galleon feature group deprecated",
+      "jira_keys": ["WFLY-20782"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The h2-driver Galleon feature group no longer sets the deprecated driver-name resource attribute on H2 datasource resources. Provisioning scripts or CLI scripts that read the driver-name attribute on the H2 datasource resource will receive an absent attribute rather than a value.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "driver-name", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update scripts that read driver-name on H2 datasource resources",
+          "instruction": "Search Galleon provisioning XML files, CLI scripts, and management tooling for /subsystem=datasources/data-source=H2DS:read-attribute(name=driver-name) or equivalent. If driver-name is referenced, update the script to use the 'driver' attribute instead (or the attribute that is actually present in WildFly 37 for the H2 datasource). Validate the change by running the provisioning or CLI script against a WildFly 37 instance and confirming no 'attribute not found' error is produced.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "CLI scripts and provisioning configurations complete without 'WFLYCTL0201: Attribute driver-name not found' or equivalent management-layer error.",
+          "cli_operation": "/subsystem=datasources/data-source=H2DS:read-attribute(name=driver)"
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Prometheus endpoint added to Micrometer; Undertow header options promoted to community stability",
+      "jira_keys": ["WFLY-18582", "WFLY-20477"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A Prometheus-compatible scrape endpoint is now available via the Micrometer extension at community stability. The Undertow reuse-x-forwarded and rewrite-host header configuration options are promoted to community stability. No migration action is required; these are purely additive improvements.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "micrometer"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "EJB Client remote+tls transport scheme supported in outbound connections",
+      "jira_keys": ["WFLY-13828"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "informational",
+      "reason_type": "security",
+      "reason": "EJB Client now supports remote+tls as a transport scheme in remote-outbound-connection configuration, enabling TLS-secured remote EJB invocations without a separate SSL layer. Teams that currently use remote+http with TLS terminated externally can now use native TLS in the EJB transport.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Configure remote-outbound-connection to use remote+tls scheme",
+          "instruction": "To use the new TLS transport: in standalone.xml under <subsystem xmlns=\"urn:jboss:domain:remoting:...\">, update the <remote-outbound-connection> element's protocol attribute (or outbound-socket-binding-ref target scheme) from 'remote+http' to 'remote+tls'. Configure a matching ssl-context in the Elytron subsystem and reference it from the connection. Ensure the target server's certificate is trusted by the Elytron trust-store used in the connection. This step is optional — existing configurations continue to work.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "EJB invocations over the remote+tls connection complete successfully. Network captures confirm TLS handshake occurs on the EJB port.",
+          "cli_operation": "/subsystem=remoting/remote-outbound-connection=myConnection:write-attribute(name=protocol,value=remote+tls)"
+        }
+      ],
+      "subsystem": "remoting"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Artemis commit-interval attribute exposed for scaledown tuning",
+      "jira_keys": ["WFLY-20512"],
+      "source_url": "https://www.wildfly.org/news/2025/08/04/WildFly-37-is-released/",
+      "change_type": "informational",
+      "reason_type": "performance",
+      "reason": "A new commit-interval attribute is exposed on the Artemis messaging subsystem HA policy to control message commit batch size during scaledown operations. This helps avoid OutOfMemoryError when transferring large volumes of messages to another broker node during scaledown. No action required unless you experience scaledown issues.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "messaging-activemq"
+    }
+  ]
+}

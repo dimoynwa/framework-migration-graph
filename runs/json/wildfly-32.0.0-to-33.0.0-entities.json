@@ -1,0 +1,986 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Boot fails with EE 11 APIs and Security Manager enabled simultaneously",
+      "jira_keys": ["WFLY-19287"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 33 explicitly rejects any server configuration that combines Jakarta EE 11 APIs with the Java Security Manager. If both conditions are present at boot, the server refuses to start. Operators must disable the Security Manager before any EE 11 APIs are introduced to the deployment or server configuration.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove -Djava.security.manager JVM argument from server launch",
+          "instruction": "Locate all server launch scripts, systemd unit files, or container entrypoint definitions that pass `-Djava.security.manager` or `-Djava.security.manager=<policy>` to the JVM. Remove these arguments entirely. Also check `JAVA_OPTS` environment variables and `standalone.conf` / `domain.conf` files under `$WILDFLY_HOME/bin/` for any occurrence of `-Djava.security.manager` or `-Dsecuremgr` flags. If a custom `.policy` file is also present, it can be retained for documentation purposes but must not be activated at runtime.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without `WFLYSRV0049` or `java.lang.SecurityException` errors in `server.log`. Run `grep -r 'java.security.manager' $WILDFLY_HOME/bin/` and confirm zero matches.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "EJB messaging schema namespace urn:delivery-active renamed to urn:delivery",
+      "jira_keys": ["WFLY-5820"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The EJB messaging XML descriptor namespace `urn:delivery-active` has been renamed to `urn:delivery`. Deployment descriptors and server configuration files that still reference the old namespace string will fail to parse after the upgrade, preventing deployment.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace urn:delivery-active namespace with urn:delivery in all XML descriptors",
+          "instruction": "Search all deployment descriptor XML files under `WEB-INF/`, `META-INF/`, and any server configuration files (e.g. `standalone.xml`, `domain.xml`) for the string `urn:delivery-active`. Replace every occurrence with `urn:delivery`. Run: `grep -rl 'urn:delivery-active' . | xargs sed -i 's|urn:delivery-active|urn:delivery|g'` from your project root and from `$WILDFLY_HOME/standalone/configuration/`. Commit the modified descriptors and rebuild the deployment archive.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Run `grep -r 'urn:delivery-active' .` and confirm zero matches. Deployment deploys without XML parse errors in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Undertow mod_cluster filter with legacy security realm now throws OperationFailedException at boot",
+      "jira_keys": ["WFLY-19133"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Using the Undertow mod_cluster filter configured with a legacy security realm now results in `OperationFailedException` during server boot rather than silently proceeding. The legacy security realm integration point in mod_cluster has been removed; Elytron SSL contexts must be used instead.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Create Elytron client-ssl-context for mod_cluster filter",
+          "instruction": "In the WildFly CLI, create a trust store, trust manager, and client SSL context in the Elytron subsystem that replaces the legacy security realm used by mod_cluster. Example CLI sequence:\n\n```\n/subsystem=elytron/key-store=modcluster-trust-store:add(type=JKS, path=<path-to-truststore.jks>, credential-reference={clear-text=<password>})\n/subsystem=elytron/trust-manager=modcluster-trust-manager:add(algorithm=PKIX, key-store=modcluster-trust-store)\n/subsystem=elytron/client-ssl-context=modcluster-client-ssl-context:add(trust-manager=modcluster-trust-manager)\n```\nAdjust path and credential values to match your existing truststore.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "CLI command `/subsystem=elytron/client-ssl-context=modcluster-client-ssl-context:read-resource` returns `success`.",
+          "cli_operation": "/subsystem=elytron/client-ssl-context=modcluster-client-ssl-context:add(trust-manager=modcluster-trust-manager)"
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace legacy security-realm reference in mod_cluster filter with Elytron ssl-context",
+          "instruction": "Remove the `security-realm` attribute from your mod_cluster filter configuration and set `ssl-context` to point to the newly created Elytron client SSL context. Example CLI:\n\n```\n/subsystem=modcluster/mod-cluster-config=configuration:undefine-attribute(name=security-realm)\n/subsystem=modcluster/mod-cluster-config=configuration:write-attribute(name=ssl-context, value=modcluster-client-ssl-context)\n:reload\n```\nAlternatively, edit `standalone.xml` and replace the `security-realm` XML attribute on `<mod-cluster-config>` with `ssl-context=\"modcluster-client-ssl-context\"`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts without `OperationFailedException` related to mod_cluster. `server.log` shows mod_cluster advertising to the load balancer without SSL errors.",
+          "cli_operation": "/subsystem=modcluster/mod-cluster-config=configuration:write-attribute(name=ssl-context, value=modcluster-client-ssl-context)"
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Custom Galleon provisioning leaves http-invoker unauthenticated (CVE-2023-4503)",
+      "jira_keys": ["WFLY-19098"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "breaking_change",
+      "reason_type": "security",
+      "reason": "Servers provisioned with custom Galleon feature packs that omit WildFly's default security layers had an unauthenticated `http-invoker` endpoint, tracked as CVE-2023-4503. After upgrading to WildFly 33, custom Galleon provisioning descriptors must explicitly include the appropriate Elytron security layer to secure the http-invoker endpoint.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add Elytron security layer to custom Galleon provisioning descriptor",
+          "instruction": "Open your custom Galleon provisioning descriptor (typically `provisioning.xml` or a `wildfly-glow` configuration file). Ensure the `elytron` layer and the `undertow` security-related layers are included. Add the `elytron` layer explicitly if it is not already present:\n\n```xml\n<layers>\n  <layer name=\"elytron\"/>\n  <layer name=\"undertow\"/>\n  <!-- other layers -->\n</layers>\n```\n\nIf you use WildFly Glow for provisioning, run `wildfly-glow scan` to detect the missing security layers and re-provision the server. After reprovisioning, verify the `http-invoker` is secured by checking that an unauthenticated HTTP request to `http://<host>:8080/wildfly-services/` returns HTTP 401, not 200.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "An unauthenticated HTTP GET to `http://<host>:8080/wildfly-services/` returns HTTP 401 Unauthorized. Server log contains no `WFLYSRV` warnings about unauthenticated http-invoker.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Apache CXF upgraded to 4.0.4 to resolve CVE-2024-28752 SSRF via Aegis DataBinding",
+      "jira_keys": ["WFLY-18520"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/cve-2024-28752",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Apache CXF versions before 4.0.4 are vulnerable to a server-side request forgery (SSRF) attack via the Aegis DataBinding component (CVE-2024-28752, CVSS 9.3 Critical). WildFly 33 upgrades the bundled CXF to 4.0.4. Applications using CXF's Aegis DataBinding or WS-Security must verify configuration compatibility with CXF 4.0.4.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.cxf:cxf-core", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm no bundled CXF dependency below 4.0.4 in deployment artifacts",
+          "instruction": "If your application bundles Apache CXF as a deployment dependency (i.e., packaged inside the WAR/EAR rather than using the WildFly-provided module), update the `org.apache.cxf:cxf-core` and all other `org.apache.cxf:cxf-*` coordinates in your `pom.xml` or `build.gradle` to version `4.0.4` or later. Applications that use only the WildFly-provided CXF module (no bundled CXF JARs) require no code change. Run `mvn dependency:tree | grep cxf` to check for bundled CXF artifacts.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep cxf` shows no `org.apache.cxf` artifact below version `4.0.4` in the deployment classpath. SOAP endpoint smoke tests pass without SSRF-related errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Snappy Java upgraded to 1.1.10.5 to resolve four CVEs",
+      "jira_keys": ["WFLY-19032"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2023-34453",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Snappy Java was upgraded to 1.1.10.5, resolving CVE-2023-34453, CVE-2023-34454, CVE-2023-34455, and CVE-2023-43642. No application-level code change is required for applications that rely on the WildFly-bundled Snappy. Applications that bundle snappy-java directly must align their bundled version to 1.1.10.5 or later to avoid duplicate CVE exposure.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.xerial.snappy:snappy-java", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade bundled snappy-java to 1.1.10.5 if packaged in deployment",
+          "instruction": "Run `mvn dependency:tree | grep snappy` or `./gradlew dependencies | grep snappy` to check whether your deployment bundles `org.xerial.snappy:snappy-java`. If it does, update the version to `1.1.10.5` or later in your build descriptor (`pom.xml` or `build.gradle`). If the project does not bundle snappy-java (uses the server-provided module), no action is required.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep snappy` shows `snappy-java` at version `1.1.10.5` or later, or produces no output if not bundled.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "nimbus-jose-jwt upgraded to 9.37.3 to resolve CVE-2023-52428",
+      "jira_keys": ["WFLY-19034"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2023-52428",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "nimbus-jose-jwt was upgraded to 9.37.3 to resolve CVE-2023-52428. Applications that rely on JWT processing via the Elytron subsystem or the OIDC client may be affected by behavioral differences in JWT validation in the new version and should run their full JWT validation test suite after upgrading.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run JWT validation tests against Elytron and OIDC flows after upgrade",
+          "instruction": "After upgrading to WildFly 33, execute integration tests that cover JWT-based authentication flows through the Elytron token realm and/or the `elytron-oidc-client` subsystem. Focus on: token signature verification, token expiry handling, and claims extraction. If your application bundles `com.nimbusds:nimbus-jose-jwt` directly, update that dependency to `9.37.3` or later in your `pom.xml` or `build.gradle`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JWT authentication integration tests pass. No `ParseException` or signature validation failures appear in `server.log` during JWT-protected request flows.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Apache James Mime4j upgraded to 0.8.10 to fix CVE-2024-21742 MIME header injection",
+      "jira_keys": ["WFLY-19088"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-21742",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Apache James Mime4j was upgraded to 0.8.10 to fix CVE-2024-21742, a MIME header injection vulnerability. No action is required for applications that rely on the WildFly-bundled Mime4j, but applications that bundle Mime4j independently must upgrade their copy to avoid continued exposure to the CVE.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.james:apache-mime4j-core", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade bundled apache-mime4j to 0.8.10 if packaged in deployment",
+          "instruction": "Run `mvn dependency:tree | grep mime4j` to check whether your deployment bundles `org.apache.james:apache-mime4j-core` or related Mime4j artifacts. If present, update the version to `0.8.10` or later in your build descriptor. Applications that do not bundle Mime4j require no change.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep mime4j` shows version `0.8.10` or later, or produces no output if not bundled.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Netty upgraded to 4.1.108.Final to address CVE-2024-29025",
+      "jira_keys": ["WFLY-19193"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-29025",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Netty was upgraded to 4.1.108.Final to address CVE-2024-29025. Applications that bundle Netty as a deployment dependency must update that dependency to at least 4.1.108.Final to remove duplicate CVE exposure.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-all", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade bundled Netty to 4.1.108.Final if packaged in deployment",
+          "instruction": "Run `mvn dependency:tree | grep netty` to check whether your deployment bundles any `io.netty:netty-*` artifacts. If present, update all Netty coordinates (`io.netty:netty-all`, `io.netty:netty-buffer`, etc.) to version `4.1.108.Final` or later in your `pom.xml` or `build.gradle`. Applications that rely solely on the WildFly server-provided Netty module require no change.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep netty` shows all `io.netty` artifacts at version `4.1.108.Final` or later, or produces no output if not bundled.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "CVE-2024-1233: JWT JKU allow-list system property must be configured to prevent SSRF",
+      "jira_keys": ["WFLY-19226"],
+      "source_url": "https://github.com/wildfly/wildfly/pull/17812/commits/0c02350bc0d84287bed46e7c32f90b36e50d3523",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-1233 is an SSRF vulnerability in `JwtValidator.resolvePublicKey` in WildFly Elytron: when a JWT token contains a `jku` header, the validator fetches the referenced URL without any allow-list check. WildFly 33 introduces the system property `wildfly.elytron.jwt.allowed.jku.values.<realm-name>` to enforce a per-realm allow-list of trusted JKU URLs. Without explicit configuration this property is unset and the permissive behaviour remains, leaving the SSRF attack vector open.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Set wildfly.elytron.jwt.allowed.jku.values.<realm-name> for every JWT Elytron realm",
+          "instruction": "For every Elytron security realm of type `token-realm` (JWT realm) in your WildFly configuration, set the system property `wildfly.elytron.jwt.allowed.jku.values.<realm-name>` to a space-separated list of trusted JKU URLs. For example, if your realm is named `JwtRealm` and the trusted JWKS endpoints are `https://idp.example.com/.well-known/jwks.json` and `https://backup-idp.example.com/jwks`, add to your server launch arguments or `standalone.conf`:\n\n```\n-Dwildfly.elytron.jwt.allowed.jku.values.JwtRealm=\"https://idp.example.com/.well-known/jwks.json https://backup-idp.example.com/jwks\"\n```\n\nAlternatively, set it via the WildFly CLI system-property resource:\n```\n/system-property=wildfly.elytron.jwt.allowed.jku.values.JwtRealm:add(value=\"https://idp.example.com/.well-known/jwks.json\")\n```\n\nRepeat for every JWT realm name defined in the `elytron` subsystem. If no `jku` header is expected in incoming JWTs, consider configuring token validation to reject tokens that carry a `jku` header entirely.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Attempt to validate a JWT whose `jku` header points to an untrusted URL; the request is rejected with an authentication failure. Tokens with a `jku` in the allow-list continue to validate successfully. No unhandled URL fetch attempts appear in network logs during JWT validation.",
+          "cli_operation": "/system-property=wildfly.elytron.jwt.allowed.jku.values.JwtRealm:add(value=\"https://trusted-idp.example.com/jwks\")"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "OIDC multi-tenancy token isolation enforced to resolve CVE-2023-6236",
+      "jira_keys": ["WFLY-19225"],
+      "source_url": "https://vulert.com/vuln-db/CVE-2023-6236",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-6236 allowed a valid JWT from one OIDC tenant to be accepted by another tenant in multi-tenant WildFly OIDC deployments. WildFly 33 enforces strict tenant isolation in the `elytron-oidc-client` subsystem, meaning each tenant's realm configuration must be correctly scoped and will no longer accept cross-tenant tokens.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review elytron-oidc-client multi-tenant realm scoping",
+          "instruction": "Open your `elytron-oidc-client` subsystem configuration (in `standalone.xml` or via the WildFly CLI) and review every `<secure-deployment>` element that references an OIDC realm. Ensure that each tenant's `realm` and `auth-server-url` attributes are uniquely and correctly scoped — no two tenants should share the same realm definition if they are intended to be isolated. Run integration tests that attempt to present a JWT issued for tenant A to an endpoint protected by tenant B; the request must be rejected with HTTP 401.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "A JWT issued by OIDC tenant A is rejected with HTTP 401 when presented to a resource protected by tenant B. Tenant A tokens continue to be accepted by tenant A resources.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Undertow upgraded to 2.3.14.Final to resolve CVE-2024-6162",
+      "jira_keys": ["WFLY-19494"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2024-6162",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2024-6162 is fixed in Undertow 2.3.14.Final bundled with WildFly 33. No server configuration change is required; the fix is applied automatically upon upgrade. Operators maintaining CVE suppression lists in security tooling should update their records.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.undertow:undertow-core", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Update CVE suppression list to record CVE-2024-6162 as resolved in Undertow 2.3.14.Final",
+          "instruction": "If your project uses OWASP Dependency-Check, Snyk, or a similar security scanner with a CVE suppression file, add or update the entry for CVE-2024-6162 to reflect that it is resolved in `io.undertow:undertow-core:2.3.14.Final` and later. No code or configuration change to WildFly is required; the fix is bundled in WildFly 33.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Security scanner report no longer flags CVE-2024-6162 against the WildFly 33 Undertow modules.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview: Jakarta Security 4.0 and Servlet 6.1 for EE 11",
+      "jira_keys": ["WFLY-19472", "WFLY-19471"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview now ships Jakarta Security Enterprise API 4.0.0 and jakarta-servlet-api 6.1.0 as part of its EE 11 support. Applications running on WildFly Preview that use Jakarta Security or Servlet APIs must recompile against the new API JARs and retest all authentication, authorisation, and servlet lifecycle behaviour. Standard WildFly (EE 10) is unaffected.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.security.enterprise:jakarta.security.enterprise-api", "role": "replacement" },
+        { "kind": "dependency", "name": "jakarta.servlet:jakarta.servlet-api", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update Jakarta Security and Servlet compile-time dependencies to EE 11 versions",
+          "instruction": "In your `pom.xml` or `build.gradle`, update the `provided`-scope compile-time dependency coordinates to the EE 11 versions for WildFly Preview:\n\n- `jakarta.security.enterprise:jakarta.security.enterprise-api` → version `4.0.0`\n- `jakarta.servlet:jakarta.servlet-api` → version `6.1.0`\n\nFor Maven:\n```xml\n<dependency>\n  <groupId>jakarta.security.enterprise</groupId>\n  <artifactId>jakarta.security.enterprise-api</artifactId>\n  <version>4.0.0</version>\n  <scope>provided</scope>\n</dependency>\n<dependency>\n  <groupId>jakarta.servlet</groupId>\n  <artifactId>jakarta.servlet-api</artifactId>\n  <version>6.1.0</version>\n  <scope>provided</scope>\n</dependency>\n```\nRebuild and resolve any compilation errors introduced by API changes in Jakarta Security 4.0 and Servlet 6.1. Only required when targeting WildFly Preview; standard WildFly (EE 10) users keep existing 3.x / 6.0 API coordinates.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles cleanly against Jakarta Security 4.0.0 and Servlet 6.1.0 APIs. Integration tests covering authentication, authorisation filters, and servlet lifecycle all pass on WildFly Preview 33.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview: Jakarta REST 4.0 and RESTEasy 7.0 for EE 11",
+      "jira_keys": ["WFLY-19312"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview upgrades to Jakarta REST 4.0 and RESTEasy 7.0 for EE 11 support. REST applications on WildFly Preview must recompile against the `jakarta.ws.rs` 4.0 API and validate that REST resources, providers, and clients are compatible with RESTEasy 7.0. Standard WildFly uses RESTEasy 6.2.9.Final and is not affected.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.ws.rs:jakarta.ws.rs-api", "role": "replacement" },
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-core", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update jakarta.ws.rs-api to 4.0 compile-time dependency for WildFly Preview",
+          "instruction": "Update the `provided`-scope compile-time dependency for `jakarta.ws.rs:jakarta.ws.rs-api` to version `4.0.0` in your `pom.xml` or `build.gradle`. Recompile the project and resolve any API incompatibilities introduced by Jakarta REST 4.0 (pay attention to changes in `@Context` and `@Suspended` annotation semantics documented in the RESTEasy 7.0 release notes). Run the full JAX-RS integration test suite on WildFly Preview 33 to validate message-body reader/writer selection, exception mapping, and client API behaviour. Only required for applications targeting WildFly Preview.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles cleanly against `jakarta.ws.rs-api:4.0.0`. All REST endpoint integration tests pass on WildFly Preview 33 without `ClassNotFoundException` or provider resolution errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview: EE 11 API suite — Faces 4.1, Persistence 3.2, Validation 3.1, WebSocket 2.2",
+      "jira_keys": ["WFLY-19400", "WFLY-19401", "WFLY-19402", "WFLY-19403", "WFLY-19404"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview moves to Jakarta Faces 4.1.0, Jakarta Persistence 3.2.0, Jakarta Validation 3.1.0, and Jakarta WebSocket 2.2.0 as part of EE 11 support. Applications on WildFly Preview depending on these APIs must update their build dependency declarations and retest persistence mappings, JSF views, bean validation constraints, and WebSocket endpoints. Standard WildFly (EE 10) is unaffected.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.faces:jakarta.faces-api", "role": "replacement" },
+        { "kind": "dependency", "name": "jakarta.persistence:jakarta.persistence-api", "role": "replacement" },
+        { "kind": "dependency", "name": "jakarta.validation:jakarta.validation-api", "role": "replacement" },
+        { "kind": "dependency", "name": "jakarta.websocket:jakarta.websocket-api", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update EE 11 API compile-time dependencies for WildFly Preview",
+          "instruction": "Update the following `provided`-scope compile-time dependency versions in your `pom.xml` or `build.gradle` when targeting WildFly Preview 33:\n\n- `jakarta.faces:jakarta.faces-api` → `4.1.0`\n- `jakarta.persistence:jakarta.persistence-api` → `3.2.0`\n- `jakarta.validation:jakarta.validation-api` → `3.1.0`\n- `jakarta.websocket:jakarta.websocket-api` → `2.2.0`\n\nAfter updating, recompile and run integration tests covering JPA entity CRUD operations, JSF view lifecycle, bean validation constraint evaluation, and WebSocket endpoint handshake and messaging. Consult the individual Jakarta EE 11 specification changelogs for API-level breaking changes in each component.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles cleanly against all four updated API JARs. Integration tests for JPA, JSF, Bean Validation, and WebSocket pass on WildFly Preview 33.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Apache Artemis upgraded to 2.35.0 with AddressSettings default handling corrected",
+      "jira_keys": ["WFLY-19166", "WFLY-19437", "WFLY-19517", "WFLY-18547"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "bugfix",
+      "reason": "Apache Artemis progressed from 2.32.0 to 2.35.0. Additionally, a long-standing bug in `AddressSettings` default value merging (the `#` pattern) was corrected: default values are now correctly applied and merged. Deployments with custom Artemis address settings, HA policies, or AMQP connectors should review the Artemis 2.33–2.35 changelogs and verify that address-level overrides still produce the expected behaviour after the fix.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify Artemis AddressSettings # default merging behaviour after upgrade",
+          "instruction": "Review your `messaging-activemq` subsystem configuration for `<address-setting match=\"#\">` entries. After upgrading, these default settings are now correctly merged into all address-level overrides. If you previously worked around the broken merge by duplicating settings into per-address entries, those duplicates may now be redundant — verify and consolidate. Run integration tests covering message routing, dead-letter address behaviour, and address expiry to confirm the expected Artemis behaviour is preserved.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Messages route correctly according to address-level `<address-setting>` rules. Dead-letter and expiry addresses receive messages as configured. No `ClassCastException` or `NullPointerException` appears in `server.log` from the `messaging-activemq` subsystem.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Legacy security capability removed from connector, EJB3, EE, Undertow, WebServices, and messaging subsystems",
+      "jira_keys": ["WFLY-18997", "WFLY-19006", "WFLY-19007", "WFLY-19008", "WFLY-19009", "WFLY-19012", "WFLY-19051"],
+      "source_url": "https://docs.jboss.org/author/display/WFLY/Migrate%20Legacy%20Security%20to%20Elytron%20Security.html",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The `org.wildfly.legacy-security` capability's Stage.RUNTIME usage has been removed from the connector, EJB3, EE, Undertow, WebServices, and messaging subsystems. Any server configuration that still references legacy `<security-domain>` elements in these subsystems will fail to boot. All remaining legacy security domain references must be migrated to Elytron `<security-domain>` backed by an Elytron security realm before upgrading.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit server configuration for legacy security-domain references in affected subsystems",
+          "instruction": "Scan your `standalone.xml` (and `domain.xml` if applicable) for any `<security-domain>` references inside the `connector` (JCA), `ejb3`, `ee`, `undertow`, `webservices`, and `messaging-activemq` subsystem elements. Run:\n\n```\ngrep -n 'security-domain' $WILDFLY_HOME/standalone/configuration/standalone.xml\n```\n\nEach occurrence must be migrated to an Elytron-backed security domain before proceeding.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`grep -n 'security-domain' standalone.xml` returns zero matches inside the affected subsystems.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Migrate legacy security-domain references to Elytron application-security-domain in each subsystem",
+          "instruction": "For each affected subsystem, replace the legacy `<security-domain>` element with an Elytron `application-security-domain` mapping. Follow the official WildFly Elytron migration guide at https://docs.jboss.org/author/display/WFLY/Migrate+Legacy+Security+to+Elytron+Security.html.\n\nExample CLI for the EJB3 subsystem:\n```\n/subsystem=ejb3/application-security-domain=<domain-name>:add(security-domain=<elytron-security-domain>)\n```\n\nExample CLI for the Undertow subsystem:\n```\n/subsystem=undertow/application-security-domain=<domain-name>:add(http-authentication-factory=<factory-name>)\n```\n\nFor the connector (JCA/datasource) subsystem, update the `<security>` element of each `<datasource>` or `<xa-datasource>` to use `<elytron-enabled>true</elytron-enabled>` and a matching Elytron `<security-domain>`. Repeat analogously for EE, WebServices, and messaging subsystems. After all replacements are complete, issue `:reload` and verify the server starts cleanly.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Server starts without `WFLYSRV0026` boot errors. `grep -n 'legacy-security' server.log` returns zero matches after reload.",
+          "cli_operation": "/subsystem=ejb3/application-security-domain=<domain-name>:add(security-domain=<elytron-security-domain>)"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Filesystem Security Realm key-store attribute update now requires server reload",
+      "jira_keys": ["WFLY-18985"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Updating key-store attributes on a Filesystem Security Realm in WildFly 33 now requires a server reload before the new values take effect. Previously the change was silently ignored or applied inconsistently at runtime. Automated provisioning or configuration management scripts that update these attributes must issue a `:reload` operation immediately after.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add :reload operation after Filesystem Security Realm key-store attribute updates in automation scripts",
+          "instruction": "Locate any Ansible playbooks, shell scripts, or CI/CD pipeline steps that execute WildFly CLI commands to update `key-store` attributes on a `filesystem-realm` resource (e.g. via `/subsystem=elytron/filesystem-realm=<name>:write-attribute(name=key-store, value=...)`). Append a `:reload` CLI command immediately after each such write operation:\n\n```\n/subsystem=elytron/filesystem-realm=<realm-name>:write-attribute(name=key-store, value=<keystore-name>)\n:reload\n```\n\nUpdate your operational runbooks to document that key-store changes require a reload before they are active.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "After updating the key-store attribute and issuing `:reload`, the server log shows a clean reload. The new key-store is in effect: authentication operations using the filesystem realm succeed with credentials from the new key-store.",
+          "cli_operation": ":reload"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "RESTEasy upgraded to 6.2.9.Final in standard WildFly",
+      "jira_keys": ["WFLY-19353", "WFLY-19031"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "bugfix",
+      "reason": "RESTEasy was upgraded from 6.2.7.Final to 6.2.9.Final in standard WildFly (EE 10). This is a point-release upgrade and no breaking API changes are expected, but JAX-RS endpoint tests should be run to verify message-body reader/writer selection and exception-mapping behaviour remain unchanged.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jboss.resteasy:resteasy-core", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Run JAX-RS integration tests after RESTEasy 6.2.9.Final upgrade",
+          "instruction": "After upgrading to WildFly 33, execute your JAX-RS endpoint integration test suite. Focus on: message-body reader/writer selection for custom `MessageBodyReader` / `MessageBodyWriter` providers, exception mapper resolution order, and client-side `ResteasyClient` behaviour. No `pom.xml` or `build.gradle` changes are required for applications that use the server-provided RESTEasy module.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JAX-RS integration tests pass. No `MessageBodyProviderNotFoundException` or unexpected exception mapper resolution in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Infinispan upgraded to 14.0.29.Final and JGroups to 5.2.27.Final",
+      "jira_keys": ["WFLY-19278", "WFLY-19279", "WFLY-19382", "WFLY-19474", "WFLY-19516"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "other",
+      "reason": "Infinispan progressed to 14.0.29.Final and JGroups to 5.2.27.Final. Clustered deployments using distributed caches or session replication should perform rolling-upgrade testing to verify cluster formation, cache replication, and failover behaviour remain correct with the updated transport layer.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "replacement" },
+        { "kind": "dependency", "name": "org.jgroups:jgroups", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Perform rolling-upgrade cluster test with Infinispan 14 and JGroups 5.2",
+          "instruction": "In a staging environment, perform a rolling upgrade of the WildFly cluster from 32 to 33. During the rolling upgrade: (1) confirm cluster formation — all nodes join the JGroups cluster view and no `WARN` messages about merge views appear; (2) confirm cache replication — put a value into a distributed cache on node A and read it from node B; (3) confirm HTTP session replication — log in on node A, fail node A, and verify the session is still active on node B. If your application bundles `org.infinispan:infinispan-*` or `org.jgroups:jgroups` artifacts directly, update those to 14.0.29.Final and 5.2.27.Final respectively.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All cluster nodes appear in the JGroups view after rolling upgrade. Distributed cache reads return expected values. HTTP session survives node failure. No `MergeView` or split-brain warnings in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Core upgraded to 25.0.0.Final",
+      "jira_keys": ["WFLY-19313", "WFLY-19338", "WFLY-19388", "WFLY-19443", "WFLY-19480"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "dependency_upgrade",
+      "reason_type": "other",
+      "reason": "WildFly Core advanced from 24.0.0.Final to 25.0.0.Final. Authors of WildFly subsystem extensions or consumers of WildFly Core APIs directly should review the WildFly Core 25 release notes for removed or changed internal APIs. General application deployments are not expected to require changes.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review WildFly Core 25 release notes for subsystem extension API changes",
+          "instruction": "If your project authors a WildFly subsystem extension or directly imports WildFly Core APIs (e.g. from `org.wildfly.core:wildfly-controller` or `org.wildfly.core:wildfly-server`), review the WildFly Core 25 release notes at https://github.com/wildfly/wildfly-core/releases/tag/25.0.0.Final for removed or changed APIs. Update your extension's dependencies to WildFly Core 25.0.0.Final. General application deployments with no WildFly Core API dependency require no action.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Subsystem extension compiles against WildFly Core 25.0.0.Final without `NoClassDefFoundError` or missing method errors. Extension tests pass on WildFly 33.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "JaasSecurityRealm now usable via Elytron custom-realm resource",
+      "jira_keys": ["WFLY-18163"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "It is now possible to reference `JaasSecurityRealm` through the Elytron `custom-realm` resource. Applications that previously worked around the absence of this capability with a non-standard configuration can now migrate to the supported `custom-realm` approach. Existing configurations are not broken, but the new path is the recommended one going forward.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Migrate JaasSecurityRealm workaround to Elytron custom-realm resource",
+          "instruction": "If your server configuration currently uses a workaround to integrate `JaasSecurityRealm` with WildFly Elytron (for example, through a custom security provider or an indirect security domain mapping), replace it with a direct `custom-realm` resource in the `elytron` subsystem referencing the `JaasSecurityRealm` class. Consult the WildFly Elytron documentation on `custom-realm` at https://docs.wildfly.org/33/WildFly_Elytron_Security.html for the required attributes (`module`, `class-name`). This step is recommended but not mandatory — existing workaround configurations continue to work.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The `elytron` subsystem's `custom-realm` resource for `JaasSecurityRealm` is present and the server starts cleanly. Authentication via the JAAS realm succeeds.",
+          "cli_operation": "/subsystem=elytron/custom-realm=jaas-realm:add(module=<module-name>, class-name=org.jboss.security.JaasSecurityRealm)"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Jakarta EE XML namespaces enforced more strictly in deployment descriptors",
+      "jira_keys": ["WFLY-19315"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 33's deployment transformer enforces the use of Jakarta EE XML namespaces (`xmlns=\"https://jakarta.ee/xml/ns/jakartaee\"`) in deployment descriptors more strictly than before. Descriptors still using older `javax`-prefixed namespace URIs will fail to parse correctly, potentially causing deployment failure.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace javax XML namespace URIs with Jakarta EE equivalents in all deployment descriptors",
+          "instruction": "Scan all XML deployment descriptors in `WEB-INF/` and `META-INF/` (e.g. `web.xml`, `ejb-jar.xml`, `beans.xml`, `persistence.xml`, `faces-config.xml`) for namespace URIs containing `javax`. Replace every `xmlns=\"http://xmlns.jcp.org/xml/ns/javaee\"` or older `http://java.sun.com/xml/ns/javaee` occurrences with the corresponding Jakarta EE namespace `xmlns=\"https://jakarta.ee/xml/ns/jakartaee\"`. Run:\n\n```\ngrep -rl 'java.sun.com\\|jcp.org' src/main/webapp src/main/resources | xargs sed -i 's|http://java.sun.com/xml/ns/javaee|https://jakarta.ee/xml/ns/jakartaee|g; s|http://xmlns.jcp.org/xml/ns/javaee|https://jakarta.ee/xml/ns/jakartaee|g'\n```\n\nAlso update the `xsi:schemaLocation` attributes to reference the corresponding Jakarta EE schema URLs. Rebuild and redeploy.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`grep -r 'java.sun.com\\|jcp.org' src/main/webapp src/main/resources` returns zero matches. Deployment deploys without XML namespace parse errors in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Jakarta Faces FACELETS_BUFFER_SIZE default changed to -1 (auto-sizing)",
+      "jira_keys": ["WFLY-18174"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The default value of the `jakarta.faces.FACELETS_BUFFER_SIZE` context parameter was changed from a fixed positive integer to `-1`, which enables auto-sizing. JSF applications that relied on the previous fixed buffer size for rendering large Facelets pages may experience different memory allocation characteristics.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "jakarta.faces.FACELETS_BUFFER_SIZE", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Test large Facelets view rendering and set FACELETS_BUFFER_SIZE in web.xml if needed",
+          "instruction": "Run rendering tests for the largest Facelets views in your application after upgrading. If you observe regressions (e.g. `OutOfMemoryError`, excessive GC pressure, or truncated output), restore the previous fixed buffer size by adding the following to your `web.xml`:\n\n```xml\n<context-param>\n  <param-name>jakarta.faces.FACELETS_BUFFER_SIZE</param-name>\n  <param-value>1024</param-value>\n</context-param>\n```\n\nReplace `1024` with the previous value your application relied upon. If rendering behaviour is unchanged, no action is required.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Large Facelets views render completely without `OutOfMemoryError` or truncation. Memory profiling shows acceptable heap allocation patterns during view rendering.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Hibernate enhancer properties now implicitly activate JPA class transformer",
+      "jira_keys": ["WFLY-19392"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Setting any `hibernate.enhancer.*` property to `true` in `persistence.xml` now implicitly activates the `jboss.as.jpa.classtransformer` WildFly class transformer. Previously, both had to be set explicitly. Applications that enabled Hibernate bytecode enhancement without expecting the WildFly class transformer to be involved may see changed entity proxying and lazy-loading behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "hibernate.enhancer.enableDirtyTracking", "role": "mentioned" },
+        { "kind": "property", "name": "jboss.as.jpa.classtransformer", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Test JPA entity lazy loading and proxy behaviour after Hibernate enhancer change",
+          "instruction": "If your `persistence.xml` sets any `hibernate.enhancer.*` property to `true` (e.g. `hibernate.enhancer.enableDirtyTracking`, `hibernate.enhancer.enableLazyInitialization`, `hibernate.enhancer.enableAssociationManagement`), run your full JPA integration test suite after upgrading. Focus on: lazy-loaded `@OneToMany` and `@ManyToOne` associations, entity proxy identity checks, and dirty tracking in managed entities. If you need to prevent the WildFly class transformer from activating, explicitly set `<property name=\"jboss.as.jpa.classtransformer\" value=\"false\"/>` in `persistence.xml`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "JPA integration tests pass with correct lazy-loading behaviour. No `LazyInitializationException` outside of expected transactional boundaries. No unexpected `ClassTransformerException` in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "MicroProfile Health mp.health.disable-default-procedures now correctly respected",
+      "jira_keys": ["WFLY-19147"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Setting `mp.health.disable-default-procedures=true` in `microprofile-config.properties` at application level now correctly disables all built-in WildFly health check procedures. Previously the property had no effect, so WildFly's default health checks ran regardless. Applications that relied on the property having no effect (i.e. expected default health checks to always appear) must add explicit health check implementations before upgrading.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "mp.health.disable-default-procedures", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify health endpoint output after mp.health.disable-default-procedures fix",
+          "instruction": "If your application sets `mp.health.disable-default-procedures=true` in `microprofile-config.properties`, verify that after upgrading the `/health` and `/health/live` endpoints no longer return WildFly's built-in health check entries. If your monitoring infrastructure expects those built-in entries, add explicit `@Liveness`, `@Readiness`, or `@Health`-annotated CDI bean implementations to your deployment to replace the suppressed defaults. If your application does NOT set this property, no action is required.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "GET `/health` returns only application-defined health check procedures when `mp.health.disable-default-procedures=true` is set. Monitoring dashboards that depend on health check output show no unexpected missing checks.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "DNS and RMI naming module dependencies automatically added to deployments",
+      "jira_keys": ["WFLY-19339"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "When the Naming subsystem is active, WildFly 33 now automatically adds `jdk.naming.dns` and `jdk.naming.rmi` module dependencies to all deployments. This resolves `InitialContextFactory com.sun.jndi.dns.DnsContextFactory not found` failures, but may change classloading visibility for applications that previously worked around the absence of these modules.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify classloading behaviour after automatic jdk.naming.dns and jdk.naming.rmi addition",
+          "instruction": "After upgrading, check that applications which previously used a `jboss-deployment-structure.xml` workaround to manually add `jdk.naming.dns` or `jdk.naming.rmi` still behave correctly. The explicit module dependency declaration in `jboss-deployment-structure.xml` is now redundant and can be removed, but leaving it in place is harmless. If any application worked around the previous absence of these modules by implementing a custom `InitialContextFactory` or by bundling DNS lookup code, validate that the new automatic module additions do not introduce classloading conflicts.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys without `ClassNotFoundException` for JNDI factory classes. Any previously failing `InitialContext` DNS lookups now succeed. No `LinkageError` or module visibility conflicts appear in `server.log`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "OIDC redirect now preserves query parameters by default",
+      "jira_keys": ["WFLY-17324"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Query parameters are now preserved when the Elytron OIDC client redirects to Keycloak for authentication via a new `wildfly.elytron.oidc.allow.query.params` system property. Applications that depended on query parameters being stripped during the OIDC redirect flow must review their behaviour and configure this property explicitly if the old behaviour is required.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "wildfly.elytron.oidc.allow.query.params", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify OIDC redirect query parameter behaviour and configure wildfly.elytron.oidc.allow.query.params if needed",
+          "instruction": "Test OIDC-protected endpoints that accept query parameters. Confirm that query parameters present before the OIDC redirect are correctly restored after authentication. If your application relies on query parameters being absent after the redirect (e.g. for CSRF or state management reasons), review the `wildfly.elytron.oidc.allow.query.params` system property documentation in the WildFly 33 Elytron documentation and set the property to the appropriate value to restore the previous stripping behaviour.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "After OIDC authentication redirect, query parameters on the original request URL are present (or absent, if explicitly disabled) as expected. No authentication loop or state mismatch occurs.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "EJB remote cluster attribute deprecated",
+      "jira_keys": ["WFLY-19303"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `cluster` attribute on the EJB remote service is deprecated. The EJB remote service now declares a capability dependency on the deprecated attribute, which may produce warnings in server logs. The attribute will be removed in a future WildFly release.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Plan migration away from deprecated EJB remote cluster attribute",
+          "instruction": "Check your `standalone.xml` or `domain.xml` for the `cluster` attribute on the `<remote>` element inside the `ejb3` subsystem. If present, review WildFly EJB clustering documentation for the replacement configuration approach and plan migration. Deprecation warnings will appear in `server.log` at the `WARN` level; the attribute is not yet removed and existing configurations continue to work in WildFly 33.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts. Deprecation `WARN` messages for the `cluster` attribute are visible in `server.log` and can be suppressed once migration is planned.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecated MSC ServiceController API removed from example code; production migration recommended",
+      "jira_keys": ["WFLY-19352"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The MSC (JBoss Modular Service Container) deprecated API is no longer used in the `ha-singleton-service` quickstart. If production code directly uses deprecated MSC `ServiceController` APIs modelled on the quickstart example, migration to the current MSC API should be planned.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit production code for deprecated MSC ServiceController API usage",
+          "instruction": "Run `grep -r 'org.jboss.msc.service.ServiceController' src/` in your codebase. If deprecated MSC `ServiceController` methods are present, review the current MSC API (from the `org.jboss.msc:jboss-msc` artifact) and plan migration to the non-deprecated equivalents. The deprecated API is not yet removed from WildFly 33 but will be removed in a future release.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`grep -r 'ServiceController' src/` returns zero matches, or all matches use only non-deprecated MSC API methods.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "OpenTelemetry module auto-added to deployment classpath when subsystem is present",
+      "jira_keys": ["WFLY-19366"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `io.smallrye.opentelemetry` module is now automatically added to the deployment classpath when the OpenTelemetry subsystem is present. Deployments that previously required a manual `jboss-deployment-structure.xml` entry to access OpenTelemetry classes can remove that workaround.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove manual io.smallrye.opentelemetry jboss-deployment-structure.xml entry if present",
+          "instruction": "Open your `jboss-deployment-structure.xml` (if present in `WEB-INF/` or `META-INF/`) and remove any explicit `<module name=\"io.smallrye.opentelemetry\"/>` dependency entry that was added as a workaround. The module is now added automatically when the OpenTelemetry subsystem is active. Removing the redundant entry is optional but recommended to keep the descriptor clean.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Deployment deploys cleanly without `ClassNotFoundException` for OpenTelemetry classes. `jboss-deployment-structure.xml` no longer contains a manual `io.smallrye.opentelemetry` entry.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "OIDC client supports configurable additional OAuth2 scopes (Preview stability)",
+      "jira_keys": ["WFLY-16532"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The `elytron-oidc-client` subsystem (Preview stability) now supports configuring additional OAuth2 scopes in the authentication request via a `scope` attribute. This enables fine-grained scope control in OIDC flows without application code changes. Requires running at Preview stability level.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "OIDC client supports request and request_uri JWT Secured Authorization Request parameters (Preview)",
+      "jira_keys": ["WFLY-17143"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The Elytron OIDC client (Preview) now supports including `request` and `request_uri` parameters in authentication requests, enabling JWT Secured Authorization Requests (JAR). New attributes are available in the `elytron-oidc-client` subsystem configuration. Requires Preview stability level.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Undertow AJP and X-Forwarded header options now configurable at Preview stability",
+      "jira_keys": ["WFLY-14255", "WFLY-15452"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Two Undertow configuration options are now available at Preview stability: the AJP listener's `AJP_ALLOWED_REQUEST_ATTRIBUTES_PATTERN` can be specified, and `reuseXForwarded` / `rewriteHost` are now configurable. These options benefit deployments behind reverse proxies requiring fine-grained AJP or X-Forwarded header control.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "New standalone-core-microprofile.xml example configuration added",
+      "jira_keys": ["WFLY-18763"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new example configuration file `standalone-core-microprofile.xml` is included in the WildFly 33 distribution, providing a starting point for deploying MicroProfile applications on a minimal WildFly Core server without the full EE profile.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Snappy compression disable hook added for MicroProfile Kafka connector",
+      "jira_keys": ["WFLY-19438"],
+      "source_url": "https://github.com/wildfly/wildfly/releases/tag/33.0.0.Final",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new hook is available to disable Snappy compression in the MicroProfile Reactive Messaging Kafka connector. This is useful on environments where native Snappy libraries are unavailable. The configuration property can be set before deploying reactive messaging Kafka applications on constrained environments.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

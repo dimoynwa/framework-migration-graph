@@ -1,0 +1,830 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Removal of implicit JDK module dependencies (sun.jdk, ibm.jdk)",
+      "jira_keys": ["WFLY-17932", "WFLY-17909"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "The implicit module dependencies on internal JDK aggregation modules `sun.jdk` and `ibm.jdk` have been removed. Deployments that access internal JDK APIs via these modules will fail to deploy. Applications must be audited for any usage of non-public JDK classes and refactored to use standard Java or approved third-party APIs.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "sun.jdk", "role": "removed" },
+        { "kind": "dependency", "name": "ibm.jdk", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Audit and remove all internal JDK (sun.*, com.sun.*) imports",
+          "instruction": "Search your entire codebase for any imports of internal JDK packages such as `sun.*`, `com.sun.*`, and `com.ibm.*`. Each usage must be replaced with a publicly supported Java SE equivalent (e.g., replace `sun.misc.BASE64Encoder` with `java.util.Base64`, replace `com.sun.net.httpserver.HttpServer` with a Jakarta EE or standard Java HTTP API). If a replacement is not immediately available, consider a third-party library. Per WildFly class-loading documentation, these modules are no longer implicitly added to deployment classpaths.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Deployment completes without `ClassNotFoundException` or `NoClassDefFoundError` referencing any `sun.*`, `com.sun.*`, or `com.ibm.*` class. Run `grep -r 'import sun\\.' src/` and confirm zero results.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Add explicit jboss-deployment-structure.xml system dependency if truly required",
+          "instruction": "If any internal JDK class usage is unavoidable, declare an explicit system dependency in `META-INF/jboss-deployment-structure.xml` (or `WEB-INF/jboss-deployment-structure.xml` for web deployments). Use the `<system>` element with `<paths>` to expose only the specific package paths needed. Example: `<jboss-deployment-structure xmlns=\"urn:jboss:deployment-structure:1.2\"><deployment><dependencies><system export=\"true\"><paths><path name=\"com/sun/corba/se/spi/legacy/connection\"/></paths></system></dependencies></deployment></jboss-deployment-structure>`. This is a last resort; prefer replacing the internal API usage entirely.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Deployment starts successfully. WildFly server log shows no `Module not found` errors for the targeted paths.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Explicit module dependency required for RMI Java Naming provider",
+      "jira_keys": ["WFLY-17666"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Implicit access to the `jdk.naming.rmi` JPMS module has been removed from WildFly deployments. Applications using RMI Java Naming (e.g., `InitialContext` with `java.naming.factory.url.pkgs=com.sun.jndi.url.rmi`) will fail at runtime unless an explicit module dependency is declared. This requires adding a deployment descriptor entry.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jdk.naming.rmi", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Declare explicit jdk.naming.rmi dependency in jboss-deployment-structure.xml",
+          "instruction": "Add an explicit dependency on the `jdk.naming.rmi` JPMS module to your deployment's `META-INF/jboss-deployment-structure.xml` (or `WEB-INF/jboss-deployment-structure.xml`). Use the `<module>` element as follows: `<jboss-deployment-structure xmlns=\"urn:jboss:deployment-structure:1.2\"><deployment><dependencies><module name=\"jdk.naming.rmi\"/></dependencies></deployment></jboss-deployment-structure>`. Alternatively, add the MANIFEST.MF header `Dependencies: jdk.naming.rmi` to `META-INF/MANIFEST.MF`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Deployment starts without `javax.naming.NoInitialContextException` or `ClassNotFoundException` for RMI naming classes. JNDI lookups via `rmi://` URLs succeed.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "TXFramework (Compensations API) completely removed",
+      "jira_keys": ["WFLY-17290"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The legacy TXFramework (also known as the Compensations API) has been completely removed from WildFly 29. Applications that relied on this framework for compensating transaction management must be migrated to standard Jakarta Transactions (JTA) APIs or an alternative Saga-pattern implementation. This is a hard runtime break — no fallback or compatibility shim is provided.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace TXFramework usage with Jakarta Transactions (JTA) APIs",
+          "instruction": "Identify all code that uses the TXFramework / Compensations API (typically classes under `org.jboss.narayana.compensations.*` or `org.jboss.jbossts.txframework.*`). Replace transaction demarcation with standard Jakarta Transactions: use `jakarta.transaction.UserTransaction` for programmatic demarcation, or apply `@jakarta.transaction.Transactional` (with the appropriate CDI interceptor) for declarative transaction management. For distributed Saga-pattern workflows, evaluate the new MicroProfile LRA (Long Running Actions) support introduced in WildFly 29 (WFLY-14869) as the strategic replacement. Per the WildFly Jakarta Transactions reference guide.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "No compile-time or runtime references to TXFramework or Compensations API packages remain. Application deploys and transactional operations complete without `ClassNotFoundException` or `NoSuchSubsystemException`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "transactions"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Jakarta Faces module renamed from jakarta.faces to jakarta.faces.impl",
+      "jira_keys": ["WFLY-18152"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The WildFly internal module that delivers the Jakarta Faces implementation (Mojarra) has been renamed from `jakarta.faces` to `jakarta.faces.impl`. Any deployment that explicitly references the old module name in `jboss-deployment-structure.xml` or `MANIFEST.MF` will fail to deploy with a `Module not found` error on WildFly 29.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jakarta.faces", "role": "removed" },
+        { "kind": "dependency", "name": "jakarta.faces.impl", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename jakarta.faces to jakarta.faces.impl in deployment descriptors",
+          "instruction": "Search all deployment descriptors (`META-INF/jboss-deployment-structure.xml`, `WEB-INF/jboss-deployment-structure.xml`, and `META-INF/MANIFEST.MF`) for any reference to module name `jakarta.faces`. Replace every occurrence with `jakarta.faces.impl`. Example before: `<module name=\"jakarta.faces\"/>`. Example after: `<module name=\"jakarta.faces.impl\"/>`. In MANIFEST.MF, update the `Dependencies:` header accordingly.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Deployment completes without `Module not found: jakarta.faces` error. Jakarta Faces pages render correctly and `@ManagedBean` / `@Named` CDI beans in the Faces context are resolved.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jsf"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Internal ActiveMQ Artemis, clustering, Angus, RESTEasy, and XTS modules marked private",
+      "jira_keys": ["WFLY-18164", "WFLY-18141", "WFLY-18134", "WFLY-18145", "WFLY-18153"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Several previously accessible internal modules — including `org.apache.activemq.artemis.*`, clustering internals, the Angus mail implementation, RESTEasy tracing, and XTS — have been marked as private WildFly modules. Deployments that declare explicit module dependencies on these internal paths will fail to deploy. Callers must switch to the corresponding public Jakarta EE APIs.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq.artemis", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove explicit dependencies on newly private WildFly internal modules",
+          "instruction": "Search `jboss-deployment-structure.xml` and `MANIFEST.MF` files across all deployments for explicit dependencies on the following module prefixes: `org.apache.activemq.artemis`, `org.wildfly.clustering` (internal sub-modules), `org.eclipse.angus`, `org.jboss.resteasy.resteasy-tracing-api`, and `org.jboss.xts`. Remove all such entries. Replace any programmatic use of internal Artemis APIs with the JMS 3.x API (`jakarta.jms.*`) injected via `@Resource`. Replace XTS usage with standard Jakarta Transactions or MicroProfile LRA. Replace RESTEasy tracing with standard Jakarta REST (`jakarta.ws.rs.*`) APIs.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Deployment completes without `Module not found` or `access denied to private module` errors. Messaging, clustering, and REST operations function correctly using Jakarta EE APIs only.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Netty to 4.1.94.Final to patch CVE-2022-41881 and CVE-2023-34462",
+      "jira_keys": ["WFLY-17455", "WFLY-18180"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Netty versions prior to 4.1.94.Final are vulnerable to two denial-of-service CVEs: CVE-2022-41881 (HTTP/2 header frame handling) and CVE-2023-34462 (SniHandler heap allocation — up to 16MB per channel during TLS handshake). WildFly 29 ships Netty 4.1.94.Final; applications that bundle or BOM-manage their own Netty version must be updated to at least this version.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-handler", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.netty:netty-all", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Pin io.netty dependencies to 4.1.94.Final or later in pom.xml / BOM",
+          "instruction": "In your `pom.xml` (or BOM), update all `io.netty` dependency versions to `4.1.94.Final` or higher. Key artifacts to check: `io.netty:netty-handler`, `io.netty:netty-codec-http2`, `io.netty:netty-all`, `io.netty:netty-transport`. If Netty is pulled in transitively, add a `<dependencyManagement>` entry to enforce the minimum version: `<dependency><groupId>io.netty</groupId><artifactId>netty-bom</artifactId><version>4.1.94.Final</version><type>pom</type><scope>import</scope></dependency>`. Verify there are no older transitive Netty JARs using `mvn dependency:tree | grep netty`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep netty` shows no version older than `4.1.94.Final`. No CVE scanner flags Netty < 4.1.94.Final. Application HTTP/2 and TLS handshake paths function correctly under load.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Xalan to 2.7.3 to patch CVE-2022-34169",
+      "jira_keys": ["WFLY-18007"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Xalan versions prior to 2.7.3 contain an integer truncation vulnerability (CVE-2022-34169) in XSLT processing that can be exploited by a malicious stylesheet. WildFly 29 includes Xalan 2.7.3. Applications that bundle or declare a direct Xalan dependency must update to version 2.7.3.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "xalan:xalan", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update xalan:xalan dependency to version 2.7.3",
+          "instruction": "In your `pom.xml`, update the Xalan dependency to version 2.7.3: `<dependency><groupId>xalan</groupId><artifactId>xalan</artifactId><version>2.7.3</version></dependency>`. If Xalan is pulled in transitively via your BOM or via another framework, add a `<dependencyManagement>` entry to enforce version 2.7.3. Confirm the effective version using `mvn dependency:tree | grep xalan`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep xalan` shows version `2.7.3`. No XSLT-processing-related security scanner findings for Xalan < 2.7.3 remain.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Kafka Clients to 3.4.0 to patch CVE-2023-25194",
+      "jira_keys": ["WFLY-17654"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-25194 is a high-severity RCE / denial-of-service vulnerability in Apache Kafka clients triggered via SASL JAAS JndiLoginModule configuration. Versions prior to 3.4.0 are affected. Apache Kafka 3.4.0 disables `com.sun.security.auth.module.JndiLoginModule` by default and adds a system property to control allowed login modules. Applications that bundle `org.apache.kafka:kafka-clients` must update to 3.4.0 or later.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.kafka:kafka-clients", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.apache.kafka:kafka-clients to version 3.4.0",
+          "instruction": "Update `org.apache.kafka:kafka-clients` to version `3.4.0` or later in your `pom.xml`: `<dependency><groupId>org.apache.kafka</groupId><artifactId>kafka-clients</artifactId><version>3.4.0</version></dependency>`. If you also use `kafka-streams` or other Kafka artifacts, update those consistently. Review your SASL/JAAS Kafka producer/consumer configurations to ensure they do not use `JndiLoginModule`. Confirm the effective version with `mvn dependency:tree | grep kafka`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep kafka-clients` shows version `3.4.0` or later. Kafka producer and consumer integration tests pass. No CVE scanner flags `kafka-clients` < 3.4.0.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Guava to 32.1.1 to patch CVE-2023-2976",
+      "jira_keys": ["WFLY-18243"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-2976 is a medium-severity information disclosure vulnerability in Guava's `FileBackedOutputStream` class, which creates temporary files with world-readable permissions on Unix-like systems. Guava versions prior to 32.0.0 are vulnerable. WildFly 29 ships with Guava 32.1.1. Applications bundling Guava directly must update to 32.1.1 or later.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.google.guava:guava", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.google.guava:guava to 32.1.1-jre",
+          "instruction": "Update the Guava dependency in your `pom.xml` to version `32.1.1-jre` (or `32.1.1-android` for Android targets): `<dependency><groupId>com.google.guava</groupId><artifactId>guava</artifactId><version>32.1.1-jre</version></dependency>`. If Guava is pulled in transitively, add a `<dependencyManagement>` entry to enforce this minimum version. Do not use version 32.0.0 as it contains a regression on Windows. Verify with `mvn dependency:tree | grep guava`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep guava` shows version `32.1.1-jre`. No CVE scanner flags `com.google.guava:guava` < `32.0.0`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Apache Mime4J to 0.8.9 to patch CVE-2022-45787",
+      "jira_keys": ["WFLY-17499"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2022-45787 is a vulnerability in Apache Mime4J that can be exploited through malformed MIME messages. WildFly 29 ships Mime4J 0.8.9. Deployments that bundle the `org.apache.james:apache-mime4j` library must update to version 0.8.9 or later.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.james:apache-mime4j", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update org.apache.james:apache-mime4j to 0.8.9",
+          "instruction": "Update `org.apache.james:apache-mime4j-core` (and any other `apache-mime4j-*` artifacts you use) to version `0.8.9` in your `pom.xml`. Example: `<dependency><groupId>org.apache.james</groupId><artifactId>apache-mime4j-core</artifactId><version>0.8.9</version></dependency>`. Confirm all `apache-mime4j` artifacts are aligned on the same version using `mvn dependency:tree | grep mime4j`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep mime4j` shows version `0.8.9`. No CVE scanner flags `apache-mime4j` < 0.8.9.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Upgrade Nimbus JOSE JWT to 9.24.4+ to patch CVE-2023-1370",
+      "jira_keys": ["WFLY-17845"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2023-1370 is a vulnerability in Nimbus JOSE JWT's JSON Smart parser that allows a crafted input to trigger unbounded recursion and a stack overflow. WildFly 29 ships Nimbus JOSE JWT 9.31 (upgraded from 9.24.4). Applications that bundle `com.nimbusds:nimbus-jose-jwt` for JWT processing must update to at least 9.24.4, preferably 9.31.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Update com.nimbusds:nimbus-jose-jwt to 9.31",
+          "instruction": "Update `com.nimbusds:nimbus-jose-jwt` to version `9.31` in your `pom.xml`: `<dependency><groupId>com.nimbusds</groupId><artifactId>nimbus-jose-jwt</artifactId><version>9.31</version></dependency>`. If this library is a transitive dependency (e.g., via Spring Security OAuth2 or Keycloak client libraries), add a `<dependencyManagement>` entry to enforce the minimum version. Confirm with `mvn dependency:tree | grep nimbus`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`mvn dependency:tree | grep nimbus-jose-jwt` shows version `9.24.4` or later. JWT parsing operations complete without stack overflow exceptions. No CVE scanner flags this library.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "IronJacamar upgraded to 3.0.x for Jakarta EE 10 (jakarta.resource.* namespace)",
+      "jira_keys": ["WFLY-17602"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "IronJacamar has been bumped to version 3.0.0.Final, aligning with Jakarta Connectors 2.1 (Jakarta EE 10). The package namespace has changed from `javax.resource.*` to `jakarta.resource.*`. Any resource adapter (`.rar` file) or JCA deployment that uses the old `javax.resource.*` API will fail to compile and deploy on WildFly 29.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "javax.resource:connector-api", "role": "removed" },
+        { "kind": "dependency", "name": "jakarta.resource:jakarta.resource-api", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Replace javax.resource.* imports with jakarta.resource.*",
+          "instruction": "Perform a global find-and-replace across all Java source files in your resource adapter (RAR) and JCA client code. Replace `import javax.resource.` with `import jakarta.resource.`. Key interfaces affected include: `jakarta.resource.spi.ManagedConnectionFactory`, `jakarta.resource.spi.ManagedConnection`, `jakarta.resource.cci.ConnectionFactory`, `jakarta.resource.spi.ResourceAdapter`, `jakarta.resource.spi.ActivationSpec`. Use your IDE's bulk refactor or a tool like OpenRewrite's `javax-to-jakarta` recipe (`org.openrewrite.java.migrate.jakarta.JavaxResourceMigrationToJakartaResource`).",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `import javax.resource.*` statements remain in any source file (`grep -r 'import javax.resource' src/` returns zero results). RAR deployment succeeds. `jboss.as.resource-adapters` subsystem log shows no namespace errors.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Update pom.xml to reference jakarta.resource-api instead of connector-api",
+          "instruction": "Replace the `javax.resource:connector-api` Maven dependency with `jakarta.resource:jakarta.resource-api:2.1.0` (provided scope): `<dependency><groupId>jakarta.resource</groupId><artifactId>jakarta.resource-api</artifactId><version>2.1.0</version><scope>provided</scope></dependency>`. Remove `<dependency><groupId>javax.resource</groupId><artifactId>connector-api</artifactId></dependency>` from your POM. WildFly provides this API; the `provided` scope ensures it is not bundled in the RAR.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [0],
+          "verification": "Maven build compiles without `package javax.resource does not exist` errors. `mvn dependency:tree` shows no `javax.resource:connector-api`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "resource-adapters"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM upgraded to 6.2.6.Final — array mapping behavior changes",
+      "jira_keys": ["WFLY-18083", "WFLY-18200"],
+      "source_url": "https://docs.hibernate.org/orm/6.2/migration-guide/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Hibernate ORM is upgraded to 6.2.6.Final. A notable behavioral change in Hibernate 6.2 affects mappings of `Character[]` and `Byte[]` (wrapper type arrays): previously mapped to VARCHAR/VARBINARY, they are now mapped using structured SQL types (ARRAY) by default. Null elements were never supported in the old mapping, but the new default may break existing DDL schemas or queries. Applications must explicitly opt in to the legacy behavior or migrate their schema.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit JPA entities for Character[] and Byte[] field mappings",
+          "instruction": "Search your JPA entity classes for fields of type `Character[]` and `Byte[]` (Java wrapper array types — not primitives `char[]` / `byte[]`). List each field and its corresponding column type in the database schema. Determine whether the mapping needs to remain as VARCHAR/VARBINARY (legacy) or can migrate to a structured SQL ARRAY type.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "You have a complete list of all `Character[]` and `Byte[]` JPA fields and know their current database column types.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Enable legacy array handling via hibernate.type.wrapper_array_handling=legacy",
+          "instruction": "If you need to preserve the old VARCHAR/VARBINARY mapping behavior for all `Character[]` and `Byte[]` fields without changing the database schema, add the following property to your `persistence.xml`: `<property name=\"hibernate.type.wrapper_array_handling\" value=\"legacy\"/>`. Per the Hibernate ORM 6.2 migration guide (https://docs.hibernate.org/orm/6.2/migration-guide/), this restores the previous mapping semantics. Alternatively, on a per-field basis, annotate the field with `@JavaType(ByteArrayJavaType.class)` or `@JavaType(CharacterArrayJavaType.class)` to opt out of the new structured-type mapping for that specific field only.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application starts without Hibernate schema validation errors. Existing CRUD operations on entities containing `Character[]` or `Byte[]` fields succeed and data is correctly persisted and retrieved.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "security_config",
+      "title": "PicketBox Vault replaced by Elytron Credential Store",
+      "jira_keys": ["WFLY-15487"],
+      "source_url": "https://docs.jboss.org/author/display/WFLY/Security%20Vault%20Migration.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "The legacy PicketBox Vault integration has been removed from WildFly 29. All vaulted credentials referenced via the `${VAULT::BLOCK::NAME::}` expression syntax in server configuration files will be unresolvable on WildFly 29. Credentials must be migrated to Elytron Credential Stores and encrypted expressions updated to the new `${ENC::store-name::alias}` syntax before upgrading.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Convert vault to Elytron Credential Store using elytron-tool.sh vault",
+          "instruction": "Run the WildFly Elytron Tool to migrate vault content to a credential store. Locate the tool in `$JBOSS_HOME/bin/elytron-tool.sh` (or `elytron-tool.bat` on Windows). Execute: `bin/elytron-tool.sh vault --enc-dir <path-to-vault-enc-dir> --keystore <path-to-vault.keystore> --keystore-password <MASK-...> --salt <salt> --iteration <count> --location standalone/configuration/converted.store --summary`. The `--summary` flag outputs management CLI commands to add the new credential store to the Elytron subsystem. Per the WildFly Security Vault Migration guide (https://docs.jboss.org/author/display/WFLY/Security%20Vault%20Migration.html).",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The `converted.store` file is created successfully and no errors are reported by the tool. The `--summary` output contains valid CLI commands.",
+          "cli_operation": "/subsystem=elytron/credential-store=myStore:add(path=\"standalone/configuration/converted.store\",credential-reference={clear-text=\"<password>\"},create=true)"
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Apply generated CLI commands to register the Elytron Credential Store",
+          "instruction": "Apply the management CLI commands generated by the `--summary` output of `elytron-tool.sh vault` to your server configuration. Run them via `$JBOSS_HOME/bin/jboss-cli.sh --connect --file=<generated-script.cli>`. This registers the new credential store under `/subsystem=elytron/credential-store=` and sets up an `expression-resolver` if needed.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "WildFly CLI command `/subsystem=elytron/credential-store=myStore:read-aliases()` returns the expected credential aliases. Server starts without `Unable to resolve vault` errors.",
+          "cli_operation": "/subsystem=elytron/credential-store=myStore:read-aliases()"
+        },
+        {
+          "index": 2,
+          "step_type": "replace",
+          "summary": "Replace ${VAULT::...} expressions with ${ENC::...} Elytron expressions in standalone.xml",
+          "instruction": "In `standalone/configuration/standalone.xml` (and `standalone-ha.xml`, `standalone-full.xml`, or `domain.xml` as applicable), search for all occurrences of the pattern `${VAULT::BLOCK::NAME::}`. Replace each with the corresponding Elytron expression: `${ENC::myStore::BLOCK::NAME}` (where the alias in the credential store is `BLOCK::NAME` as produced by the migration tool). Ensure the Elytron `expression-resolver` referencing `myStore` is configured in the `elytron` subsystem before server start.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [1],
+          "verification": "No `${VAULT::` expressions remain in any server configuration XML. Server starts cleanly and all resources that previously used vault credentials (datasources, security realms, etc.) connect and authenticate successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "Legacy security domain purged from subsystems — migrate to Elytron",
+      "jira_keys": ["WFLY-16764", "WFLY-16857"],
+      "source_url": "https://docs.jboss.org/author/display/WFLY/Migrate%20Legacy%20Security%20to%20Elytron%20Security.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Legacy PicketBox-based security domains have been purged from multiple WildFly subsystems. Server configurations and deployments that reference `<security-domain>` elements under the legacy `security` subsystem will fail to start on WildFly 29. Applications must be migrated to use Elytron security domains configured under the `elytron` subsystem.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Migrate legacy security domain references to Elytron security domain",
+          "instruction": "Follow the WildFly guide 'Migrate Legacy Security to Elytron Security' (https://docs.jboss.org/author/display/WFLY/Migrate%20Legacy%20Security%20to%20Elytron%20Security.html). Key steps: (1) Identify all `<security-domain name=\"...\">` definitions in the legacy `<subsystem xmlns=\"urn:jboss:domain:security:...\">`; (2) Create equivalent Elytron security domains using the CLI under `/subsystem=elytron/`; (3) Update all references in deployments — `jboss-web.xml` (`<security-domain>`), `jboss-ejb3.xml` (`<security-domain>`), and WildFly CLI — to point to the new Elytron domain names; (4) Remove the legacy `security` subsystem from the configuration once all references are migrated.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "WildFly starts without `Legacy security subsystem is not supported` or `Security domain not found` errors. All protected EJBs, servlets, and web services authenticate and authorize correctly using the new Elytron security domains.",
+          "cli_operation": "/subsystem=elytron/security-domain=myDomain:read-resource()"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "AdvancedSecurityMetaData moved from web-common to server security package",
+      "jira_keys": ["WFLY-18161"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The `AdvancedSecurityMetaData` class has been relocated from the web-common module to the server security module at `org.jboss.as.server.security.AdvancedSecurityMetaData`. Custom WildFly server extensions or subsystem integrations that reference the old package path will fail to compile and deploy.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.web.common.AdvancedSecurityMetaData", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.as.server.security.AdvancedSecurityMetaData", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace org.jboss.as.web.common.AdvancedSecurityMetaData with org.jboss.as.server.security.AdvancedSecurityMetaData",
+          "instruction": "In all custom WildFly extension or subsystem Java source files, update the import statement from `import org.jboss.as.web.common.AdvancedSecurityMetaData;` to `import org.jboss.as.server.security.AdvancedSecurityMetaData;`. No API change is expected beyond the package move. Also update the Maven dependency to reference the `wildfly-server` artifact (or the BOM entry) rather than `wildfly-web-common` if that was your direct compile-scope dependency.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Custom extension compiles without `cannot find symbol: AdvancedSecurityMetaData` errors. WildFly starts with the custom extension deployed and no class-loading failures are reported.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JPA persistence container bytecode enhancement disabled by default",
+      "jira_keys": ["WFLY-17958"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "WildFly 29 disables persistence container bytecode enhancement by default. JPA entities relying on load-time weaving for lazy loading of non-collection properties (e.g., basic field lazy loading) will no longer behave lazily unless enhancement is explicitly re-enabled. This may affect performance characteristics and could cause eager loading where lazy loading was previously expected.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit persistence.xml for reliance on load-time bytecode enhancement",
+          "instruction": "Review your `persistence.xml` for the presence of Hibernate bytecode enhancement properties: `hibernate.enhancer.enableDirtyTracking`, `hibernate.enhancer.enableLazyInitialization`, `hibernate.enhancer.enableAssociationManagement`. Also check for `@Basic(fetch=FetchType.LAZY)` on non-collection fields, which only functions with bytecode enhancement active. If any of these are present and relied upon, you must re-enable enhancement explicitly.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "You have identified all `persistence.xml` files and entity classes that depend on load-time weaving for lazy field loading.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Re-enable bytecode enhancement in persistence.xml if required",
+          "instruction": "If your JPA entities require load-time weaving, re-enable it by adding the following properties to your `persistence.xml` inside the `<properties>` block: `<property name=\"hibernate.enhancer.enableLazyInitialization\" value=\"true\"/>` and/or `<property name=\"hibernate.enhancer.enableDirtyTracking\" value=\"true\"/>`. Additionally, set `<property name=\"jboss.as.jpa.classtransformer\" value=\"true\"/>` to instruct the WildFly JPA integration to attach the class transformer for this persistence unit. Without this property, WildFly will not apply bytecode enhancement even if Hibernate properties are set.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application starts without Hibernate enhancement warnings. `@Basic(fetch=FetchType.LAZY)` fields on entities are not eagerly loaded. Verify via a SQL trace that no extra SELECTs occur for enhanced lazy fields when they are not accessed.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jpa"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "resource-adapters wm-security attribute no longer accepts expressions",
+      "jira_keys": ["WFLY-14387"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "The `wm-security` attribute in the resource adapters subsystem now rejects expression values (e.g., `${my.property:true}`). Any server configuration using an expression for this attribute will fail to parse on WildFly 29. The value must be set as a hardcoded boolean literal.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Replace wm-security expression with literal boolean value in standalone.xml",
+          "instruction": "In `standalone/configuration/standalone.xml` (and any variant configurations), locate the `<resource-adapter>` element containing `wm-security=\"${...}\"`. Replace the expression with a literal boolean value: `wm-security=\"true\"` or `wm-security=\"false\"`. If this value previously differed between environments, handle the environment-specific logic in deployment code or use a separate WildFly configuration overlay rather than a server property expression.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "WildFly starts and parses the resource adapters subsystem configuration without an `Expressions are not allowed for attribute wm-security` error. The resource adapter deploys successfully.",
+          "cli_operation": "/subsystem=resource-adapters/resource-adapter=<rar-name>/workmanager=<wm-name>:write-attribute(name=wm-security,value=true)"
+        }
+      ],
+      "subsystem": "resource-adapters"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Distributed Stateful Session Bean caching and replication optimized",
+      "jira_keys": ["WFLY-18023", "WFLY-18024", "WFLY-18036", "WFLY-18065"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "performance",
+      "reason": "The distributed caching, marshaling, and replication logic for `@SessionScoped` `@Stateful` EJBs has been optimized to reduce unnecessary proxy placeholder replication and spurious cache transactions. While this is a positive performance improvement, it changes the observable replication behavior in clustered deployments and may expose latent assumptions in failover tests.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Retest stateful EJB failover scenarios in clustered environment",
+          "instruction": "Execute your clustered failover test suite against WildFly 29. For each `@Stateful` EJB that is also `@SessionScoped`, verify that: (1) state is correctly replicated to the secondary node before failover; (2) after killing the primary node, the client session resumes correctly on the secondary without state loss; (3) no stale proxy placeholders cause `EJBException` or `IllegalStateException` after failover. If your test suite does not cover failover, write integration tests using the WildFly Arquillian adaptor with a clustered container profile.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All clustered failover tests pass. No `EJBException` or `javax.ejb.EJBException: Session already invalidated` errors occur after node failover. Server logs show no unexpected replication errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ejb3"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "PersistentSubsystemSchema adopted — read-config-as-xml schema versions updated",
+      "jira_keys": ["WFLY-17703"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Several subsystems (health, metrics, validation, JWT, OpenAPI) have migrated their configuration parsers to `PersistentSubsystemSchema`. As a result, the XML emitted by the `read-config-as-xml` management operation uses the latest schema namespace versions for these subsystems. Automation scripts or tooling that parse or compare this XML output and rely on specific schema namespace URIs or attribute ordering may produce unexpected results.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit automation scripts that parse read-config-as-xml output",
+          "instruction": "Identify all automation scripts, configuration management tools (Ansible, Puppet, etc.), or CI pipelines that invoke the WildFly CLI operation `read-config-as-xml` and then parse or diff the resulting XML. For each, validate that they handle updated `xmlns` namespace versions in the `<subsystem>` elements for the `health`, `metrics`, `bean-validation`, `microprofile-jwt-smallrye`, and `microprofile-openapi-smallrye` subsystems. Update namespace version strings in XPath queries, regex patterns, or schema validation rules as needed.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Automation scripts that consume `read-config-as-xml` output complete without XML parsing or schema validation errors on WildFly 29.",
+          "cli_operation": ":read-config-as-xml()"
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecation of legacy MSC injection APIs: ValueInjectionService, MapInjector, AbstractService",
+      "jira_keys": ["WFLY-17334", "WFLY-17473", "WFLY-17475"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The legacy JBoss Modular Service Container (MSC) injection helper classes `ValueInjectionService`, `MapInjector`, and `AbstractService` are deprecated and in the process of elimination. Custom WildFly extensions that use these classes for service construction should migrate to the modern `ServiceBuilder` API using `Consumer` and `Supplier` interfaces to avoid compile failures in a future WildFly release.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.msc.service.ValueInjectionService", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.msc.inject.MapInjector", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.msc.service.AbstractService", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ValueInjectionService/MapInjector/AbstractService with ServiceBuilder Consumer/Supplier pattern",
+          "instruction": "In custom WildFly extension code, replace usages of `AbstractService<T>` (which provided a value via `getValue()`) with direct `Service` implementations that accept a `Consumer<T>` and `Supplier<?>` in the constructor. Replace `MapInjector` usage with direct `Supplier<Map<K,V>>` injection. Replace `ValueInjectionService` with a service that calls `consumer.accept(value)` in its `start()` method. Per the MSC Multi-Value Service API proposal (https://docs.wildfly.org/wildfly-proposals/msc/WFLY-10254_WFCORE-3752_MSC_Upgrade.html), the modern pattern is: `ServiceBuilder<?> sb = target.addService(serviceName); Consumer<MyType> injectedValue = sb.provides(serviceName); Supplier<DepType> dep = sb.requires(depServiceName); sb.setInstance(new MyService(injectedValue, dep)); sb.install();`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom extension compiles without deprecation warnings for `AbstractService`, `MapInjector`, or `ValueInjectionService`. WildFly starts with the extension deployed and all service dependencies resolve correctly.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecation of SimpleOperationDefinition, AttributeDefinition, ManagementResourceRegistration APIs",
+      "jira_keys": ["WFLY-17941", "WFLY-17942", "WFLY-18045"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "Management API definition classes `SimpleOperationDefinition`, `AttributeDefinition`, and `ManagementResourceRegistration` have been deprecated in WildFly 29 in favor of their builder-based equivalents. Authors of custom WildFly subsystem extensions must migrate to the builder APIs to avoid breakage in a future release.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.as.controller.SimpleOperationDefinition", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.as.controller.AttributeDefinition", "role": "mentioned" },
+        { "kind": "class", "name": "org.jboss.as.controller.registry.ManagementResourceRegistration", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate SimpleOperationDefinition usage to SimpleOperationDefinitionBuilder",
+          "instruction": "In custom subsystem code, replace direct construction of `SimpleOperationDefinition` with the builder API `SimpleOperationDefinitionBuilder`. Similarly, replace usages of direct `AttributeDefinition` subclass constructors with their corresponding builder classes (e.g., `SimpleAttributeDefinitionBuilder`). For `ManagementResourceRegistration`, consult the WildFly Extending WildFly documentation for the updated resource registration APIs. Focus migration on any class that `implements ResourceDefinition` and registers operations or attributes. Compile with `-Xlint:deprecation` to discover all affected call sites.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Custom subsystem extension compiles with zero deprecation warnings related to `SimpleOperationDefinition`, `AttributeDefinition`, or `ManagementResourceRegistration`. Extension deploys and its management operations are accessible via the CLI.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "javax.api, javax.sql.api, javax.xml.stream.api modules officially deprecated",
+      "jira_keys": ["WFLY-17931", "WFLY-17933", "WFLY-17934"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "deprecation",
+      "reason_type": "spec_compliance",
+      "reason": "The WildFly JBoss Module modules `javax.api`, `javax.sql.api`, and `javax.xml.stream.api` are officially deprecated and will be removed in a future version. Deployments that explicitly depend on these modules in `jboss-deployment-structure.xml` or `MANIFEST.MF` must migrate to the corresponding `jakarta.*` namespace modules.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "javax.api", "role": "removed" },
+        { "kind": "dependency", "name": "javax.sql.api", "role": "removed" },
+        { "kind": "dependency", "name": "javax.xml.stream.api", "role": "removed" },
+        { "kind": "dependency", "name": "jakarta.api", "role": "replacement" },
+        { "kind": "dependency", "name": "jakarta.xml.stream.api", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace javax.* module references with jakarta.* equivalents in deployment descriptors",
+          "instruction": "Search all `jboss-deployment-structure.xml` and `MANIFEST.MF` files for explicit references to `javax.api`, `javax.sql.api`, and `javax.xml.stream.api`. Replace with their Jakarta EE 10 module equivalents: `javax.api` → (remove; standard Java SE APIs are available by default), `javax.sql.api` → (remove; JDBC is part of Java SE), `javax.xml.stream.api` → `jakarta.xml.stream.api` (if a StAX implementation is needed beyond the JDK built-in). If these references were added only to access the Java SE standard library, they can usually be removed entirely as those classes are accessible without an explicit module dependency in WildFly.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No references to `javax.api`, `javax.sql.api`, or `javax.xml.stream.api` remain in any deployment descriptor. Deployment starts without `Module not found` warnings for these modules.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Deprecation of JDBC driver-name attribute in datasource definitions",
+      "jira_keys": ["WFLY-17288"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The `driver-name` attribute used in JDBC datasource definitions within the WildFly `datasources` subsystem is deprecated in WildFly 29. While it continues to function, it will be removed in a future version. Operators should migrate their datasource definitions to use the standard driver resolution mechanism.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Replace deprecated driver-name with driver attribute in datasource XML",
+          "instruction": "In your WildFly server configuration XML (`standalone.xml`, `domain.xml`), locate each `<datasource>` element that uses the deprecated `<driver-name>` element. Replace `<driver-name>h2</driver-name>` (or the relevant driver) with `<driver>h2</driver>` under the datasource definition. The `<driver>` element references a JDBC driver registered in the `<drivers>` block of the datasources subsystem. Via the CLI: `/subsystem=datasources/data-source=<ds-name>:write-attribute(name=driver-name,value=<driver>)` remains functional but the attribute itself is flagged deprecated. Prefer updating the XML directly.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "WildFly starts without a `WFLY-<n>: Attribute driver-name is deprecated` warning in the server log for the affected datasource definitions. Datasource connection tests pass via CLI: `/subsystem=datasources/data-source=<ds-name>:test-connection-in-pool()`.",
+          "cli_operation": "/subsystem=datasources/data-source=ExampleDS:write-attribute(name=driver-name,value=h2)"
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Secure WildFly management console with OpenID Connect (OIDC)",
+      "jira_keys": ["WFLY-15260"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "informational",
+      "reason_type": "security",
+      "reason": "WildFly 29 introduces the ability to secure the management console using OpenID Connect (OIDC), allowing integration with identity providers such as Keycloak. This is an optional capability with no breaking impact on existing configurations.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "YAML configuration overlay support for system properties",
+      "jira_keys": ["WFLY-13978"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly 29 adds YAML file support for supplying system properties and configuration customizations as an alternative to XML, suitable for cloud-native and container deployments. This is an optional new capability and does not break existing XML-based configurations.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Micrometer integration with MicroProfile Fault Tolerance metrics support",
+      "jira_keys": ["WFLY-17144", "WFLY-17681"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly 29 provides integrated Micrometer support including MicroProfile Fault Tolerance metrics, enabling metrics collection for observability platforms such as Prometheus and Datadog. This is a new optional capability.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "MicroProfile Long Running Actions (LRA) Saga-pattern support added",
+      "jira_keys": ["WFLY-14869"],
+      "source_url": "https://www.wildfly.org/news/2023/07/21/WildFly-29-is-released/",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "WildFly 29 adds support for MicroProfile Long Running Actions (LRA), enabling Saga-pattern distributed transactions in microservices architectures. This is the strategic replacement for the removed TXFramework / Compensations API and is an optional new capability.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

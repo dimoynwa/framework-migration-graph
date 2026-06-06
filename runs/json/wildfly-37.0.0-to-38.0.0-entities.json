@@ -1,0 +1,841 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "JCA security config disappears on subsystem parse (ResourceAdapterSubsystemParser)",
+      "jira_keys": ["WFLY-20693"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "A bug in ResourceAdapterSubsystemParser silently drops security configuration elements during XML parsing of the JCA subsystem. Any security settings on resource-adapter definitions may be lost after a server restart, leaving connectors unauthenticated. Upgraders who rely on JCA resource-adapter security must re-verify their configuration survives a restart after upgrading to WildFly 38.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm JCA resource-adapter security config survives restart",
+          "instruction": "After upgrading to WildFly 38, start the server and use the WildFly CLI to read back your resource-adapter security configuration: `/subsystem=resource-adapters/resource-adapter=<your-ra>/connection-definitions=<your-cd>:read-resource(recursive=true)`. Confirm that `security-domain`, `elytron-enabled`, `authentication-context`, or whichever security attributes you configure are present in the response. If they are absent, re-apply the security configuration via CLI or standalone/domain XML and restart. The fix in WFLY-20693 corrects the parser so the attributes are no longer silently dropped on the next parse cycle.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "CLI read-resource on the affected resource-adapter connection-definition returns the expected security attributes without requiring a manual re-apply after each restart.",
+          "cli_operation": "/subsystem=resource-adapters/resource-adapter=<your-ra>/connection-definitions=<your-cd>:read-resource(recursive=true)"
+        }
+      ],
+      "subsystem": "resource-adapters"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Container-interceptor priority collision causes IllegalArgumentException on deployment",
+      "jira_keys": ["WFLY-20557"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "bugfix",
+      "reason": "Deployments that register container-interceptors fail with IllegalArgumentException (WFLYEE0079: Can't add …, priority 0x249 is already taken) when two interceptors are assigned the same internal priority. This is a regression that causes deployment failure, not a runtime behavioural difference. Interceptor priority assignments in deployment descriptors must be reviewed before upgrading.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit container-interceptor priority values in deployment descriptors",
+          "instruction": "Search your deployment descriptors (jboss-ejb3.xml, jboss-all.xml, or programmatic interceptor registration) for all `<container-interceptors>` elements. Ensure that each interceptor is assigned a unique `<priority>` value. If two interceptors share the same priority, assign distinct values (integers that do not collide with each other or with WildFly built-in interceptors). The error message WFLYEE0079 reports the colliding priority in hexadecimal — cross-reference the value 0x249 (= 585 decimal) and any others reported. After assigning unique priorities, redeploy and confirm no IllegalArgumentException is thrown.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Deployment completes without WFLYEE0079 IllegalArgumentException in the server log, and the application starts normally.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ee"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "ClassNotFoundException with CDI and Messaging on Java 22+",
+      "jira_keys": ["WFLY-20656"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Applications that combine CDI beans with Messaging (ActiveMQ Artemis) and are deployed on JDK 22 or newer hit a ClassNotFoundException at runtime due to a class-loading incompatibility introduced by stricter module boundary enforcement in newer JDKs. WildFly 38 includes the fix; upgraders running on JDK 22+ must ensure they are on WildFly 38 (not an intermediate 37.x) before deploying such applications.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm CDI+Messaging applications start without ClassNotFoundException on JDK 22+",
+          "instruction": "If your application uses CDI injection alongside Jakarta Messaging (e.g. @Inject MessageProducer or @MessageDriven beans), deploy it on WildFly 38 running on JDK 22 or newer and monitor the server log for any ClassNotFoundException during deployment or first invocation. If the exception still appears, verify your WildFly 38 installation is the Final release (not Beta) and that no local module overrides shadow the patched classes. Remove any workarounds (such as explicit module dependencies added to bypass the error in WildFly 37) and re-test.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application deploys and CDI+Messaging interactions execute without ClassNotFoundException in the server log on JDK 22+.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "JDBC driver deployment requires jdk.net module on modular JVM",
+      "jira_keys": ["WFLY-20858"],
+      "source_url": "",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "The connector subsystem now explicitly requires the jdk.net JDK module when processing deployed JDBC drivers. On modular JVM configurations where jdk.net is not in the default module graph, driver deployments will fail at registration time. This affects users who package JDBC drivers as WildFly deployments (*.jar dropped in deployments/) rather than installing them as JBoss Modules.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "jdk.net", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add jdk.net to JVM module graph for JDBC driver deployments",
+          "instruction": "If you deploy JDBC drivers as archives in WildFly's deployments directory, add `--add-modules jdk.net` to your WildFly JVM startup options. In standalone mode, add the following to `standalone.conf` (Linux/macOS) or `standalone.conf.bat` (Windows) inside the JAVA_OPTS assignment: `-Djdk.attach.allowAttachSelf=true --add-modules jdk.net`. Alternatively, install the JDBC driver as a JBoss Module (preferred approach per WildFly documentation) to avoid the dependency entirely: create `modules/com/example/jdbc/main/` with the driver jar and a `module.xml` declaring `<module name=\"com.example.jdbc\"/>`, then register it via CLI: `/subsystem=datasources/jdbc-driver=mydriver:add(driver-name=mydriver, driver-module-name=com.example.jdbc)`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without module-not-found errors for jdk.net, and the JDBC driver deployment shows DEPLOYED status in the management console or via CLI: `/deployment=mydriver.jar:read-attribute(name=status)`.",
+          "cli_operation": "/deployment=mydriver.jar:read-attribute(name=status)"
+        }
+      ],
+      "subsystem": "datasources"
+    },
+    {
+      "source_section": "security_fix",
+      "title": "commons-beanutils 1.11.0 — resolves CVE-2025-48734 enum class-loader access",
+      "jira_keys": ["WFLY-20662"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-48734",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-48734 is an Improper Access Control vulnerability in Apache Commons BeanUtils prior to 1.11.0: when property paths from an external source are passed to PropertyUtilsBean.getProperty(), an attacker can access the enum's class loader via the declaringClass property, potentially enabling remote code execution. WildFly 38 upgrades its server-side copy to 1.11.0, which suppresses the declaringClass property via SuppressPropertiesBeanIntrospector. Applications that bundle their own commons-beanutils jar are not protected by the server-side fix.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "commons-beanutils:commons-beanutils", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Audit bundled commons-beanutils version in application artifacts",
+          "instruction": "Run `mvn dependency:tree | grep commons-beanutils` (or `gradle dependencies | grep commons-beanutils`) to check whether your application bundles commons-beanutils. If any version below 1.11.0 appears, update the dependency. In Maven, add or override the version in your pom.xml: `<dependency><groupId>commons-beanutils</groupId><artifactId>commons-beanutils</artifactId><version>1.11.0</version></dependency>`. If the old version is pulled in transitively, add it to your `<dependencyManagement>` section to force 1.11.0. Rebuild and verify no version below 1.11.0 remains in the final WAR/EAR WEB-INF/lib or APP-INF/lib.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows commons-beanutils:commons-beanutils:1.11.0 and no earlier version. No commons-beanutils jar older than 1.11.0 is present in the packaged artifact.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Nimbus JOSE+JWT 10.3 — resolves CVE-2025-53864 JSON DoS",
+      "jira_keys": ["WFLY-20713"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-53864",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-53864 is a Denial-of-Service vulnerability in Nimbus JOSE+JWT prior to 10.0.2 (and 9.37.4): a remote attacker can supply a JWT claim set containing deeply nested JSON objects, triggering uncontrolled recursion and exhausting the JVM stack. WildFly 38 upgrades its copy to 10.3. Applications that bundle or pin nimbus-jose-jwt at a version below 10.0.2 remain vulnerable regardless of the server-side upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.nimbusds:nimbus-jose-jwt", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Upgrade bundled nimbus-jose-jwt to 10.0.2+ or 9.37.4+",
+          "instruction": "Check your application's dependency tree for com.nimbusds:nimbus-jose-jwt: `mvn dependency:tree | grep nimbus-jose-jwt`. If a version below 10.0.2 (or below 9.37.4 on the 9.x branch) is present, update to at least 10.0.2. In Maven: `<dependency><groupId>com.nimbusds</groupId><artifactId>nimbus-jose-jwt</artifactId><version>10.0.2</version></dependency>` added to your dependencyManagement section. WildFly 38 ships 10.3, so aligning to 10.3 is preferred for maximum patch coverage. Rebuild and verify the resolved version in the final artifact.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows com.nimbusds:nimbus-jose-jwt at version 10.0.2 or later. No version below 10.0.2 appears in the packaged artifact.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "angus-mail 2.0.4 — resolves CVE-2025-7962 SMTP injection",
+      "jira_keys": ["WFLY-20832"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-7962",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "CVE-2025-7962 is an SMTP Injection vulnerability in Jakarta Mail (org.eclipse.angus:angus-mail / smtp) prior to 2.0.4: improper handling of CR and LF characters encoded as UTF-8 allows an unauthenticated attacker to inject arbitrary SMTP messages. The fix in 2.0.4 adds proper CRLF sanitisation. Applications that bundle an older version of angus-mail are not protected by the server-side upgrade.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.eclipse.angus:angus-mail", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Upgrade bundled angus-mail to 2.0.4",
+          "instruction": "Run `mvn dependency:tree | grep angus-mail` to find any bundled version of org.eclipse.angus:angus-mail in your application. If a version prior to 2.0.4 is found, force the upgrade in your dependencyManagement section: `<dependency><groupId>org.eclipse.angus</groupId><artifactId>angus-mail</artifactId><version>2.0.4</version></dependency>`. Also check org.eclipse.angus:smtp as the vulnerability is in the SMTP transport component. Rebuild and verify no version older than 2.0.4 is present in the final WAR/EAR.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.eclipse.angus:angus-mail and org.eclipse.angus:smtp at 2.0.4 or later. Application sends mail without SMTP injection warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Netty 4.1.127.Final — resolves CVE-2025-55163, CVE-2025-58056, CVE-2025-58057",
+      "jira_keys": ["WFLY-20846", "WFLY-20911"],
+      "source_url": "https://nvd.nist.gov/vuln/detail/CVE-2025-55163",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "Three Netty CVEs are fixed by upgrading to 4.1.127.Final: CVE-2025-55163 (HTTP/2 MadeYouReset DDoS via malformed control frames, fixed in 4.1.124), CVE-2025-58056 (HTTP/1.1 request smuggling via standalone LF as chunk-size terminator, fixed in 4.1.125), and CVE-2025-58057 (BrotliDecoder DoS via excessive buffer allocation, fixed in 4.1.125+). WildFly 38 patches its server-side Netty; applications that bundle Netty directly via Vert.x client, Artemis client, or gRPC stubs remain vulnerable.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "io.netty:netty-codec-http2", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.netty:netty-codec-http", "role": "mentioned" },
+        { "kind": "dependency", "name": "io.netty:netty-codec", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Upgrade all bundled Netty artifacts to 4.1.127.Final",
+          "instruction": "Run `mvn dependency:tree | grep netty` to identify any Netty artifact bundled by your application (common sources: io.vertx:vertx-core, org.apache.activemq:artemis-core-client, io.grpc:grpc-netty). For each Netty artifact found below 4.1.127.Final, add a managed dependency entry: `<dependency><groupId>io.netty</groupId><artifactId>netty-codec-http2</artifactId><version>4.1.127.Final</version></dependency>` (repeat for netty-codec-http, netty-codec, netty-transport, netty-handler as needed). Use the Netty BOM for convenience: `<dependency><groupId>io.netty</groupId><artifactId>netty-bom</artifactId><version>4.1.127.Final</version><type>pom</type><scope>import</scope></dependency>` inside your dependencyManagement imports. Rebuild and verify no Netty artifact below 4.1.124.Final remains.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows all io.netty:* artifacts at 4.1.127.Final. No Netty artifact below 4.1.124.Final is present in the packaged application.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Infinispan upgraded to 15.2.6.Final — off-heap caches require media type",
+      "jira_keys": ["WFLY-20599", "WFLY-20716", "WFLY-20893", "WFLY-20772"],
+      "source_url": "https://www.wildfly.org/news/2025/10/16/WildFly-38-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Infinispan advanced through multiple 15.2.x micro releases. The migration-impacting change is that caches configured with off-heap storage now require the deployment to declare an explicit media type (MarshalledValue wrapping). Deployments using off-heap storage without a media type declaration will fail to start on WildFly 38. Additionally, distributed cache listener and distributed manager suspend/resume bugs (WFLY-20947, WFLY-20948) are fixed — HA behaviour should be validated post-upgrade.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.infinispan:infinispan-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add media type declaration to off-heap Infinispan cache configuration",
+          "instruction": "Identify any Infinispan caches in your WildFly configuration that use off-heap storage (`<memory storage=\"OFF_HEAP\">` or equivalent). For each such cache, add an explicit media type element to tell Infinispan how to marshal stored values. In XML configuration this means adding `<encoding><key media-type=\"application/x-jboss-marshalling\"/><value media-type=\"application/x-jboss-marshalling\"/></encoding>` (or `application/x-protostream` if you use Protobuf encoding) inside the cache definition. Via the WildFly CLI you can set this with: `/subsystem=infinispan/cache-container=<container>/distributed-cache=<cache>:write-attribute(name=encoding, value={key={media-type=application/x-jboss-marshalling}, value={media-type=application/x-jboss-marshalling}})`. Restart the server after making this change.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without IllegalArgumentException or cache startup errors related to off-heap storage. The cache container reports all caches as RUNNING via `/subsystem=infinispan/cache-container=<container>:read-resource(include-runtime=true)`.",
+          "cli_operation": "/subsystem=infinispan/cache-container=<container>/distributed-cache=<cache>:write-attribute(name=encoding, value={key={media-type=application/x-jboss-marshalling}, value={media-type=application/x-jboss-marshalling}})"
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Validate HA distributed cache listener behaviour post-upgrade",
+          "instruction": "After upgrading to WildFly 38, deploy your clustered application and exercise code paths that use distributed cache listeners or programmatic cache manager suspend/resume (bugs WFLY-20947 and WFLY-20948). Monitor the server log for errors related to cache listener invocation or cluster topology events. Run your existing HA smoke tests against the upgraded cluster.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "No cache listener or suspend/resume errors in the server log. Clustered session replication and cache events behave as expected under failover testing.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "JGroups upgraded to 5.4.10.Final — FD_SOCK2 removed from default TCP stacks",
+      "jira_keys": ["WFLY-20600", "WFLY-20894", "WFLY-20710"],
+      "source_url": "https://www.wildfly.org/news/2025/10/16/WildFly-38-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "JGroups advanced to 5.4 series in WildFly 38. The default TCP-based JGroups stacks no longer include the FD_SOCK2 failure-detection protocol. Sites that have explicitly referenced FD_SOCK2 in custom JGroups stack configurations will encounter errors on startup, as the protocol element will no longer resolve.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove FD_SOCK2 protocol from custom JGroups stack configuration",
+          "instruction": "Search your WildFly server configuration (standalone-ha.xml, standalone-full-ha.xml, or domain.xml) for any `<protocol type=\"FD_SOCK2\"/>` elements inside `<stack name=\"tcp\">` or other custom JGroups stacks. Remove those protocol elements entirely. If your stack relied on FD_SOCK2 for failure detection, replace it with `FD_ALL3` or `FD_HOST` which are the recommended alternatives in JGroups 5.4. Via CLI: `/subsystem=jgroups/stack=tcp/protocol=FD_SOCK2:remove()`. After removing, verify the stack configuration is valid by checking server startup for JGroups initialisation warnings.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts without JGroups errors referencing FD_SOCK2. The JGroups channel joins the cluster successfully, visible in the server log as a MERGE or VIEW change event.",
+          "cli_operation": "/subsystem=jgroups/stack=tcp/protocol=FD_SOCK2:remove()"
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "wildfly-clustering 7.x to 8.0 — rolling upgrade not safe between WildFly 37 and 38",
+      "jira_keys": ["WFLY-20598", "WFLY-20997", "WFLY-21008"],
+      "source_url": "https://www.wildfly.org/news/2025/10/16/WildFly-38-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "The wildfly-clustering library moved from the 7.x series to 8.0, changing the session serialisation format used for replication across cluster nodes. Mixed clusters containing both WildFly 37 and WildFly 38 nodes cannot safely exchange session state, so a rolling upgrade (upgrading nodes one by one) will cause session loss or deserialisation failures. A coordinated full cluster restart is required.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Plan full cluster restart instead of rolling upgrade",
+          "instruction": "Do not perform a rolling upgrade (node-by-node) when moving a cluster from WildFly 37 to WildFly 38. The wildfly-clustering 8.0 session serialisation format is incompatible with 7.x. Instead: (1) drain all active sessions by failing traffic over to a parallel WildFly 38 cluster, or (2) schedule a maintenance window and restart all cluster nodes simultaneously on WildFly 38. If session persistence is required across the upgrade, export session state before the upgrade using your session store's export mechanism (e.g. Infinispan hot-rod state transfer), restart the entire cluster on WildFly 38, and re-import session state.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "All nodes in the cluster run WildFly 38. Cluster membership is homogeneous (confirmed via `/subsystem=infinispan/cache-container=web:read-attribute(name=members,include-runtime=true)`). No session deserialisation errors appear in the server log post-restart.",
+          "cli_operation": "/subsystem=infinispan/cache-container=web:read-attribute(name=members,include-runtime=true)"
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Apache Artemis upgraded to 2.42.0 — verify brokerconfig. property handling",
+      "jira_keys": ["WFLY-20601", "WFLY-20815", "WFLY-20609"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "Apache Artemis advanced from 2.41.0 to 2.42.0 in WildFly 38. A known issue in prior versions caused broker launch failures when system properties with the brokerconfig. prefix were present (WFLY-20609); this is fixed in 38. Upgraders should verify that broker configuration properties previously suppressed by this bug are now correctly applied and have not changed broker behaviour.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.activemq:artemis-server", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify Artemis broker launches and brokerconfig. properties are applied",
+          "instruction": "After upgrading, start WildFly 38 and check the server log for Artemis broker startup confirmation (look for `AMQ221001: Apache ActiveMQ Artemis Message Broker version 2.42.0 [SERVER]`). If you use `brokerconfig.` system properties to configure the Artemis broker, verify they are now correctly applied by reading the effective broker configuration: `/subsystem=messaging-activemq/server=default:read-resource(include-runtime=true)`. Compare against your expected settings. Remove any workarounds that were added to prevent the broker launch failure caused by WFLY-20609.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Artemis broker reports AMQ221001 in the server log at version 2.42.0. All brokerconfig. properties are reflected in the broker's runtime configuration. No AMQ or WFLY errors related to broker property handling appear.",
+          "cli_operation": "/subsystem=messaging-activemq/server=default:read-resource(include-runtime=true)"
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview: Hibernate ORM upgraded to 7.1.2.Final — major breaking API changes",
+      "jira_keys": ["WFLY-20613", "WFLY-20853", "WFLY-20939", "WFLY-21012"],
+      "source_url": "https://docs.jboss.org/hibernate/orm/7.0/migration-guide/migration-guide.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "In WildFly Preview only, Hibernate ORM advances from 6.6 to 7.1.2.Final (with Hibernate Search 8.1.2). This is a major version upgrade requiring Java 17 baseline, Jakarta Persistence 3.2, and containing multiple breaking API changes: Session methods load/get/delete/save/update are replaced by getReference/find/remove/persist/merge; org.hibernate.annotations.Cascade and CascadeType are deprecated; connection pool support for Vibur, Proxool, and UCP is dropped; and the Entity Graph subgraph semantics changed. Standard WildFly users on 6.6.x are unaffected.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace deprecated Hibernate Session methods with JPA 3.2 equivalents",
+          "instruction": "Per the Hibernate ORM 7.0 migration guide (docs.jboss.org/hibernate/orm/7.0/migration-guide): replace all calls to deprecated Session methods with their Jakarta Persistence 3.2 standard replacements: `session.load(Entity.class, id)` → `session.getReference(Entity.class, id)`; `session.get(Entity.class, id)` → `session.find(Entity.class, id)`; `session.delete(entity)` → `session.remove(entity)`; `session.save(entity)` → `session.persist(entity)`; `session.update(entity)` → `session.merge(entity)`. Search for these method names across your persistence tier code and update each call site.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "No compilation errors referencing removed Session methods. All JPA tests pass against the WildFly Preview server running Hibernate ORM 7.x.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Replace removed connection pool providers (Vibur, Proxool, UCP)",
+          "instruction": "If your WildFly Preview application uses Vibur, Proxool, or Oracle UCP as the Hibernate connection pool provider (configured via `hibernate.connection.provider_class` or in `persistence.xml`), migrate to Agroal (recommended in WildFly as it integrates with the datasources subsystem) or HikariCP. Remove the old provider jar from your deployment and update `hibernate.connection.provider_class` to `org.hibernate.agroal.internal.AgroalConnectionProvider` or `org.hibernate.hikaricp.internal.HikariCPConnectionProvider` as appropriate.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [0],
+          "verification": "Application starts on WildFly Preview without ClassNotFoundException for the old pool provider. Hibernate reports the new connection pool provider in INFO-level startup logs.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "MicroProfile 7.1 platform — MP Reactive Messaging limited to WAR deployments",
+      "jira_keys": ["WFLY-20684", "WFLY-20685", "WFLY-20605"],
+      "source_url": "https://www.wildfly.org/news/2025/10/16/WildFly-38-is-released/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly 38 certifies against MicroProfile Platform 7.1. The most impactful constraint is that MP Reactive Messaging is now officially supported only from WAR deployments; EAR packaging is not supported. Applications that deployed Reactive Messaging beans inside an EAR must restructure to a WAR-based deployment.",
+      "scopes": [
+        { "scope": "runtime", "severity": "high" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Restructure MP Reactive Messaging EAR deployments to WAR",
+          "instruction": "If you use MP Reactive Messaging and package your application as an EAR, extract the Reactive Messaging beans into a standalone WAR module and deploy it directly. Reactive Messaging CDI beans (annotated with @Incoming / @Outgoing) must reside in a WAR's WEB-INF/classes or WEB-INF/lib, not in an EAR's APP-INF or as an EJB JAR module. Update your deployment pipeline to produce a WAR artifact. Remove the EAR module structure for the Reactive Messaging component if it was previously an EJB JAR inside an EAR.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The WAR deploys successfully on WildFly 38 and Reactive Messaging channels connect and process messages without deployment errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "WildFly Preview: RESTEasy upgraded to 7.0.0.Final — Jakarta REST 4.0 breaking changes",
+      "jira_keys": ["WFLY-20986", "WFLY-20987"],
+      "source_url": "https://resteasy.dev/",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "In WildFly Preview, RESTEasy advances to 7.0.0.Final implementing Jakarta REST 4.0. The most disruptive change is the removal of @Context injection and jakarta.ws.rs.ext.ContextResolver, both deprecated in Jakarta REST 3.1. Jakarta REST 4.0 also mandates Java SE 21 as the minimum runtime. Standard WildFly moves to RESTEasy 6.2.14.Final, which is a non-breaking micro upgrade.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace @Context injection with CDI @Inject in JAX-RS resources",
+          "instruction": "Search your JAX-RS resource classes and providers for all uses of `@Context` (e.g. `@Context UriInfo`, `@Context HttpHeaders`, `@Context SecurityContext`). In Jakarta REST 4.0 / RESTEasy 7, @Context is removed. Migrate to CDI injection: annotate the same fields with `@Inject` and ensure the JAX-RS built-in types (UriInfo, HttpHeaders, Request, etc.) are injectable as CDI beans — RESTEasy 7 and WildFly Preview provide CDI producers for these types. Also remove any `jakarta.ws.rs.ext.ContextResolver` implementations and replace them with equivalent CDI producers or application-scoped beans.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application compiles without @Context references. All JAX-RS endpoint integration tests pass on WildFly Preview. No `jakarta.ws.rs.core.Context` import remains in the codebase.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Hibernate ORM 6.6.31.Final (standard WildFly) — align pinned BOM to latest micro",
+      "jira_keys": ["WFLY-20552", "WFLY-20652", "WFLY-20719", "WFLY-20762", "WFLY-20859", "WFLY-20925", "WFLY-21010"],
+      "source_url": "",
+      "change_type": "dependency_upgrade",
+      "reason_type": "bugfix",
+      "reason": "Standard WildFly advances through multiple Hibernate ORM 6.6.x micro releases, reaching 6.6.31.Final. Each micro release carries JPA behaviour fixes. Applications that pin a specific Hibernate ORM 6.6.x version in their BOM or shade the library must align to 6.6.31.Final to receive all fixes.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.hibernate.orm:hibernate-core", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Update pinned Hibernate ORM 6.6.x to 6.6.31.Final",
+          "instruction": "If your project overrides the Hibernate ORM version via a BOM import or direct dependency management, update the version to 6.6.31.Final. In Maven, in your dependencyManagement section: `<dependency><groupId>org.hibernate.orm</groupId><artifactId>hibernate-core</artifactId><version>6.6.31.Final</version></dependency>`. Run `mvn dependency:tree | grep hibernate` to verify no earlier 6.6.x version is pulled transitively. If you shade Hibernate ORM into a fat jar, rebuild with 6.6.31.Final.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "mvn dependency:tree shows org.hibernate.orm:hibernate-core at 6.6.31.Final. Application JPA tests pass without regression.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "WildFly Preview: Jakarta Authorization 3.0 replaces SecurityManager-based JACC",
+      "jira_keys": ["WFLY-20211", "WFLY-20950", "WFLY-20955", "WFLY-20951"],
+      "source_url": "https://docs.wildfly.org/38/WildFly_and_WildFly_Preview.html",
+      "change_type": "mandatory_migration",
+      "reason_type": "spec_compliance",
+      "reason": "In WildFly Preview, the Java Policy / SecurityManager-based JACC provider is removed from the default configuration. JACC services now route through the PolicyRegistration SPI, and a new jakarta-authorization capability is registered in the Elytron subsystem. Standard WildFly users are unaffected. WildFly Preview users with custom JACC providers (classes implementing javax.security.jacc.PolicyConfigurationFactory or javax.security.jacc.Policy) must migrate to the Jakarta Authorization 3.0 SPI.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate custom JACC provider to Jakarta Authorization 3.0 SPI",
+          "instruction": "If you have a custom JACC policy provider registered in WildFly Preview (via `jboss.jacc.policy.provider` system property or Elytron policy configuration), migrate it to the Jakarta Authorization 3.0 SPI (package `jakarta.security.jacc`): implement `jakarta.security.jacc.PolicyConfigurationFactory` and `jakarta.security.jacc.Policy` instead of the javax equivalents. Register the new provider through the Elytron `jakarta-authorization` capability. In the WildFly Preview server configuration, the `<policy>` element in the Elytron subsystem now accepts a `jakarta-authorization` provider type — update your standalone-preview.xml accordingly. Consult the WildFly 38 Preview documentation at docs.wildfly.org/38/WildFly_and_WildFly_Preview.html for the exact configuration syntax.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "WildFly Preview starts without SecurityManager or JACC-related errors. Custom authorization decisions are enforced as expected. The CLI confirms the jakarta-authorization capability is active: `/subsystem=elytron/policy=jacc:read-resource()`.",
+          "cli_operation": "/subsystem=elytron/policy=jacc:read-resource()"
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "security_config",
+      "title": "wildfly-elytron dependency removed from end-user WildFly BOMs",
+      "jira_keys": ["WFLY-20666", "WFLY-18097"],
+      "source_url": "",
+      "change_type": "mandatory_migration",
+      "reason_type": "dependency_alignment",
+      "reason": "The wildfly-elytron artifact (org.wildfly.security:wildfly-elytron) is no longer included as a transitive dependency in the WildFly end-user BOMs. Projects that relied on it being pulled in transitively will experience compilation or deployment failures if they use Elytron internal APIs directly.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.wildfly.security:wildfly-elytron", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add explicit wildfly-elytron dependency if transitively required",
+          "instruction": "Run `mvn dependency:tree | grep wildfly-elytron` before and after upgrading the WildFly BOM version. If wildfly-elytron disappears from the tree and your code references org.wildfly.security classes directly, add an explicit dependency: `<dependency><groupId>org.wildfly.security</groupId><artifactId>wildfly-elytron</artifactId><scope>provided</scope></dependency>` with the version managed by the WildFly BOM. Alternatively, if you only need Elytron for security configuration, migrate to the WildFly management API or the standard Jakarta Security APIs, which do not require a direct dependency on wildfly-elytron.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles successfully. mvn dependency:tree confirms that either wildfly-elytron is present as an explicit provided dependency, or no imports of org.wildfly.security remain in the application code.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "elytron"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "CDI Startup event: java:comp/UserTransaction JNDI lookup now works correctly",
+      "jira_keys": ["WFLY-20787"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Applications that attempted a JNDI lookup of java:comp/UserTransaction inside a CDI @Startup observer method previously received a NamingException. This is fixed in WildFly 38. If workarounds were introduced (such as using programmatic UserTransaction injection instead of JNDI lookup, or deferring transaction operations to a post-startup event), those workarounds should be reverted to restore standard behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Remove workarounds for UserTransaction JNDI lookup in @Startup beans",
+          "instruction": "Search your codebase for CDI beans annotated with @Startup (or @ApplicationScoped with @Initialized(ApplicationScoped.class) observers) that previously worked around the NamingException by avoiding `java:comp/UserTransaction` JNDI lookups. Revert those workarounds — the standard lookup `(UserTransaction) new InitialContext().lookup(\"java:comp/UserTransaction\")` now succeeds in WildFly 38 during the Startup observer phase. Redeploy and run startup integration tests to confirm the lookup works.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "CDI @Startup observer completes without NamingException. JNDI lookup of java:comp/UserTransaction returns a valid UserTransaction instance during application startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ee"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "TransactionUtil.isInTx incorrect for rollback-only transactions — fixed",
+      "jira_keys": ["WFLY-20754"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Transactions in the MARKED_ROLLBACK state incorrectly returned false from TransactionUtil.isInTx() in WildFly 37. Code that used this method as a proxy for detecting rollback-only state may have made incorrect decisions. The fix in WildFly 38 causes isInTx() to return true for MARKED_ROLLBACK transactions, which may change the behaviour of defensive code paths that relied on the previous (incorrect) return value.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review code that used isInTx() to infer rollback-only state",
+          "instruction": "Search your codebase for calls to TransactionUtil.isInTx(). If any code path used `!TransactionUtil.isInTx()` as a signal that a transaction was rolled back or marked for rollback, review that logic — on WildFly 38, isInTx() returns true even for MARKED_ROLLBACK transactions. To reliably check rollback-only status, use the JTA standard: `transaction.getStatus() == Status.STATUS_MARKED_ROLLBACK` (from javax.transaction.Status / jakarta.transaction.Status). Update any such conditions and re-run transaction-management integration tests.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Affected code paths behave correctly under rollback-only transaction conditions. Integration tests that exercise transaction rollback scenarios pass on WildFly 38.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Off-heap Infinispan caches fail to start without media type declaration",
+      "jira_keys": ["WFLY-20772"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Caches configured with off-heap storage in Infinispan 15.2 (shipped with WildFly 38) now require an explicit media type declaration. Deployments that used off-heap storage without a media type will fail at startup with a configuration validation error rather than silently using a default. This is covered in the mandatory Infinispan upgrade entity but also listed here as a behavioral change for applications that discover it at deployment time.",
+      "scopes": [
+        { "scope": "config", "severity": "critical" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add media type to off-heap Infinispan cache — see Infinispan 15.2 upgrade entity",
+          "instruction": "See the Infinispan 15.2 component upgrade entity (WFLY-20599) for full instructions. In summary: add `<encoding><key media-type=\"application/x-jboss-marshalling\"/><value media-type=\"application/x-jboss-marshalling\"/></encoding>` to each off-heap cache definition in your WildFly server configuration.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All off-heap caches start without validation errors. Server log shows caches in RUNNING state.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "infinispan"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JAX-RS: @XmlRootElement incorrectly applied to JSON serialisation — fixed",
+      "jira_keys": ["WFLY-20898"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "When a JAX-RS resource method declared both XML and JSON media type responses, JAXB annotations such as @XmlRootElement were incorrectly influencing JSON serialisation via Jackson. The fix cleans up Jackson service imports to prevent JAXB annotations from leaking into the JSON serialisation path. This may change the JSON output shape of endpoints that produce both XML and JSON if they relied on the incorrect JAXB-influenced behaviour.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-test REST endpoints producing both XML and JSON media types",
+          "instruction": "Identify JAX-RS resource methods annotated with `@Produces({MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON})` or equivalent. For each such endpoint, run integration tests that exercise the JSON response path and compare the output before and after the upgrade. Pay attention to the root element wrapping — prior to the fix, @XmlRootElement root-name may have been reflected in JSON; after the fix, Jackson's own naming strategy applies. Update client-side JSON parsing or test assertions if the JSON shape has changed.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "REST endpoints return correctly structured JSON responses. No JAXB wrapper element names appear in JSON output where they are not expected. All contract tests or consumer-driven contract tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "undertow"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "ManagedScheduledExecutorService tasks ran multiple times — fixed",
+      "jira_keys": ["WFLY-20727"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "A bug caused ManagedScheduledExecutorService to execute scheduled tasks more times than configured. The fix in WildFly 38 corrects the scheduling logic. Applications that built defensive idempotency checks around this double-execution bug may now see changed task execution frequency.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Validate scheduled task execution frequency and idempotency assumptions",
+          "instruction": "Review all uses of ManagedScheduledExecutorService.scheduleAtFixedRate() and scheduleWithFixedDelay() in your application. If tasks contain idempotency guards that were added as workarounds for double-execution, assess whether they are still needed (they are harmless to keep, but may mask other issues). Run scheduled task integration tests and confirm each task fires exactly the expected number of times per interval. Monitor production deployments for changed execution patterns post-upgrade.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Scheduled tasks execute once per configured interval. No duplicate execution entries appear in application logs. Scheduled task integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "ee"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "WSClassVerificationProcessor moved to INSTALL phase — affects WS+CDI/JPA deployments",
+      "jira_keys": ["WFLY-20873"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The Web Services class verification processor (WSClassVerificationProcessor) now runs at the INSTALL deployment phase rather than POST_MODULE. This changes the order in which WS class validation occurs relative to CDI and JPA processors, which may expose ordering-sensitive issues in deployments that mix JAX-WS with CDI beans or JPA entities.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Test JAX-WS deployments that combine CDI or JPA after upgrade",
+          "instruction": "Deploy and exercise all JAX-WS endpoints that also use CDI injection or JPA persistence in the same deployment. Monitor the server log during deployment for errors or warnings related to class verification order. If any deployment fails that previously succeeded, check whether CDI beans or JPA entities referenced by JAX-WS service implementations are now initialised after the WS class verification runs. If so, restructure the service endpoint implementation to decouple WS layer from CDI/JPA initialisation order, for example by using @Inject with lazy initialisation proxies rather than direct field access at class-load time.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All JAX-WS deployments complete the INSTALL phase without errors. WS endpoints respond correctly to test requests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "webservices"
+    },
+    {
+      "source_section": "behavioral",
+      "title": "JGroups custom protocols auto-prefix org.jgroups.protocols if unqualified name fails",
+      "jira_keys": ["WFLY-20366"],
+      "source_url": "",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "JGroups protocol elements that specify a module attribute now attempt to load the protocol class with the org.jgroups.protocols package prefix as a fallback if the unqualified class name is not found. This changes class-loading resolution for custom protocol names and may cause unexpected protocol classes to be loaded if naming conventions overlap.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review custom JGroups protocol class names for unintended prefix resolution",
+          "instruction": "Review your JGroups stack configuration for any `<protocol type=\"CustomName\" module=\"...\"/>` entries that use short unqualified class names. On WildFly 38, if CustomName is not found, JGroups will attempt to load `org.jgroups.protocols.CustomName` as a fallback. If your custom protocol class is named the same as a built-in JGroups protocol, it may be shadowed. Use fully qualified class names in protocol type attributes to avoid ambiguity: `<protocol type=\"com.example.MyProtocol\" module=\"com.example.jgroups\"/>`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Server starts and JGroups channel initialises using the intended custom protocol class. No unexpected ClassNotFoundException or ClassCastException appears in the server log related to JGroups protocol loading.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": "jgroups"
+    },
+    {
+      "source_section": "deprecation",
+      "title": "ModuleIdentifier and ModuleIdentifierUtil deprecated internal APIs — usage removed",
+      "jira_keys": ["WFLY-20591", "WFLY-20624"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "WildFly's internal code has removed all remaining usages of the deprecated ModuleIdentifier and ModuleIdentifierUtil internal APIs. Third-party subsystem or extension authors who reference these types in their own code must migrate to the ModuleName-based replacement APIs before these internal classes are removed entirely in a future WildFly release.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.modules.ModuleIdentifier", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.modules.ModuleIdentifierUtil", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace ModuleIdentifier/ModuleIdentifierUtil with ModuleName APIs",
+          "instruction": "Search your WildFly extension or subsystem code for imports and usages of `org.jboss.modules.ModuleIdentifier` and `org.jboss.modules.ModuleIdentifierUtil`. Replace with the ModuleName-based APIs provided by jboss-modules. The typical replacement for `ModuleIdentifier.create(name)` is `ModuleName.of(name)`. Review the jboss-modules release notes or Javadoc for the current jboss-modules version shipped with WildFly 38 to identify the complete replacement surface.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Extension or subsystem compiles without references to ModuleIdentifier or ModuleIdentifierUtil. Integration tests for the extension pass on WildFly 38.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "ModelControllerClient.executeAsync returns CompletableFuture, not AsyncFuture",
+      "jira_keys": ["WFLY-20667"],
+      "source_url": "",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "ModelControllerClient no longer returns org.jboss.threads.AsyncFuture from executeAsync and executeOperationAsync. The return type is now java.util.concurrent.CompletableFuture. Code in management extensions or remote management clients that casts the return value to AsyncFuture will fail with a ClassCastException at runtime.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.jboss.threads.AsyncFuture", "role": "removed" },
+        { "kind": "class", "name": "org.jboss.as.controller.client.ModelControllerClient", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace AsyncFuture casts with CompletableFuture in management client code",
+          "instruction": "Search your management extension or WildFly remote management client code for any cast of the return value of `ModelControllerClient.executeAsync()` or `executeOperationAsync()` to `AsyncFuture`. Replace the cast with `CompletableFuture` (or simply use `java.util.concurrent.Future` if only blocking get() is needed). If you use AsyncFuture-specific methods such as `asyncCancel()`, migrate to `CompletableFuture.cancel(true)`. If you use `addListener()`, migrate to `CompletableFuture.thenApply()` or `whenComplete()`. Both AsyncFuture and CompletableFuture implement java.util.concurrent.Future, so code that only calls `.get()` requires no change.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "No ClassCastException involving AsyncFuture at runtime. Management operations complete successfully via the updated client code. Compilation succeeds without AsyncFuture imports.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Artemis commit-interval attribute exposed for messaging scaledown configuration",
+      "jira_keys": ["WFLY-20512"],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "A new management attribute commit-interval is available on the Artemis/Messaging subsystem scaledown configuration element. Operators running clustered Artemis who need to tune commit intervals during scale-down events can now do so via the standard WildFly management API without workarounds.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Optionally configure Artemis commit-interval for scaledown tuning",
+          "instruction": "To tune the commit interval for Artemis scaledown, use the WildFly CLI: `/subsystem=messaging-activemq/server=default/ha-policy=<policy>/scale-down=scale-down:write-attribute(name=commit-interval, value=<milliseconds>)`. This is optional — the default value is suitable for most deployments. Only configure this attribute if you experience message loss or excessive commit overhead during cluster scale-down operations.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "CLI read-attribute returns the configured commit-interval value. Scaledown operations complete within the expected time window without message loss.",
+          "cli_operation": "/subsystem=messaging-activemq/server=default/ha-policy=<policy>/scale-down=scale-down:write-attribute(name=commit-interval, value=<milliseconds>)"
+        }
+      ],
+      "subsystem": "messaging-activemq"
+    },
+    {
+      "source_section": "new_capability",
+      "title": "WildFly Preview: EE 11 JPA/CDI integration — EntityManager injectable via CDI",
+      "jira_keys": ["WFLY-19554", "WFLY-20988"],
+      "source_url": "",
+      "change_type": "informational",
+      "reason_type": "spec_compliance",
+      "reason": "WildFly Preview now implements the Jakarta EE 11 JPA/CDI integration specification, enabling injection of EntityManager via CDI producers and EE 11-compliant persistence context scoping. This is a new capability in WildFly Preview; standard WildFly is unaffected.",
+      "scopes": [
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}
