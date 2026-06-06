@@ -1,0 +1,21 @@
+batchIndex: 14
+files:
+1. `docs/SPEC_ORGANIZATION.md` (379 lines, language: `markdown`, fileCategory: `docs`)
+2. `docs/export-extract-populate-framework-pipeline.md` (956 lines, language: `markdown`, fileCategory: `docs`)
+3. `docs/extractor-research-report.md` (196 lines, language: `markdown`, fileCategory: `docs`)
+4. `docs/graph-mcp-skills-and-paysafe-resolution.md` (1501 lines, language: `markdown`, fileCategory: `docs`)
+5. `docs/legacy_graph_structure.md` (126 lines, language: `markdown`, fileCategory: `docs`)
+6. `docs/migration-oracle-redesign.md` (1184 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  "docs/SPEC_ORGANIZATION.md": [],
+  "docs/export-extract-populate-framework-pipeline.md": [],
+  "docs/extractor-research-report.md": [],
+  "docs/graph-mcp-skills-and-paysafe-resolution.md": [],
+  "docs/legacy_graph_structure.md": [],
+  "docs/migration-oracle-redesign.md": []
+}
+
+neighborMap:
+{}

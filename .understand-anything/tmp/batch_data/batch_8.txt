@@ -1,0 +1,19 @@
+batchIndex: 8
+files:
+1. `.specify/extensions/git/commands/speckit.git.commit.md` (48 lines, language: `markdown`, fileCategory: `docs`)
+2. `.specify/extensions/git/commands/speckit.git.feature.md` (67 lines, language: `markdown`, fileCategory: `docs`)
+3. `.specify/extensions/git/commands/speckit.git.initialize.md` (49 lines, language: `markdown`, fileCategory: `docs`)
+4. `.specify/extensions/git/commands/speckit.git.remote.md` (45 lines, language: `markdown`, fileCategory: `docs`)
+5. `.specify/extensions/git/commands/speckit.git.validate.md` (49 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  ".specify/extensions/git/commands/speckit.git.commit.md": [],
+  ".specify/extensions/git/commands/speckit.git.feature.md": [],
+  ".specify/extensions/git/commands/speckit.git.initialize.md": [],
+  ".specify/extensions/git/commands/speckit.git.remote.md": [],
+  ".specify/extensions/git/commands/speckit.git.validate.md": []
+}
+
+neighborMap:
+{}

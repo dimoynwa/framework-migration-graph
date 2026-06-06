@@ -1,0 +1,6095 @@
+{
+  "version": "1.0.0",
+  "gitCommitHash": "6a94ccbed94de224f15c0dd64016b294d8418e69",
+  "generatedAt": "2026-06-05T09:18:54.250Z",
+  "files": {
+    ".claude/settings.json": {
+      "filePath": ".claude/settings.json",
+      "contentHash": "96c0d4c8661559507fb41776518260100feff9a60ff7a3d83bb97681df03225a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/changelog-migration-extractor/SKILL.md": {
+      "filePath": ".claude/skills/changelog-migration-extractor/SKILL.md",
+      "contentHash": "68d54f499f036a5b8ed5cd2e36afdc75e9116ba6bb4a0813e712399dfba5b4c2",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 179,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/migration-filter/SKILL.md": {
+      "filePath": ".claude/skills/migration-filter/SKILL.md",
+      "contentHash": "7b1b7054ab2ae23f81d34b37b647615136838a49613b2e6c6082c965b1e8497f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 225,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-agent-context-update/SKILL.md": {
+      "filePath": ".claude/skills/speckit-agent-context-update/SKILL.md",
+      "contentHash": "23817e2f24485afff17d785849cbd4c121adffa2ce4d6d2da5f597a5d1c88847",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-analyze/SKILL.md": {
+      "filePath": ".claude/skills/speckit-analyze/SKILL.md",
+      "contentHash": "753f1d49d830abc130132ad2864c780ea61fd57bbc71aa9888be24fdf0774800",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 258,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-checklist/SKILL.md": {
+      "filePath": ".claude/skills/speckit-checklist/SKILL.md",
+      "contentHash": "734393e5698b390283db49135e1140d6ad529b65eae439bb0a53bc5acab2b529",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 372,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-clarify/SKILL.md": {
+      "filePath": ".claude/skills/speckit-clarify/SKILL.md",
+      "contentHash": "08e643cb56c88adf1f4b28821d490360186f6bc0dfb1f21a059e16e4b8e89b91",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 284,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-constitution/SKILL.md": {
+      "filePath": ".claude/skills/speckit-constitution/SKILL.md",
+      "contentHash": "e2cbe859958c5a05be52a44d63821e6a84d39f3d37acc05b550cc7ad85da0dab",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 155,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-git-commit/SKILL.md": {
+      "filePath": ".claude/skills/speckit-git-commit/SKILL.md",
+      "contentHash": "5c7bf976944f5ab6d6dbc143c160aa8742d2f303abdf1453688535d5ceffa1c4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 53,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-git-feature/SKILL.md": {
+      "filePath": ".claude/skills/speckit-git-feature/SKILL.md",
+      "contentHash": "50a413ca98b650a81c773769613afa1e9042851e6057f9a7e049aa801f6d0ed0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-git-initialize/SKILL.md": {
+      "filePath": ".claude/skills/speckit-git-initialize/SKILL.md",
+      "contentHash": "6d9c04adf4479f8645fea57938bf692ba1f1cf08de5054d598593c2782a18c0d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-git-remote/SKILL.md": {
+      "filePath": ".claude/skills/speckit-git-remote/SKILL.md",
+      "contentHash": "045d34977a70cae585b8bc0adbfd378374498f1a6c59c77615923e64f8d1b3f0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-git-validate/SKILL.md": {
+      "filePath": ".claude/skills/speckit-git-validate/SKILL.md",
+      "contentHash": "ab7656044903e878e73c8bd9d40d3d46cd6fecff6e054780ceb9e81ffa18c923",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-implement/SKILL.md": {
+      "filePath": ".claude/skills/speckit-implement/SKILL.md",
+      "contentHash": "796ab9a7f04281fee7d390087e89438f4215cbe2396a8a0118dafd12c0268894",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 222,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-plan/SKILL.md": {
+      "filePath": ".claude/skills/speckit-plan/SKILL.md",
+      "contentHash": "ebddb7869f0dbacbb4b1532f28bcf4712d9d6daf5945d3dac8e81bec03ef7494",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 162,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-sdd-buddy/SKILL.md": {
+      "filePath": ".claude/skills/speckit-sdd-buddy/SKILL.md",
+      "contentHash": "c83270fcbc26825accb0927c9fba82a5080d51434e73b9229d7f24f363c4a2f8",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 326,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-specify/SKILL.md": {
+      "filePath": ".claude/skills/speckit-specify/SKILL.md",
+      "contentHash": "e74c7b705bebbdf457d0b01e928a4d4f25bd3f77b8c650a2ef3c463e706550ec",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 343,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-tasks/SKILL.md": {
+      "filePath": ".claude/skills/speckit-tasks/SKILL.md",
+      "contentHash": "bb461317a2b17eda72250202197a8307e519a24cd22758d3091389c70d869af1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 213,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/speckit-taskstoissues/SKILL.md": {
+      "filePath": ".claude/skills/speckit-taskstoissues/SKILL.md",
+      "contentHash": "a3efcf92cf532420c10abf7b9253204ade34b7329888c28e271fa3da7750c584",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 105,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/verification-protocol-writer/references/level-design-rationale.md": {
+      "filePath": ".claude/skills/verification-protocol-writer/references/level-design-rationale.md",
+      "contentHash": "4fe5a26f30e0f1ca638b33d9d510b9e70dc9c96b74c20f3519eae5c4b51dfb75",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 223,
+      "hasStructuralAnalysis": true
+    },
+    ".claude/skills/verification-protocol-writer/SKILL.md": {
+      "filePath": ".claude/skills/verification-protocol-writer/SKILL.md",
+      "contentHash": "72982f0077ad6d63fd6240ba84c950be3068696d48c694e9bd6c50f63fdd7b87",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 277,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/rules/specify-rules.mdc": {
+      "filePath": ".cursor/rules/specify-rules.mdc",
+      "contentHash": "f300738f003a8ed3df0a7eae1800f51b5ba0d0664b9024585d264e22a8ed3243",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 10,
+      "hasStructuralAnalysis": false
+    },
+    ".cursor/skills/speckit-agent-context-update/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-agent-context-update/SKILL.md",
+      "contentHash": "23817e2f24485afff17d785849cbd4c121adffa2ce4d6d2da5f597a5d1c88847",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-analyze/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-analyze/SKILL.md",
+      "contentHash": "753f1d49d830abc130132ad2864c780ea61fd57bbc71aa9888be24fdf0774800",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 258,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-checklist/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-checklist/SKILL.md",
+      "contentHash": "734393e5698b390283db49135e1140d6ad529b65eae439bb0a53bc5acab2b529",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 372,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-clarify/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-clarify/SKILL.md",
+      "contentHash": "08e643cb56c88adf1f4b28821d490360186f6bc0dfb1f21a059e16e4b8e89b91",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 284,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-constitution/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-constitution/SKILL.md",
+      "contentHash": "e2cbe859958c5a05be52a44d63821e6a84d39f3d37acc05b550cc7ad85da0dab",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 155,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-git-commit/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-git-commit/SKILL.md",
+      "contentHash": "5c7bf976944f5ab6d6dbc143c160aa8742d2f303abdf1453688535d5ceffa1c4",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 53,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-git-feature/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-git-feature/SKILL.md",
+      "contentHash": "50a413ca98b650a81c773769613afa1e9042851e6057f9a7e049aa801f6d0ed0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 72,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-git-initialize/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-git-initialize/SKILL.md",
+      "contentHash": "6d9c04adf4479f8645fea57938bf692ba1f1cf08de5054d598593c2782a18c0d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-git-remote/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-git-remote/SKILL.md",
+      "contentHash": "045d34977a70cae585b8bc0adbfd378374498f1a6c59c77615923e64f8d1b3f0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-git-validate/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-git-validate/SKILL.md",
+      "contentHash": "ab7656044903e878e73c8bd9d40d3d46cd6fecff6e054780ceb9e81ffa18c923",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 54,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-implement/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-implement/SKILL.md",
+      "contentHash": "796ab9a7f04281fee7d390087e89438f4215cbe2396a8a0118dafd12c0268894",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 222,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-plan/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-plan/SKILL.md",
+      "contentHash": "ebddb7869f0dbacbb4b1532f28bcf4712d9d6daf5945d3dac8e81bec03ef7494",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 162,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-specify/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-specify/SKILL.md",
+      "contentHash": "e74c7b705bebbdf457d0b01e928a4d4f25bd3f77b8c650a2ef3c463e706550ec",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 343,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-tasks/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-tasks/SKILL.md",
+      "contentHash": "bb461317a2b17eda72250202197a8307e519a24cd22758d3091389c70d869af1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 213,
+      "hasStructuralAnalysis": true
+    },
+    ".cursor/skills/speckit-taskstoissues/SKILL.md": {
+      "filePath": ".cursor/skills/speckit-taskstoissues/SKILL.md",
+      "contentHash": "a3efcf92cf532420c10abf7b9253204ade34b7329888c28e271fa3da7750c584",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 105,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions.yml": {
+      "filePath": ".specify/extensions.yml",
+      "contentHash": "5e1ef86bc39cb43001577e895da68b324154a52281565e30ddba62c235c61df1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 165,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/.registry": {
+      "filePath": ".specify/extensions/.registry",
+      "contentHash": "5e3b1882e29ea58ec59ebe1a8cc06aa0fb15b3ef613c35d6267147ff28345549",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 37,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/extensions/agent-context/agent-context-config.yml": {
+      "filePath": ".specify/extensions/agent-context/agent-context-config.yml",
+      "contentHash": "80a0bcfdba6d6710861e56105ae29bf09969b2c4b448cfd4862cc656a310dade",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 5,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": {
+      "filePath": ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+      "contentHash": "385c981d0af647f6fba8c8706b5f8e1cb2b4f3240e83fbd6981f503587935fd1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 27,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/agent-context/extension.yml": {
+      "filePath": ".specify/extensions/agent-context/extension.yml",
+      "contentHash": "9a1dc02d2d0139bb03860392ecacef79183be2c442feda2f9ccaa4e5907b1e47",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/agent-context/README.md": {
+      "filePath": ".specify/extensions/agent-context/README.md",
+      "contentHash": "e7983ef661a494d5fa26ca23eda13d9f19cad3d9864900a120a3626c00e3192e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 58,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": {
+      "filePath": ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+      "contentHash": "9dc5dbe765dfb6d6259fde848cd8e859e1624e0aaceab6de4a091bbe9255f577",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 201,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": {
+      "filePath": ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+      "contentHash": "dd8f714bcf477a0eb017e349e2bcbaf6b38fb5ef1936f072bf2fca429acbabab",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 238,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/extensions/git/commands/speckit.git.commit.md": {
+      "filePath": ".specify/extensions/git/commands/speckit.git.commit.md",
+      "contentHash": "445ed4cd43c8e685de294b68c841b8f15e082f7033f74b042feddd59edf7779c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 49,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/commands/speckit.git.feature.md": {
+      "filePath": ".specify/extensions/git/commands/speckit.git.feature.md",
+      "contentHash": "8e5788984c7423ecf9cbb984cca8043c2f35f28987c955f6a999154fe8d4059a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 68,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/commands/speckit.git.initialize.md": {
+      "filePath": ".specify/extensions/git/commands/speckit.git.initialize.md",
+      "contentHash": "d89e32ec18b3305b8d00ac64069b67b80110074b8b6bd65ede1ea522baa25493",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/commands/speckit.git.remote.md": {
+      "filePath": ".specify/extensions/git/commands/speckit.git.remote.md",
+      "contentHash": "00397aff45bf00d3111b4f162e4220fd5a9020e72e4afe9179859c21bcd8aac3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 46,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/commands/speckit.git.validate.md": {
+      "filePath": ".specify/extensions/git/commands/speckit.git.validate.md",
+      "contentHash": "d8f8e5ecc52e819749f355b6dd1ad8400e9b1dfe03882a12c0d2369530f1f083",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/config-template.yml": {
+      "filePath": ".specify/extensions/git/config-template.yml",
+      "contentHash": "d07938ce94303be1c8afac77d4b0ea84654f811490850e744f8ee3021b59f8e3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/extension.yml": {
+      "filePath": ".specify/extensions/git/extension.yml",
+      "contentHash": "9731aa8143a72fbebfdb440f155038ab42642517c2b2bdbbf67c8fdbe076ed79",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 141,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/git-config.yml": {
+      "filePath": ".specify/extensions/git/git-config.yml",
+      "contentHash": "d07938ce94303be1c8afac77d4b0ea84654f811490850e744f8ee3021b59f8e3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 63,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/README.md": {
+      "filePath": ".specify/extensions/git/README.md",
+      "contentHash": "38c0140b7804028cf0d212a29b930c9183f4eec7dcaf3ebc4af080653e290924",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 101,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/scripts/bash/auto-commit.sh": {
+      "filePath": ".specify/extensions/git/scripts/bash/auto-commit.sh",
+      "contentHash": "e12ff0e010c8891bbe7445950ea00a49ef7e0b387b050e382fed57bd09d0c8bc",
+      "functions": [
+        {
+          "name": "_find_project_root",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 141,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/scripts/bash/create-new-feature.sh": {
+      "filePath": ".specify/extensions/git/scripts/bash/create-new-feature.sh",
+      "contentHash": "373ff6e1a232bbf383b29d7994eea90f0113931583dcd6496289885136e24182",
+      "functions": [
+        {
+          "name": "get_highest_from_specs",
+          "params": [],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "get_highest_from_branches",
+          "params": [],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "_extract_highest_number",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "get_highest_from_remote_refs",
+          "params": [],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "check_existing_branches",
+          "params": [],
+          "exported": false,
+          "lineCount": 24
+        },
+        {
+          "name": "clean_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "_find_project_root",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        },
+        {
+          "name": "generate_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 37
+        },
+        {
+          "name": "_byte_length",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 454,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/scripts/bash/git-common.sh": {
+      "filePath": ".specify/extensions/git/scripts/bash/git-common.sh",
+      "contentHash": "5d2451b6c4ceee67e0f1b524e1ef1e4114cc08ccb173b5c2908fb031c540d7e5",
+      "functions": [
+        {
+          "name": "has_git",
+          "params": [],
+          "exported": false,
+          "lineCount": 6
+        },
+        {
+          "name": "spec_kit_effective_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "check_feature_branch",
+          "params": [],
+          "exported": false,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 55,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/scripts/bash/initialize-repo.sh": {
+      "filePath": ".specify/extensions/git/scripts/bash/initialize-repo.sh",
+      "contentHash": "34624e18854106bb793b0baeff9f6e8e4e9da39aa4ea443195fd745d3bdb8b6d",
+      "functions": [
+        {
+          "name": "_find_project_root",
+          "params": [],
+          "exported": false,
+          "lineCount": 11
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 55,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/extensions/git/scripts/powershell/auto-commit.ps1": {
+      "filePath": ".specify/extensions/git/scripts/powershell/auto-commit.ps1",
+      "contentHash": "a778847f0233aaf487220cb505ec8e206775b5e582d9d1a5b91dddf00e01be53",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 170,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/extensions/git/scripts/powershell/create-new-feature.ps1": {
+      "filePath": ".specify/extensions/git/scripts/powershell/create-new-feature.ps1",
+      "contentHash": "e04167c21ca0e1ad77f065553ee07107ff0475f205fa7417e352094315f95e5f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 404,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/extensions/git/scripts/powershell/git-common.ps1": {
+      "filePath": ".specify/extensions/git/scripts/powershell/git-common.ps1",
+      "contentHash": "70dc905cfb55c21d1567c7ac5aa0d02a241bf638d31bbc982d23dea31a732c8f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 52,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/extensions/git/scripts/powershell/initialize-repo.ps1": {
+      "filePath": ".specify/extensions/git/scripts/powershell/initialize-repo.ps1",
+      "contentHash": "db2aaa27e4bce62ede09d00d94eb42beaf272f4dcddd39732b311de28b4f19a1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 70,
+      "hasStructuralAnalysis": false
+    },
+    ".specify/feature.json": {
+      "filePath": ".specify/feature.json",
+      "contentHash": "8079184158bbbfab157edc9f6008fb769cdd830014bf1e664c0814e4a68c3417",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/init-options.json": {
+      "filePath": ".specify/init-options.json",
+      "contentHash": "fddb05fba518909065f26e258708a8d29b3faa9a4043cd8473cc0caf2ab6dfb9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 9,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/integration.json": {
+      "filePath": ".specify/integration.json",
+      "contentHash": "427f72a719967dd05918bc2b08585f42ffcf542f5a1bb1f48cebea51ef031feb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 21,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/integrations/claude-code.manifest.json": {
+      "filePath": ".specify/integrations/claude-code.manifest.json",
+      "contentHash": "d5de7262d798de77bfa962b7330c47b68adae6620b80363580219b65929749af",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 24,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/integrations/cursor-agent.manifest.json": {
+      "filePath": ".specify/integrations/cursor-agent.manifest.json",
+      "contentHash": "024d2986e396aa1549965e9b2ef311b91f8358ca4e2d9cf4a5b23f01f220bc17",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 17,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/integrations/speckit.manifest.json": {
+      "filePath": ".specify/integrations/speckit.manifest.json",
+      "contentHash": "3061c5bea065ec497d0fc72be122721d24da8c513a95b44557e6afda99fc796b",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/memory/constitution.md": {
+      "filePath": ".specify/memory/constitution.md",
+      "contentHash": "ce7549540fa45543cca797a150201d868e64495fdff39dc38246fb17bd4024b3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 51,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/scripts/bash/check-prerequisites.sh": {
+      "filePath": ".specify/scripts/bash/check-prerequisites.sh",
+      "contentHash": "f4541a00257f035aa55a9fede6d964e51e6851c3dc2f81d0a6f367db18944765",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 193,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/scripts/bash/common.sh": {
+      "filePath": ".specify/scripts/bash/common.sh",
+      "contentHash": "0ac0b422fecf41a172a21dc163be1558a87e8a8b885cb48eb9307c99427c4102",
+      "functions": [
+        {
+          "name": "find_specify_root",
+          "params": [],
+          "exported": false,
+          "lineCount": 20
+        },
+        {
+          "name": "get_repo_root",
+          "params": [],
+          "exported": false,
+          "lineCount": 18
+        },
+        {
+          "name": "get_current_branch",
+          "params": [],
+          "exported": false,
+          "lineCount": 54
+        },
+        {
+          "name": "has_git",
+          "params": [],
+          "exported": false,
+          "lineCount": 9
+        },
+        {
+          "name": "spec_kit_effective_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 8
+        },
+        {
+          "name": "check_feature_branch",
+          "params": [],
+          "exported": false,
+          "lineCount": 27
+        },
+        {
+          "name": "read_feature_json_feature_directory",
+          "params": [],
+          "exported": false,
+          "lineCount": 26
+        },
+        {
+          "name": "feature_json_matches_feature_dir",
+          "params": [],
+          "exported": false,
+          "lineCount": 17
+        },
+        {
+          "name": "find_feature_dir_by_prefix",
+          "params": [],
+          "exported": false,
+          "lineCount": 42
+        },
+        {
+          "name": "get_feature_paths",
+          "params": [],
+          "exported": false,
+          "lineCount": 50
+        },
+        {
+          "name": "has_jq",
+          "params": [],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "json_escape",
+          "params": [],
+          "exported": false,
+          "lineCount": 25
+        },
+        {
+          "name": "check_file",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "check_dir",
+          "params": [],
+          "exported": false,
+          "lineCount": 1
+        },
+        {
+          "name": "resolve_template",
+          "params": [],
+          "exported": false,
+          "lineCount": 77
+        },
+        {
+          "name": "resolve_template_content",
+          "params": [],
+          "exported": false,
+          "lineCount": 215
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 645,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/scripts/bash/create-new-feature.sh": {
+      "filePath": ".specify/scripts/bash/create-new-feature.sh",
+      "contentHash": "bcf4964ca0c6c78717bb42d9e66b8c7e5ee82779cd96afc5aa7b08b75abe5790",
+      "functions": [
+        {
+          "name": "get_highest_from_specs",
+          "params": [],
+          "exported": false,
+          "lineCount": 21
+        },
+        {
+          "name": "get_highest_from_branches",
+          "params": [],
+          "exported": false,
+          "lineCount": 3
+        },
+        {
+          "name": "_extract_highest_number",
+          "params": [],
+          "exported": false,
+          "lineCount": 14
+        },
+        {
+          "name": "get_highest_from_remote_refs",
+          "params": [],
+          "exported": false,
+          "lineCount": 13
+        },
+        {
+          "name": "check_existing_branches",
+          "params": [],
+          "exported": false,
+          "lineCount": 29
+        },
+        {
+          "name": "clean_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 4
+        },
+        {
+          "name": "generate_branch_name",
+          "params": [],
+          "exported": false,
+          "lineCount": 46
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 414,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/scripts/bash/setup-plan.sh": {
+      "filePath": ".specify/scripts/bash/setup-plan.sh",
+      "contentHash": "b23cca3d769a217ab812a6059adb549622471f6893af234cf98ca2019ac4e1a1",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 92,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/scripts/bash/setup-tasks.sh": {
+      "filePath": ".specify/scripts/bash/setup-tasks.sh",
+      "contentHash": "7aeee15192a5ab3ba9ff3c3ae450d9994043bf0493c1eabc840da72a9742fc87",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 97,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/templates/checklist-template.md": {
+      "filePath": ".specify/templates/checklist-template.md",
+      "contentHash": "c37695297e5d3153d64f82c21223509940b13932046c7961c42d1d669516130c",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/templates/constitution-template.md": {
+      "filePath": ".specify/templates/constitution-template.md",
+      "contentHash": "ce7549540fa45543cca797a150201d868e64495fdff39dc38246fb17bd4024b3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 51,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/templates/plan-template.md": {
+      "filePath": ".specify/templates/plan-template.md",
+      "contentHash": "cc7f7979cf8d8836ec26492785affd80791d3422a2b745062ec695be8c985ef7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 114,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/templates/spec-template.md": {
+      "filePath": ".specify/templates/spec-template.md",
+      "contentHash": "3945437fc35cd30a5b2bf7beea680337c3516826d3efa5a6b92c4a7eca1ba28e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 132,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/templates/tasks-template.md": {
+      "filePath": ".specify/templates/tasks-template.md",
+      "contentHash": "fc29a233f6f5a27ca31f1aa46b596af6500c627441c6e62b2bc4a1d721525842",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 253,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/workflows/speckit/workflow.yml": {
+      "filePath": ".specify/workflows/speckit/workflow.yml",
+      "contentHash": "a3b7c17724df02c7f2ad4cfc58435dd428f11eaa13bd07fa5e46f7726142b2b7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    ".specify/workflows/workflow-registry.json": {
+      "filePath": ".specify/workflows/workflow-registry.json",
+      "contentHash": "750190150f8615619abc6f0b2d9d170bb67f037f354731684dab58f8bbb0b103",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 13,
+      "hasStructuralAnalysis": true
+    },
+    ".understand-anything/.understandignore": {
+      "filePath": ".understand-anything/.understandignore",
+      "contentHash": "f97f8fe3bcab33ef0dd113bc109e192a3227a5c0877b19c08748172724d7314a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 37,
+      "hasStructuralAnalysis": false
+    },
+    "CLAUDE.md": {
+      "filePath": "CLAUDE.md",
+      "contentHash": "9df38e8285afab0433663217a0a9e7cd3433cbdcab453dc3a95a9c7b32efdd1d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": true
+    },
+    "contracts/003-framework-http-extractors.md": {
+      "filePath": "contracts/003-framework-http-extractors.md",
+      "contentHash": "065d1e0a8b484ca9a9f8840bb324f329622fa43e20e4162530722df8d229220e",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "docs/export-extract-populate-framework-pipeline.md": {
+      "filePath": "docs/export-extract-populate-framework-pipeline.md",
+      "contentHash": "6492ff1707bb888c85399aea2c9598928a6d602674df19f4c87c7de7e99a0f78",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 957,
+      "hasStructuralAnalysis": true
+    },
+    "docs/extractor-research-report.md": {
+      "filePath": "docs/extractor-research-report.md",
+      "contentHash": "875326144839cc94f1b3627f7ded703775f0d6f0d9e3e81d558f7814b4d4166f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 197,
+      "hasStructuralAnalysis": true
+    },
+    "docs/graph-mcp-skills-and-paysafe-resolution.md": {
+      "filePath": "docs/graph-mcp-skills-and-paysafe-resolution.md",
+      "contentHash": "05dd9e65bc9cfea34b10f40a3cea145d84275301073d621df89de06bf4e99262",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1502,
+      "hasStructuralAnalysis": true
+    },
+    "docs/legacy_graph_structure.md": {
+      "filePath": "docs/legacy_graph_structure.md",
+      "contentHash": "a05f53e9a025540d75378bed87b475fa4fd7779f5d0e4a4e9a6cabf252f906ec",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 127,
+      "hasStructuralAnalysis": true
+    },
+    "docs/migration-oracle-redesign.md": {
+      "filePath": "docs/migration-oracle-redesign.md",
+      "contentHash": "ba136cfce73baf1e0e7cbb93c9bd237be656ac5a82f97b0f8a1170225df7492d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1185,
+      "hasStructuralAnalysis": true
+    },
+    "docs/SPEC_ORGANIZATION.md": {
+      "filePath": "docs/SPEC_ORGANIZATION.md",
+      "contentHash": "667befa663b46f3bc4806b01bccd271bfa3c581ce3503433fb5930777332c7ce",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 380,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/__init__.py": {
+      "filePath": "migration_oracle/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/cli.py": {
+      "filePath": "migration_oracle/cli.py",
+      "contentHash": "e0f5dc2b3e0a471593e730a74991e4870312982257713dfcaac4bdf9b6fa69eb",
+      "functions": [
+        {
+          "name": "_validate_model_provider",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "pipeline",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version",
+            "force",
+            "force_extract",
+            "force_llm",
+            "dry_run",
+            "skip_existing",
+            "extract_only",
+            "output_md",
+            "output_filtered_md",
+            "output_json"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 124
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "click",
+          "specifiers": [
+            "click"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors",
+          "specifiers": [
+            "FRAMEWORK_DISPLAY_NAMES",
+            "get_extractor",
+            "render_raw_markdown"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.queries",
+          "specifiers": [
+            "pipeline_queries"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._cache",
+          "specifiers": [
+            "resolve_cache_flags"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._paths",
+          "specifiers": [
+            "default_entities_json_path",
+            "default_filtered_md_path",
+            "default_raw_md_path",
+            "ensure_runs_directories"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractor",
+          "specifiers": [
+            "run_extraction"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.filters",
+          "specifiers": [
+            "emit_stale_warnings",
+            "run_filter"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.populator",
+          "specifiers": [
+            "populate_graph"
+          ]
+        }
+      ],
+      "exports": [
+        "_validate_model_provider",
+        "main",
+        "pipeline"
+      ],
+      "totalLines": 196,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/config.py": {
+      "filePath": "migration_oracle/config.py",
+      "contentHash": "e967fb9a14a9a459705ed3a0d8fc5d2043c74fd7bd3166f68bacc223613c90aa",
+      "functions": [
+        {
+          "name": "_require",
+          "params": [
+            "name"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "_optional",
+          "params": [
+            "name",
+            "default"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "_parse_ssl_verify",
+          "params": [
+            "raw"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "_parse_bool_flag",
+          "params": [
+            "raw"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [
+        {
+          "name": "ConfigurationError",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        }
+      ],
+      "exports": [
+        "ConfigurationError",
+        "_require",
+        "_optional",
+        "_parse_ssl_verify",
+        "_parse_bool_flag"
+      ],
+      "totalLines": 74,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/extractors/__init__.py": {
+      "filePath": "migration_oracle/extractors/__init__.py",
+      "contentHash": "4d3b88eca9aaa23871c36d76dead54b238dfa3365b62483caa29598ff89d7cfb",
+      "functions": [
+        {
+          "name": "_stub_extract",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "list[DocumentedChange]",
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "get_extractor",
+          "params": [
+            "framework"
+          ],
+          "returnType": "ExtractorSpec",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "render_raw_markdown",
+          "params": [
+            "framework_key",
+            "framework_display",
+            "from_version",
+            "to_version",
+            "changes"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 34
+        }
+      ],
+      "classes": [
+        {
+          "name": "ExtractorSpec",
+          "methods": [],
+          "properties": [
+            "key",
+            "display_name",
+            "extract"
+          ],
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "imports": [
+        {
+          "source": "collections.abc",
+          "specifiers": [
+            "Callable"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "UTC",
+            "datetime"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.changes",
+          "specifiers": [
+            "DocumentedChange"
+          ]
+        }
+      ],
+      "exports": [
+        "ExtractorSpec",
+        "_stub_extract",
+        "get_extractor",
+        "render_raw_markdown"
+      ],
+      "totalLines": 99,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/graph/__init__.py": {
+      "filePath": "migration_oracle/graph/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/graph/driver.py": {
+      "filePath": "migration_oracle/graph/driver.py",
+      "contentHash": "f5b93c333e00e9ff430a0735d6a3c644dc45bb3427a346bdbdd62b645c8fc025",
+      "functions": [
+        {
+          "name": "get_driver",
+          "params": [],
+          "returnType": "neo4j.Driver",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "_require_driver",
+          "params": [],
+          "returnType": "neo4j.Driver",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "read_session",
+          "params": [],
+          "returnType": "Generator[neo4j.Session, None, None]",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "write_session",
+          "params": [],
+          "returnType": "Generator[neo4j.Session, None, None]",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "close_driver",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [
+        {
+          "name": "DriverNotInitialisedError",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "imports": [
+        {
+          "source": "contextlib",
+          "specifiers": [
+            "contextmanager"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Generator"
+          ]
+        },
+        {
+          "source": "neo4j",
+          "specifiers": [
+            "neo4j"
+          ]
+        },
+        {
+          "source": "neo4j",
+          "specifiers": [
+            "GraphDatabase"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        "DriverNotInitialisedError",
+        "get_driver",
+        "_require_driver",
+        "read_session",
+        "write_session",
+        "close_driver"
+      ],
+      "totalLines": 60,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/graph/indexes.py": {
+      "filePath": "migration_oracle/graph/indexes.py",
+      "contentHash": "7b033e87ce3d28f9112162e8b29fc9fe7eba3eab13eae0035a751cfcae1030e0",
+      "functions": [
+        {
+          "name": "ensure_indexes",
+          "params": [
+            "driver"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "neo4j",
+          "specifiers": [
+            "neo4j"
+          ]
+        },
+        {
+          "source": "neo4j.exceptions",
+          "specifiers": [
+            "ClientError",
+            "CypherSyntaxError",
+            "DatabaseError"
+          ]
+        }
+      ],
+      "exports": [
+        "ensure_indexes"
+      ],
+      "totalLines": 51,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/graph/queries/__init__.py": {
+      "filePath": "migration_oracle/graph/queries/__init__.py",
+      "contentHash": "d31e465a156b5cd6bbc9a336c010b71f96597a7fa66d286f8c59b5ae8f90c493",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/graph/queries/pipeline.py": {
+      "filePath": "migration_oracle/graph/queries/pipeline.py",
+      "contentHash": "b2236ce07abcbf8b2a6d073b639a67c7221129bd530a3ce11596eaa864230c8c",
+      "functions": [
+        {
+          "name": "merge_version",
+          "params": [
+            "framework",
+            "version",
+            "sortable_version"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "version_exists",
+          "params": [
+            "framework",
+            "version"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "upsert_version_artifact_paths",
+          "params": [
+            "framework",
+            "version",
+            "raw_md_path",
+            "filtered_md_path",
+            "entities_json_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 28
+        },
+        {
+          "name": "list_pipeline_runs",
+          "params": [
+            "framework"
+          ],
+          "returnType": "list[dict[str, str | None]]",
+          "exported": true,
+          "lineCount": 25
+        }
+      ],
+      "classes": [
+        {
+          "name": "PipelineRunRecord",
+          "methods": [],
+          "properties": [
+            "framework",
+            "version",
+            "raw_md_path",
+            "filtered_md_path",
+            "entities_json_path"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.driver",
+          "specifiers": [
+            "read_session",
+            "write_session"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.graph",
+          "specifiers": [
+            "sortable_version"
+          ]
+        }
+      ],
+      "exports": [
+        "PipelineRunRecord",
+        "merge_version",
+        "version_exists",
+        "upsert_version_artifact_paths",
+        "list_pipeline_runs"
+      ],
+      "totalLines": 102,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/models/__init__.py": {
+      "filePath": "migration_oracle/models/__init__.py",
+      "contentHash": "599f41d6aa3cb34091434dfb150ec40d25752c35adcea84118be9fd15782155c",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "BreakingScopeInput",
+            "DocumentedChange",
+            "Effort",
+            "EntityKind",
+            "EntityRole",
+            "ExtractionResult",
+            "MigrationEntitiesBatch",
+            "MigrationEntity",
+            "MigrationStep",
+            "ScopeLevel",
+            "Severity",
+            "SOURCE_SECTION_TO_RULE_TYPE",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.graph",
+          "specifiers": [
+            "BreakingScopeNode",
+            "MigrationContextNode",
+            "MigrationRuleNode",
+            "MigrationStepNode",
+            "VersionNode",
+            "sortable_version"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/models/changes.py": {
+      "filePath": "migration_oracle/models/changes.py",
+      "contentHash": "893ad68a737c3969928415534d9f7364c327ac9eddb1461c6df9d98c1d79dd0c",
+      "functions": [],
+      "classes": [],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        }
+      ],
+      "exports": [],
+      "totalLines": 6,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/models/entities.py": {
+      "filePath": "migration_oracle/models/entities.py",
+      "contentHash": "e4d8f8ee3f3d4e91097effe62dadd76b993d103a52282a88222f194be0eed5c3",
+      "functions": [],
+      "classes": [
+        {
+          "name": "DocumentedChange",
+          "methods": [],
+          "properties": [
+            "type",
+            "confidence",
+            "source_url",
+            "statement",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "ExtractionResult",
+          "methods": [],
+          "properties": [
+            "changes",
+            "metadata"
+          ],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "EntityKind",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "EntityRole",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "StepType",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "Effort",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "ScopeLevel",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "Severity",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "AffectedEntity",
+          "methods": [],
+          "properties": [
+            "kind",
+            "name",
+            "role"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "BreakingScopeInput",
+          "methods": [],
+          "properties": [
+            "scope",
+            "severity"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "MigrationStep",
+          "methods": [],
+          "properties": [
+            "index",
+            "step_type",
+            "summary",
+            "instruction",
+            "effort",
+            "automatable",
+            "requires",
+            "verification",
+            "cli_operation"
+          ],
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "MigrationEntity",
+          "methods": [],
+          "properties": [
+            "source_section",
+            "title",
+            "jira_keys",
+            "source_url",
+            "change_type",
+            "reason_type",
+            "reason",
+            "scopes",
+            "entities",
+            "steps",
+            "subsystem"
+          ],
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "MigrationEntitiesBatch",
+          "methods": [],
+          "properties": [
+            "entities"
+          ],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "enum",
+          "specifiers": [
+            "Enum"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "List",
+            "Literal",
+            "Optional"
+          ]
+        },
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "BaseModel",
+            "Field"
+          ]
+        }
+      ],
+      "exports": [
+        "DocumentedChange",
+        "ExtractionResult",
+        "EntityKind",
+        "EntityRole",
+        "StepType",
+        "Effort",
+        "ScopeLevel",
+        "Severity",
+        "AffectedEntity",
+        "BreakingScopeInput",
+        "MigrationStep",
+        "MigrationEntity",
+        "MigrationEntitiesBatch"
+      ],
+      "totalLines": 130,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/models/graph.py": {
+      "filePath": "migration_oracle/models/graph.py",
+      "contentHash": "042c1e1c69de32540a3be56986954b3cd2ca701fae86274d03c3d757308fb493",
+      "functions": [
+        {
+          "name": "sortable_version",
+          "params": [
+            "version"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 16
+        }
+      ],
+      "classes": [
+        {
+          "name": "VersionNode",
+          "methods": [],
+          "properties": [
+            "framework",
+            "version",
+            "sortable_version",
+            "raw_md_path",
+            "filtered_md_path",
+            "entities_json_path"
+          ],
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "MigrationRuleNode",
+          "methods": [],
+          "properties": [
+            "element_id",
+            "statement",
+            "rule_type",
+            "change_type",
+            "entity_classification",
+            "title",
+            "jira_keys",
+            "source_url"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "MigrationStepNode",
+          "methods": [],
+          "properties": [
+            "element_id",
+            "step_type",
+            "summary",
+            "instruction",
+            "effort",
+            "automatable",
+            "verification_hint",
+            "cli_operation"
+          ],
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "BreakingScopeNode",
+          "methods": [],
+          "properties": [
+            "scope",
+            "severity"
+          ],
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "MigrationContextNode",
+          "methods": [],
+          "properties": [
+            "element_id",
+            "project_id",
+            "from_version",
+            "to_version",
+            "framework",
+            "status",
+            "completed_steps",
+            "skipped_steps",
+            "created_at",
+            "completed_at",
+            "notes"
+          ],
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        }
+      ],
+      "exports": [
+        "VersionNode",
+        "MigrationRuleNode",
+        "MigrationStepNode",
+        "BreakingScopeNode",
+        "MigrationContextNode",
+        "sortable_version"
+      ],
+      "totalLines": 77,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/__init__.py": {
+      "filePath": "migration_oracle/pipeline/__init__.py",
+      "contentHash": "f57eeffa250e7eaa0816b8a71427e5660485015cbcd2a0792c9eb8832a836d9f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 2,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/_cache.py": {
+      "filePath": "migration_oracle/pipeline/_cache.py",
+      "contentHash": "364d30705f70f23290120a88f22db477863e999cb9c1366ea47e8ba8ffbaa184",
+      "functions": [
+        {
+          "name": "is_cached",
+          "params": [
+            "path"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "mark_cached",
+          "params": [
+            "path",
+            "content"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "resolve_cache_flags",
+          "params": [
+            "raw_path",
+            "filtered_path",
+            "json_path",
+            "force",
+            "force_extract",
+            "force_llm"
+          ],
+          "returnType": "CacheFlags",
+          "exported": true,
+          "lineCount": 52
+        }
+      ],
+      "classes": [
+        {
+          "name": "CacheFlags",
+          "methods": [],
+          "properties": [
+            "skip_extraction",
+            "skip_filter_llm",
+            "skip_entity_llm",
+            "raw_was_cached",
+            "stale_filtered_warning",
+            "stale_json_warning"
+          ],
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        }
+      ],
+      "exports": [
+        "is_cached",
+        "mark_cached",
+        "CacheFlags",
+        "resolve_cache_flags"
+      ],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/_llm.py": {
+      "filePath": "migration_oracle/pipeline/_llm.py",
+      "contentHash": "ae5971e89661fa01f7be7bd6a90455e80197f9efc2f4d158f6c73544e7db39b6",
+      "functions": [
+        {
+          "name": "get_llm",
+          "params": [],
+          "returnType": "BaseChatModel",
+          "exported": true,
+          "lineCount": 27
+        },
+        {
+          "name": "_is_rate_limit_error",
+          "params": [
+            "exc"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "invoke_with_retry",
+          "params": [
+            "llm",
+            "prompt"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "strip_markdown_fences",
+          "params": [
+            "text"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "strip_preamble",
+          "params": [
+            "text"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "LLMInvocationError",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "imports": [
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "time",
+          "specifiers": [
+            "time"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": "langchain.chat_models",
+          "specifiers": [
+            "init_chat_model"
+          ]
+        },
+        {
+          "source": "langchain_core.language_models.chat_models",
+          "specifiers": [
+            "BaseChatModel"
+          ]
+        },
+        {
+          "source": "langchain_core.messages",
+          "specifiers": [
+            "HumanMessage"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        "LLMInvocationError",
+        "get_llm",
+        "_is_rate_limit_error",
+        "invoke_with_retry",
+        "strip_markdown_fences",
+        "strip_preamble"
+      ],
+      "totalLines": 109,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/_paths.py": {
+      "filePath": "migration_oracle/pipeline/_paths.py",
+      "contentHash": "440ad4b8a2580a0cec3152e9712e543f973d21b1c74aa9900ff020202fd24ade",
+      "functions": [
+        {
+          "name": "artifact_key",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "default_raw_md_path",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "Path",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "default_filtered_md_path",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "Path",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "default_entities_json_path",
+          "params": [
+            "framework",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "Path",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "ensure_runs_directories",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        }
+      ],
+      "exports": [
+        "artifact_key",
+        "default_raw_md_path",
+        "default_filtered_md_path",
+        "default_entities_json_path",
+        "ensure_runs_directories"
+      ],
+      "totalLines": 43,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractor.py": {
+      "filePath": "migration_oracle/pipeline/extractor.py",
+      "contentHash": "cfe4d2dba32c9d1996d08ad6bbed3d3e394abf602eede3a20391a3b8d55c4b01",
+      "functions": [
+        {
+          "name": "_parse_json_response",
+          "params": [
+            "text"
+          ],
+          "returnType": "MigrationEntitiesBatch",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "_invoke_structured",
+          "params": [
+            "filtered_md",
+            "framework"
+          ],
+          "returnType": "MigrationEntitiesBatch",
+          "exported": true,
+          "lineCount": 14
+        },
+        {
+          "name": "run_extraction",
+          "params": [
+            "filtered_md",
+            "framework_display",
+            "output_path",
+            "flags"
+          ],
+          "returnType": "ExtractionResult",
+          "exported": true,
+          "lineCount": 49
+        }
+      ],
+      "classes": [
+        {
+          "name": "ExtractionResult",
+          "methods": [],
+          "properties": [
+            "batch",
+            "artifact_path"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [
+        {
+          "source": "json",
+          "specifiers": [
+            "json"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "pydantic",
+          "specifiers": [
+            "ValidationError"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "MigrationEntitiesBatch"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._cache",
+          "specifiers": [
+            "CacheFlags"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._llm",
+          "specifiers": [
+            "LLMInvocationError",
+            "get_llm",
+            "invoke_with_retry",
+            "strip_markdown_fences"
+          ]
+        }
+      ],
+      "exports": [
+        "ExtractionResult",
+        "_parse_json_response",
+        "_invoke_structured",
+        "run_extraction"
+      ],
+      "totalLines": 147,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/__init__.py": {
+      "filePath": "migration_oracle/pipeline/extractors/__init__.py",
+      "contentHash": "2a5406c673e92761cd970c7d693cded9885b15b747ce9deb75c7af84215af953",
+      "functions": [
+        {
+          "name": "get_extractor",
+          "params": [
+            "framework"
+          ],
+          "returnType": "BaseExtractor",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "supported_framework_keys",
+          "params": [],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "render_raw_markdown",
+          "params": [
+            "framework_key",
+            "framework_display",
+            "from_version",
+            "to_version",
+            "hop_changes",
+            "metadata"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 49
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "datetime",
+          "specifiers": [
+            "UTC",
+            "datetime"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Type"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.angular",
+          "specifiers": [
+            "AngularExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.eap",
+          "specifiers": [
+            "EAPExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.elytron",
+          "specifiers": [
+            "ElytronExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.hibernate",
+          "specifiers": [
+            "HibernateExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.infinispan",
+          "specifiers": [
+            "InfinispanExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.jakarta_ee",
+          "specifiers": [
+            "JakartaEEExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.resteasy",
+          "specifiers": [
+            "RestEasyExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.spring_boot",
+          "specifiers": [
+            "SpringBootExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.stub_framework",
+          "specifiers": [
+            "StubFrameworkExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.wildfly",
+          "specifiers": [
+            "WildFlyExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "get_extractor",
+        "supported_framework_keys",
+        "render_raw_markdown"
+      ],
+      "totalLines": 137,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/angular.py": {
+      "filePath": "migration_oracle/pipeline/extractors/angular.py",
+      "contentHash": "ba2bdf9aeaed3a666569d8366ccdc6c30aefbc71ed553cc430a3305832503afb",
+      "functions": [
+        {
+          "name": "_extract_changelog_section",
+          "params": [
+            "changelog_text",
+            "version"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 14
+        }
+      ],
+      "classes": [
+        {
+          "name": "AngularExtractor",
+          "methods": [
+            "discover_versions",
+            "_get_changelog",
+            "_fetch_blog_summary",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 68
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "bs4",
+          "specifiers": [
+            "BeautifulSoup"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "filter_release_versions",
+            "parse_github_release_text"
+          ]
+        }
+      ],
+      "exports": [
+        "_extract_changelog_section",
+        "AngularExtractor"
+      ],
+      "totalLines": 112,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/base.py": {
+      "filePath": "migration_oracle/pipeline/extractors/base.py",
+      "contentHash": "4f5ca08677a0ffe63349b899dca50c3efbce61578f60cb44ce01786d33e0b504",
+      "functions": [
+        {
+          "name": "is_jboss_ga_version",
+          "params": [
+            "version"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "is_infinispan_ga_version",
+          "params": [
+            "version"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "is_spring_boot_ga_version",
+          "params": [
+            "version"
+          ],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "classes": [
+        {
+          "name": "BaseExtractor",
+          "methods": [
+            "__init__",
+            "aclose",
+            "__aenter__",
+            "__aexit__",
+            "jira_max_concurrent",
+            "redhat_docs_delay_sec",
+            "_http_get_cached",
+            "_fetch_maven_versions",
+            "get_available_versions",
+            "fetch",
+            "fetch_json",
+            "fetch_first_ok",
+            "fetch_github_release",
+            "discover_versions",
+            "extract",
+            "extract_range",
+            "build_range_metadata",
+            "sleep_redhat"
+          ],
+          "properties": [
+            "framework_key",
+            "display_name",
+            "default_timeout"
+          ],
+          "exported": true,
+          "lineCount": 249
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "abc",
+          "specifiers": [
+            "ABC",
+            "abstractmethod"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "httpx"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "compute_hops",
+            "versions_in_range"
+          ]
+        }
+      ],
+      "exports": [
+        "is_jboss_ga_version",
+        "is_infinispan_ga_version",
+        "is_spring_boot_ga_version",
+        "BaseExtractor"
+      ],
+      "totalLines": 335,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/eap.py": {
+      "filePath": "migration_oracle/pipeline/extractors/eap.py",
+      "contentHash": "3a218c758f3dab0e836d4a480ac80273cf7cb57b2d88f45bbf49ed8ffb5b06c9",
+      "functions": [],
+      "classes": [
+        {
+          "name": "EAPVersionEntry",
+          "methods": [],
+          "properties": [
+            "eap_version",
+            "slug",
+            "wildfly_base"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "EAPExtractor",
+          "methods": [
+            "discover_versions",
+            "_entry_for",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 43
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "apply_cli_hints",
+            "html_to_text",
+            "parse_markdown_statements"
+          ]
+        }
+      ],
+      "exports": [
+        "EAPVersionEntry",
+        "EAPExtractor"
+      ],
+      "totalLines": 85,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/elytron.py": {
+      "filePath": "migration_oracle/pipeline/extractors/elytron.py",
+      "contentHash": "9489942f2b74171507f18c331ee33581b0aa804af25023f77da44f5871d2a180",
+      "functions": [],
+      "classes": [
+        {
+          "name": "ElytronExtractor",
+          "methods": [
+            "get_available_versions",
+            "_filtered_maven_versions",
+            "discover_versions",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "is_jboss_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.filters",
+          "specifiers": [
+            "_skip_prerelease"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "filter_release_versions",
+            "normalize_wildfly_maven_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.stubs",
+          "specifiers": [
+            "StubExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "ElytronExtractor"
+      ],
+      "totalLines": 46,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/filters.py": {
+      "filePath": "migration_oracle/pipeline/extractors/filters.py",
+      "contentHash": "3e343e5ddbb6ab8850718f0733dd1870943db0ac6e53282316ea109eae6700d2",
+      "functions": [
+        {
+          "name": "_skip_prerelease",
+          "params": [],
+          "returnType": "bool",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "is_infinispan_ga_version",
+            "is_jboss_ga_version"
+          ]
+        }
+      ],
+      "exports": [
+        "_skip_prerelease"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/hibernate.py": {
+      "filePath": "migration_oracle/pipeline/extractors/hibernate.py",
+      "contentHash": "cf9cd95e05762ff92b7e76bf0bc364379aa0ea02aa0709cf0fdce17b44570af2",
+      "functions": [],
+      "classes": [
+        {
+          "name": "HibernateExtractor",
+          "methods": [
+            "get_available_versions",
+            "_filtered_maven_versions",
+            "discover_versions",
+            "_fetch_guide",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 54
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor",
+            "is_jboss_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.filters",
+          "specifiers": [
+            "_skip_prerelease"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "filter_release_versions",
+            "normalize_wildfly_maven_version",
+            "parse_asciidoc_migration_guide",
+            "parse_markdown_statements",
+            "parse_version"
+          ]
+        }
+      ],
+      "exports": [
+        "HibernateExtractor"
+      ],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/infinispan.py": {
+      "filePath": "migration_oracle/pipeline/extractors/infinispan.py",
+      "contentHash": "f8ee25a4d4987081b1af91d653a9965fe61be9415cd1f30442e9ea1bd33ac8e0",
+      "functions": [],
+      "classes": [
+        {
+          "name": "InfinispanExtractor",
+          "methods": [
+            "get_available_versions",
+            "_filtered_maven_versions",
+            "discover_versions",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 35
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor",
+            "is_infinispan_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.filters",
+          "specifiers": [
+            "_skip_prerelease"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "filter_release_versions",
+            "normalize_wildfly_maven_version",
+            "parse_github_release_text"
+          ]
+        }
+      ],
+      "exports": [
+        "InfinispanExtractor"
+      ],
+      "totalLines": 57,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/jakarta_ee.py": {
+      "filePath": "migration_oracle/pipeline/extractors/jakarta_ee.py",
+      "contentHash": "60988be83229632fbb56f5d1f074cd90b49508d7dcc5604d933b47373c4e80c2",
+      "functions": [],
+      "classes": [
+        {
+          "name": "JakartaEENamespaceMapping",
+          "methods": [],
+          "properties": [
+            "javax_package",
+            "jakarta_package",
+            "spec_version"
+          ],
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "JakartaEEExtractor",
+          "methods": [
+            "discover_versions",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 29
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "compare_versions"
+          ]
+        }
+      ],
+      "exports": [
+        "JakartaEENamespaceMapping",
+        "JakartaEEExtractor"
+      ],
+      "totalLines": 84,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/parsing.py": {
+      "filePath": "migration_oracle/pipeline/extractors/parsing.py",
+      "contentHash": "b37052ea623a6a17f6ec25afcf3f54e51ff7ac1a360de08677b6196722dced23",
+      "functions": [
+        {
+          "name": "parse_version",
+          "params": [
+            "version"
+          ],
+          "returnType": "tuple[int, int, int, str]",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "version_key",
+          "params": [
+            "version"
+          ],
+          "returnType": "tuple[int, int, int]",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "compare_versions",
+          "params": [
+            "left",
+            "right"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "normalize_wildfly_maven_version",
+          "params": [
+            "maven_version"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "parse_maven_metadata_versions",
+          "params": [
+            "xml_text"
+          ],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "filter_release_versions",
+          "params": [
+            "versions",
+            "final_only",
+            "semver_only"
+          ],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 25
+        },
+        {
+          "name": "versions_in_range",
+          "params": [
+            "versions",
+            "from_version",
+            "to_version"
+          ],
+          "returnType": "list[str]",
+          "exported": true,
+          "lineCount": 25
+        },
+        {
+          "name": "compute_hops",
+          "params": [
+            "versions"
+          ],
+          "returnType": "list[tuple[str, str]]",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "classify_statement",
+          "params": [
+            "section",
+            "text"
+          ],
+          "returnType": "tuple[str, str]",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "detect_stability_level",
+          "params": [
+            "text"
+          ],
+          "returnType": "str | None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "parse_github_release_text",
+          "params": [
+            "body",
+            "source_url"
+          ],
+          "returnType": "list[DocumentedChange]",
+          "exported": true,
+          "lineCount": 47
+        },
+        {
+          "name": "parse_markdown_statements",
+          "params": [
+            "body",
+            "source_url",
+            "default_section"
+          ],
+          "returnType": "list[DocumentedChange]",
+          "exported": true,
+          "lineCount": 47
+        },
+        {
+          "name": "html_to_text",
+          "params": [
+            "html"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "parse_asciidoc_migration_guide",
+          "params": [
+            "content",
+            "source_url"
+          ],
+          "returnType": "list[DocumentedChange]",
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "apply_cli_hints",
+          "params": [
+            "changes"
+          ],
+          "returnType": "list[DocumentedChange]",
+          "exported": true,
+          "lineCount": 16
+        },
+        {
+          "name": "parse_pom_dependencies",
+          "params": [
+            "pom_xml"
+          ],
+          "returnType": "dict[str, str]",
+          "exported": true,
+          "lineCount": 27
+        },
+        {
+          "name": "bom_diff",
+          "params": [
+            "from_deps",
+            "to_deps"
+          ],
+          "returnType": "dict[str, list[dict[str, str]]]",
+          "exported": true,
+          "lineCount": 21
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "xml.etree.ElementTree",
+          "specifiers": [
+            "ET"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Iterable"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange"
+          ]
+        }
+      ],
+      "exports": [
+        "parse_version",
+        "version_key",
+        "compare_versions",
+        "normalize_wildfly_maven_version",
+        "parse_maven_metadata_versions",
+        "filter_release_versions",
+        "versions_in_range",
+        "compute_hops",
+        "classify_statement",
+        "detect_stability_level",
+        "parse_github_release_text",
+        "parse_markdown_statements",
+        "html_to_text",
+        "parse_asciidoc_migration_guide",
+        "apply_cli_hints",
+        "parse_pom_dependencies",
+        "bom_diff"
+      ],
+      "totalLines": 367,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/resteasy.py": {
+      "filePath": "migration_oracle/pipeline/extractors/resteasy.py",
+      "contentHash": "502c08e792dfcb5bca385231b9ac1af9421710a0812eb00f65b01606e9982f02",
+      "functions": [],
+      "classes": [
+        {
+          "name": "RestEasyExtractor",
+          "methods": [
+            "get_available_versions",
+            "_filtered_maven_versions",
+            "discover_versions",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "is_jboss_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.filters",
+          "specifiers": [
+            "_skip_prerelease"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "filter_release_versions",
+            "normalize_wildfly_maven_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.stubs",
+          "specifiers": [
+            "StubExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "RestEasyExtractor"
+      ],
+      "totalLines": 48,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/spring_boot.py": {
+      "filePath": "migration_oracle/pipeline/extractors/spring_boot.py",
+      "contentHash": "da536b6db9c25c18deaad435c422aef04053ae9f559c08f651744162756a7907",
+      "functions": [
+        {
+          "name": "_strip_dependency_upgrades",
+          "params": [
+            "body"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "parse_github_release_text",
+          "params": [
+            "body",
+            "source_url"
+          ],
+          "returnType": "list",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [
+        {
+          "name": "SpringBootExtractor",
+          "methods": [
+            "parse_github_release_text",
+            "discover_versions",
+            "_fetch_wiki_release_notes",
+            "extract",
+            "build_range_metadata"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 61
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "migration_oracle",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor",
+            "is_spring_boot_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "bom_diff",
+            "filter_release_versions",
+            "html_to_text",
+            "parse_maven_metadata_versions",
+            "parse_pom_dependencies",
+            "parse_version",
+            "version_key",
+            "_parse_github_release_text"
+          ]
+        }
+      ],
+      "exports": [
+        "_strip_dependency_upgrades",
+        "parse_github_release_text",
+        "SpringBootExtractor"
+      ],
+      "totalLines": 127,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/stub_framework.py": {
+      "filePath": "migration_oracle/pipeline/extractors/stub_framework.py",
+      "contentHash": "8c154968c5590433a105ce543e7839fbf29e9807ebbe720038ae1febc6f7cefe",
+      "functions": [],
+      "classes": [
+        {
+          "name": "StubFrameworkExtractor",
+          "methods": [
+            "discover_versions",
+            "extract"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 26
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "StubFrameworkExtractor"
+      ],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/stubs.py": {
+      "filePath": "migration_oracle/pipeline/extractors/stubs.py",
+      "contentHash": "ef1a51c55916243a647261870479ee1ab420eade18d18a4dfbc5fc5249fb02c3",
+      "functions": [],
+      "classes": [
+        {
+          "name": "StubExtractor",
+          "methods": [
+            "_raise_not_implemented",
+            "discover_versions",
+            "extract",
+            "extract_range"
+          ],
+          "properties": [
+            "stub_name"
+          ],
+          "exported": true,
+          "lineCount": 19
+        }
+      ],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "StubExtractor"
+      ],
+      "totalLines": 30,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/wildfly_jira.py": {
+      "filePath": "migration_oracle/pipeline/extractors/wildfly_jira.py",
+      "contentHash": "daf8c964277bf0d411a37069c55f3dfbe0bad0f32a53054ac94fd6986fb08e32",
+      "functions": [
+        {
+          "name": "normalize_jira_url",
+          "params": [
+            "url"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "build_release_index",
+          "params": [
+            "body"
+          ],
+          "returnType": "dict[str, WildFlyJiraEntry]",
+          "exported": true,
+          "lineCount": 26
+        },
+        {
+          "name": "collect_jira_keys",
+          "params": [
+            "body",
+            "statements"
+          ],
+          "returnType": "set[str]",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "parse_jira_fields",
+          "params": [
+            "fields"
+          ],
+          "returnType": "WildFlyJiraEntry",
+          "exported": true,
+          "lineCount": 12
+        },
+        {
+          "name": "fetch_jira_entry",
+          "params": [
+            "client_fetch",
+            "key",
+            "timeout"
+          ],
+          "returnType": "WildFlyJiraEntry | None",
+          "exported": true,
+          "lineCount": 53
+        },
+        {
+          "name": "enrich_with_jira",
+          "params": [
+            "extractor",
+            "body",
+            "changes"
+          ],
+          "returnType": "list",
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [
+        {
+          "name": "WildFlyJiraEntry",
+          "methods": [],
+          "properties": [
+            "summary",
+            "source_url",
+            "issue_type",
+            "description",
+            "priority"
+          ],
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "imports": [
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "TypedDict"
+          ]
+        }
+      ],
+      "exports": [
+        "WildFlyJiraEntry",
+        "normalize_jira_url",
+        "build_release_index",
+        "collect_jira_keys",
+        "parse_jira_fields",
+        "fetch_jira_entry",
+        "enrich_with_jira"
+      ],
+      "totalLines": 169,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/extractors/wildfly.py": {
+      "filePath": "migration_oracle/pipeline/extractors/wildfly.py",
+      "contentHash": "0be5f00ac3ccfa2a833de818dc0d132cb2fee243839c728a70912010bf4b5928",
+      "functions": [],
+      "classes": [
+        {
+          "name": "WildFlyExtractor",
+          "methods": [
+            "_priority_from_jira_fields",
+            "discover_versions",
+            "enrich_with_jira",
+            "_load_jira_cache",
+            "extract",
+            "_fetch_release_body"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 141
+        }
+      ],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "logging",
+          "specifiers": [
+            "logging"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange",
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.base",
+          "specifiers": [
+            "BaseExtractor",
+            "is_jboss_ga_version"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.filters",
+          "specifiers": [
+            "_skip_prerelease"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.parsing",
+          "specifiers": [
+            "apply_cli_hints",
+            "filter_release_versions",
+            "html_to_text",
+            "normalize_wildfly_maven_version",
+            "parse_github_release_text",
+            "parse_maven_metadata_versions",
+            "parse_version",
+            "version_key"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.wildfly_jira",
+          "specifiers": [
+            "BROWSE_TEMPLATE",
+            "JIRA_KEY_RE",
+            "build_release_index",
+            "collect_jira_keys",
+            "fetch_jira_entry",
+            "parse_jira_fields",
+            "normalize_jira_host"
+          ]
+        }
+      ],
+      "exports": [
+        "WildFlyExtractor"
+      ],
+      "totalLines": 182,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/filters.py": {
+      "filePath": "migration_oracle/pipeline/filters.py",
+      "contentHash": "f502e2cfb8699dbf85755f279fcb89e7e8aa7f05d6d3d6c5f04ce2928eb47ccb",
+      "functions": [
+        {
+          "name": "emit_stale_warnings",
+          "params": [
+            "flags"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "run_filter",
+          "params": [
+            "raw_md",
+            "output_path",
+            "flags"
+          ],
+          "returnType": "FilterResult",
+          "exported": true,
+          "lineCount": 26
+        }
+      ],
+      "classes": [
+        {
+          "name": "FilterResult",
+          "methods": [],
+          "properties": [
+            "filtered_md",
+            "artifact_path"
+          ],
+          "exported": true,
+          "lineCount": 3
+        }
+      ],
+      "imports": [
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._cache",
+          "specifiers": [
+            "CacheFlags"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._llm",
+          "specifiers": [
+            "LLMInvocationError",
+            "get_llm",
+            "invoke_with_retry",
+            "strip_markdown_fences",
+            "strip_preamble"
+          ]
+        }
+      ],
+      "exports": [
+        "FilterResult",
+        "emit_stale_warnings",
+        "run_filter"
+      ],
+      "totalLines": 168,
+      "hasStructuralAnalysis": true
+    },
+    "migration_oracle/pipeline/populator.py": {
+      "filePath": "migration_oracle/pipeline/populator.py",
+      "contentHash": "69916cf42dc5218a53bfc8ba4573a6fffc5aa80f2ef5a051384b74cccc182343",
+      "functions": [
+        {
+          "name": "derive_entity_classification",
+          "params": [
+            "entity"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "rule_type_for",
+          "params": [
+            "source_section"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "_entity_label",
+          "params": [
+            "kind"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "_edge_type",
+          "params": [
+            "kind"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "_replacement_pairs",
+          "params": [
+            "entity"
+          ],
+          "returnType": "list[tuple[str, str, EntityKind]]",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "populate_graph",
+          "params": [
+            "batch",
+            "framework_display",
+            "to_version",
+            "raw_md_path",
+            "filtered_md_path",
+            "entities_json_path",
+            "dry_run",
+            "skip_if_version_exists"
+          ],
+          "returnType": "PopulationResult",
+          "exported": true,
+          "lineCount": 60
+        },
+        {
+          "name": "_write_entity",
+          "params": [
+            "session",
+            "entity",
+            "framework_display",
+            "to_version"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 100
+        },
+        {
+          "name": "_write_step",
+          "params": [
+            "session",
+            "rule_id",
+            "step",
+            "entity"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 81
+        },
+        {
+          "name": "_write_affected_entity",
+          "params": [
+            "session",
+            "rule_id",
+            "entity",
+            "affected",
+            "framework_display",
+            "to_version"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 63
+        }
+      ],
+      "classes": [
+        {
+          "name": "UnknownSourceSectionError",
+          "methods": [],
+          "properties": [],
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "PopulationResult",
+          "methods": [],
+          "properties": [
+            "rules_written",
+            "steps_written",
+            "scopes_written",
+            "entities_written",
+            "version_created",
+            "skipped"
+          ],
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass"
+          ]
+        },
+        {
+          "source": "itertools",
+          "specifiers": [
+            "product"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.driver",
+          "specifiers": [
+            "get_driver",
+            "write_session"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.indexes",
+          "specifiers": [
+            "ensure_indexes"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.queries",
+          "specifiers": [
+            "pipeline_queries"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntitiesBatch",
+            "MigrationEntity",
+            "MigrationStep",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.graph",
+          "specifiers": [
+            "sortable_version"
+          ]
+        }
+      ],
+      "exports": [
+        "UnknownSourceSectionError",
+        "PopulationResult",
+        "derive_entity_classification",
+        "rule_type_for",
+        "_entity_label",
+        "_edge_type",
+        "_replacement_pairs",
+        "populate_graph",
+        "_write_entity",
+        "_write_step",
+        "_write_affected_entity"
+      ],
+      "totalLines": 406,
+      "hasStructuralAnalysis": true
+    },
+    "pyproject.toml": {
+      "filePath": "pyproject.toml",
+      "contentHash": "b5c184e3c05f3ab4ed4913b0faddb021a86ab7f3adeb684dbb17134ba0b58074",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 47,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/run_003b_verification.py": {
+      "filePath": "scripts/run_003b_verification.py",
+      "contentHash": "5432d91710d76d58110983bea1aeef5ca10d4cb8cc3c2cd36655dafbd792412b",
+      "functions": [
+        {
+          "name": "run_check",
+          "params": [
+            "name",
+            "fn"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "level_0",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 135
+        },
+        {
+          "name": "level_1",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "level_2",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 253
+        },
+        {
+          "name": "level_7",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 134
+        },
+        {
+          "name": "level_4",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 60
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "asyncio",
+          "specifiers": [
+            "asyncio"
+          ]
+        },
+        {
+          "source": "ast",
+          "specifiers": [
+            "ast"
+          ]
+        },
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "inspect",
+          "specifiers": [
+            "inspect"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "subprocess",
+          "specifiers": [
+            "subprocess"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "textwrap",
+          "specifiers": [
+            "textwrap"
+          ]
+        },
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "mock"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        }
+      ],
+      "exports": [
+        "run_check",
+        "level_0",
+        "level_1",
+        "level_2",
+        "level_7",
+        "level_4",
+        "main"
+      ],
+      "totalLines": 679,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/run_raw_extractions.sh": {
+      "filePath": "scripts/run_raw_extractions.sh",
+      "contentHash": "cf06ee9c7732b0134c57cd2b77a89063bf6cd00edbc83f1f4796713727b41c5b",
+      "functions": [
+        {
+          "name": "run",
+          "params": [],
+          "exported": false,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 60,
+      "hasStructuralAnalysis": true
+    },
+    "scripts/split_wildfly_raw.py": {
+      "filePath": "scripts/split_wildfly_raw.py",
+      "contentHash": "297c97674f2a0dfe381cc56f8481374d6bdfed55609830ff0ebf39819631c966",
+      "functions": [
+        {
+          "name": "parse_hops",
+          "params": [
+            "text"
+          ],
+          "returnType": "list[tuple[str, str, str]]",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "group_hops",
+          "params": [
+            "hops"
+          ],
+          "returnType": "dict[tuple[str, str], list]",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "render_file",
+          "params": [
+            "range_from",
+            "range_to",
+            "hop_sections",
+            "generated_utc"
+          ],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 23
+        },
+        {
+          "name": "main",
+          "params": [],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 38
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "re",
+          "specifiers": [
+            "re"
+          ]
+        },
+        {
+          "source": "sys",
+          "specifiers": [
+            "sys"
+          ]
+        },
+        {
+          "source": "datetime",
+          "specifiers": [
+            "UTC",
+            "datetime"
+          ]
+        },
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        }
+      ],
+      "exports": [
+        "parse_hops",
+        "group_hops",
+        "render_file",
+        "main"
+      ],
+      "totalLines": 104,
+      "hasStructuralAnalysis": true
+    },
+    "skills/changelog-migration-extractor.skill": {
+      "filePath": "skills/changelog-migration-extractor.skill",
+      "contentHash": "93a8fd93d2dbcd3f611cd495c55bdca9b82bb1583aed541b09ffb47c1b13349a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 13,
+      "hasStructuralAnalysis": false
+    },
+    "skills/migration-filter.skill": {
+      "filePath": "skills/migration-filter.skill",
+      "contentHash": "d44d3aa970f089ce78d33ee0e6a6ccd2a75fd9b627bbe6808abbe821f57a7e0d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 14,
+      "hasStructuralAnalysis": false
+    },
+    "skills/speckit-sdd-buddy.skill": {
+      "filePath": "skills/speckit-sdd-buddy.skill",
+      "contentHash": "350d21cdf3ad874ad6b186788881729e57479f04a1a80dd10f4a9a1908addf43",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 27,
+      "hasStructuralAnalysis": false
+    },
+    "skills/verification-protocol-writer.skill": {
+      "filePath": "skills/verification-protocol-writer.skill",
+      "contentHash": "7d275866e54f3ebbcf21e36c34741dfdc611aebf4eab81cbd6c89e57b96c8ce9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 39,
+      "hasStructuralAnalysis": false
+    },
+    "specs/001-foundations/000-foundations.md": {
+      "filePath": "specs/001-foundations/000-foundations.md",
+      "contentHash": "711a544474a36e8bd2462e79e7366b00d5940c9e93c29ee2b7d3b1702f798a3f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 102,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/data-model.md": {
+      "filePath": "specs/001-foundations/data-model.md",
+      "contentHash": "949d970c48d296488866d9e53f322ef92b7cd4cf1581c802f592d499923f49ed",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 252,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/plan.md": {
+      "filePath": "specs/001-foundations/plan.md",
+      "contentHash": "ea9ae443f518c76b3157452af9424f10c4906b2ae85a9262bffb5e1fd113dc17",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 256,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/quickstart.md": {
+      "filePath": "specs/001-foundations/quickstart.md",
+      "contentHash": "af9a46292871871386dd1bfa5da2edc4193c152c4e87647465ea60044708f4fb",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 93,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/runbook.md": {
+      "filePath": "specs/001-foundations/runbook.md",
+      "contentHash": "8778ea1e28e214e3f5439a5638071341f1dddc8a1ed8285dd3c042a0c207e22d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 380,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/spec.md": {
+      "filePath": "specs/001-foundations/spec.md",
+      "contentHash": "05bf826bf42c2e9fe0b1e2e65753f876d3869bed0c93e9da0f8b1a783fb3b5a0",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 174,
+      "hasStructuralAnalysis": true
+    },
+    "specs/001-foundations/tasks.md": {
+      "filePath": "specs/001-foundations/tasks.md",
+      "contentHash": "e841dee4541c7ba6551945650d82446c40b519f1b06b19a5858f71447a3b0952",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 195,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/checklists/requirements.md": {
+      "filePath": "specs/002-pipeline-core/checklists/requirements.md",
+      "contentHash": "f4a94f651d95695e0fb0083fcf01bece9da0964a349400c1a32900ad16247623",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/contracts/002-pipeline-core.md": {
+      "filePath": "specs/002-pipeline-core/contracts/002-pipeline-core.md",
+      "contentHash": "998ebd77ef028cb53c53f4aa98eb826fefc2ee0530f1af5bf5ba0dc01b080083",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 19,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/data-model.md": {
+      "filePath": "specs/002-pipeline-core/data-model.md",
+      "contentHash": "dc1733979b9a67966a706db6ec870cc5236b4aa6ecd28ed61d64faa95a68bb79",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 65,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/plan.md": {
+      "filePath": "specs/002-pipeline-core/plan.md",
+      "contentHash": "d1a3954b5235daa5d12a91a65a8f03a3dc3a6dbed8928e15919c593a2138dba7",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 82,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/quickstart.md": {
+      "filePath": "specs/002-pipeline-core/quickstart.md",
+      "contentHash": "af3c892910bcd818ba9f0a238446f626e5fec42816a36e8d1a4a8f2be6d1f89d",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 46,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/spec.md": {
+      "filePath": "specs/002-pipeline-core/spec.md",
+      "contentHash": "d9a75a8d0bac37959ee87c23bf17ec301fb69c5f392a26b1dbdac47d44942ef5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 117,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/tasks.md": {
+      "filePath": "specs/002-pipeline-core/tasks.md",
+      "contentHash": "e90542cb730910a10007f1e62f9acffb4c7bfb3f78d95313d3543f8786679dc9",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 181,
+      "hasStructuralAnalysis": true
+    },
+    "specs/002-pipeline-core/verification-protocol.md": {
+      "filePath": "specs/002-pipeline-core/verification-protocol.md",
+      "contentHash": "885ba8789ceeb7a53c4f21891d2c571ff43d94cd73d9195034e4564d93e777be",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 700,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/checklists/requirements.md": {
+      "filePath": "specs/003-framework-http-extractors/checklists/requirements.md",
+      "contentHash": "2396887d10b5d4a0a414246479afceb41e7dd59ce18fbef32e582919a603cb7a",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 35,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md": {
+      "filePath": "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md",
+      "contentHash": "ae3720389869ff1ce107aa549eaa18fe032bb9e2a5aecbab90e226cd30d98d29",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 18,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/data-model.md": {
+      "filePath": "specs/003-framework-http-extractors/data-model.md",
+      "contentHash": "6cd6e137706f3fd2e18fe3dc106de0807c17d2ad7764add712a9b04e06656431",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 76,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/plan.md": {
+      "filePath": "specs/003-framework-http-extractors/plan.md",
+      "contentHash": "7078704fb2ddca5e65518fd6054901448e74ca40a1abda855d4c085ceeabe107",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 121,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/quickstart.md": {
+      "filePath": "specs/003-framework-http-extractors/quickstart.md",
+      "contentHash": "b109c6942349f4b4ee56bab30c80cd5b209d2d6d4571845cebfa93be180cb231",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 46,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/research.md": {
+      "filePath": "specs/003-framework-http-extractors/research.md",
+      "contentHash": "3da6d0bdfbb9396f4b844a116cffb52f054b2c80a0097ce80c7ccfee777d57bf",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/spec.md": {
+      "filePath": "specs/003-framework-http-extractors/spec.md",
+      "contentHash": "f9b97505a4b9bba437c43df7a9eb1fb2ae3f7dfe7b6ad2b51352c042316a248f",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 110,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/tasks.md": {
+      "filePath": "specs/003-framework-http-extractors/tasks.md",
+      "contentHash": "227597528605163ce0fbfec769d1c07977da36fbc765a703fe5a1e4a3824bd02",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 204,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003-framework-http-extractors/verification-protocol.md": {
+      "filePath": "specs/003-framework-http-extractors/verification-protocol.md",
+      "contentHash": "962f0740f2779181e1adc83de7dcffe00996bb7b14fca3d3d964b8b0ad03ebb3",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1272,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003a-extractors-prerelease-filter/spec.md": {
+      "filePath": "specs/003a-extractors-prerelease-filter/spec.md",
+      "contentHash": "7dfedd337ea3625506bbec8c14f67268a0bd397ff6609b29487c28d83a12af14",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 205,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003a-extractors-prerelease-filter/verification-protocol.md": {
+      "filePath": "specs/003a-extractors-prerelease-filter/verification-protocol.md",
+      "contentHash": "f874674377420af0c800b09768b70f2b00963a785a356d4d83456285834527d5",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 493,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003b-extractors-improvements/spec.md": {
+      "filePath": "specs/003b-extractors-improvements/spec.md",
+      "contentHash": "1f50ea9b996d5c2bd0a4c2abaf221b540406c2b3d0298bb93567b94863fd1811",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 956,
+      "hasStructuralAnalysis": true
+    },
+    "specs/003b-extractors-improvements/verification-protocol.md": {
+      "filePath": "specs/003b-extractors-improvements/verification-protocol.md",
+      "contentHash": "214d88239bbd9af97be7e68517a9e0e737b2e86b35363156f88c24da8bd731ba",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1526,
+      "hasStructuralAnalysis": true
+    },
+    "tests/__init__.py": {
+      "filePath": "tests/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/conftest.py": {
+      "filePath": "tests/extractors/conftest.py",
+      "contentHash": "194f22a63357928a31d59776307a066a3d5fa3ebd8d9bee1e82da02e28fb359c",
+      "functions": [
+        {
+          "name": "anyio_backend",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 2
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        }
+      ],
+      "exports": [
+        "anyio_backend"
+      ],
+      "totalLines": 11,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_angular.py": {
+      "filePath": "tests/extractors/test_angular.py",
+      "contentHash": "2d87686c2ce827e0b07f428d65e757812081932e1052414e5829b259a9b66562",
+      "functions": [
+        {
+          "name": "test_extract_parses_release",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 27
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.angular",
+          "specifiers": [
+            "NPM_REGISTRY_URL",
+            "AngularExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_parses_release"
+      ],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_eap.py": {
+      "filePath": "tests/extractors/test_eap.py",
+      "contentHash": "564f32b33dc0e578aa93b2dc10081dd16637ed8a18c34220e8c108c81b0e478d",
+      "functions": [
+        {
+          "name": "test_extract_parses_redhat_docs",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.eap",
+          "specifiers": [
+            "EAPExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_parses_redhat_docs"
+      ],
+      "totalLines": 26,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_elytron.py": {
+      "filePath": "tests/extractors/test_elytron.py",
+      "contentHash": "64f91c02a0d0205ddff301cf5e10cc0efe66bfe7fb98bb0db4403901f4713b45",
+      "functions": [
+        {
+          "name": "test_elytron_not_implemented",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.elytron",
+          "specifiers": [
+            "ElytronExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_elytron_not_implemented"
+      ],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_hibernate.py": {
+      "filePath": "tests/extractors/test_hibernate.py",
+      "contentHash": "b16c32800e1c32ddab0eb3dec8b1d944cd9b9cd73c4166a61454e57193dd7217",
+      "functions": [
+        {
+          "name": "test_extract_asciidoc_guide",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.hibernate",
+          "specifiers": [
+            "MAVEN_METADATA_URL",
+            "HibernateExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_asciidoc_guide"
+      ],
+      "totalLines": 38,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_infinispan.py": {
+      "filePath": "tests/extractors/test_infinispan.py",
+      "contentHash": "bcb4d703946228f54592986d923b0de7b16586535050a29b65f54425a80c71e3",
+      "functions": [
+        {
+          "name": "test_extract_parses_release",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 18
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.infinispan",
+          "specifiers": [
+            "MAVEN_METADATA_URL",
+            "InfinispanExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_parses_release"
+      ],
+      "totalLines": 41,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_jakarta_ee.py": {
+      "filePath": "tests/extractors/test_jakarta_ee.py",
+      "contentHash": "66297dfcc994f62ddf3706102fa28c79fe8787a2ecacd41d64c50bda96367de1",
+      "functions": [
+        {
+          "name": "test_crosses_ee9_boundary",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "test_no_boundary_when_both_ge_9",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "test_no_boundary_below_9",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.jakarta_ee",
+          "specifiers": [
+            "JakartaEEExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_crosses_ee9_boundary",
+        "test_no_boundary_when_both_ge_9",
+        "test_no_boundary_below_9"
+      ],
+      "totalLines": 31,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_registry.py": {
+      "filePath": "tests/extractors/test_registry.py",
+      "contentHash": "647e3e25f703ae51eb03088abcb1428a093e73b7b9fb001f0fa3b79c2a125b92",
+      "functions": [
+        {
+          "name": "test_registry_instantiates_all_nine_keys",
+          "params": [
+            "key"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "test_unknown_framework_raises",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 3
+        },
+        {
+          "name": "test_stub_extractors_raise_not_implemented",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "test_supported_keys_count",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors",
+          "specifiers": [
+            "get_extractor",
+            "supported_framework_keys"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.stubs",
+          "specifiers": [
+            "StubExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_registry_instantiates_all_nine_keys",
+        "test_unknown_framework_raises",
+        "test_stub_extractors_raise_not_implemented",
+        "test_supported_keys_count"
+      ],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_resteasy.py": {
+      "filePath": "tests/extractors/test_resteasy.py",
+      "contentHash": "9dce109ae41feef12a36c53e45ed1cbfee09fc07e047a8abe9d4b53be4f08222",
+      "functions": [
+        {
+          "name": "test_resteasy_not_implemented",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.resteasy",
+          "specifiers": [
+            "RestEasyExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_resteasy_not_implemented"
+      ],
+      "totalLines": 15,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_spring_boot.py": {
+      "filePath": "tests/extractors/test_spring_boot.py",
+      "contentHash": "cc4c761e93954623d8a06f18132e8309a8376cb43024e11aa9cc315f225f5e86",
+      "functions": [
+        {
+          "name": "test_extract_parses_release_body",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 15
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.spring_boot",
+          "specifiers": [
+            "MAVEN_METADATA_URL",
+            "SpringBootExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_parses_release_body"
+      ],
+      "totalLines": 45,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_wildfly_jira.py": {
+      "filePath": "tests/extractors/test_wildfly_jira.py",
+      "contentHash": "2209eb16fa64087b47f86fd746f470e58aff3af8187e2a769343943654e86b53",
+      "functions": [
+        {
+          "name": "test_collect_jira_keys_from_body",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "test_enrich_with_jira_merges_description",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 28
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "DocumentedChange"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.wildfly_jira",
+          "specifiers": [
+            "collect_jira_keys",
+            "enrich_with_jira"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.wildfly",
+          "specifiers": [
+            "WildFlyExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_collect_jira_keys_from_body",
+        "test_enrich_with_jira_merges_description"
+      ],
+      "totalLines": 50,
+      "hasStructuralAnalysis": true
+    },
+    "tests/extractors/test_wildfly.py": {
+      "filePath": "tests/extractors/test_wildfly.py",
+      "contentHash": "9f11516d1ec93b305a7358ff28088372232807ccafdd34d6632f8bb3f321b293",
+      "functions": [
+        {
+          "name": "test_extract_github_release",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 33
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "respx",
+          "specifiers": [
+            "respx"
+          ]
+        },
+        {
+          "source": "httpx",
+          "specifiers": [
+            "Response"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractors.wildfly",
+          "specifiers": [
+            "MAVEN_METADATA_URL",
+            "WildFlyExtractor"
+          ]
+        }
+      ],
+      "exports": [
+        "test_extract_github_release"
+      ],
+      "totalLines": 56,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/__init__.py": {
+      "filePath": "tests/test_000_foundations/__init__.py",
+      "contentHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "functions": [],
+      "classes": [],
+      "imports": [],
+      "exports": [],
+      "totalLines": 1,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/conftest.py": {
+      "filePath": "tests/test_000_foundations/conftest.py",
+      "contentHash": "ad67e668c2344b3b1fbd4ce9f6f6bd5a81bb0c21972e70b1e265e9e1d585e78f",
+      "functions": [
+        {
+          "name": "_required_neo4j_env",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 9
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.config",
+          "specifiers": [
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        "_required_neo4j_env"
+      ],
+      "totalLines": 25,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/test_config.py": {
+      "filePath": "tests/test_000_foundations/test_config.py",
+      "contentHash": "8739f3a873e4ccf7f917fe0fe142178cbf480901e91c6dccac2158e8c680fed0",
+      "functions": [
+        {
+          "name": "_reload_config",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "test_missing_neo4j_uri",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "test_missing_neo4j_password",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "test_empty_neo4j_password",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "test_ssl_verify_variants",
+          "params": [
+            "monkeypatch",
+            "raw",
+            "expected"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 8
+        },
+        {
+          "name": "test_mcp_port_parsed_to_int",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        },
+        {
+          "name": "test_findit_fuzzy_threshold_parsed_to_float",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.config",
+          "specifiers": [
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        "_reload_config",
+        "test_missing_neo4j_uri",
+        "test_missing_neo4j_password",
+        "test_empty_neo4j_password",
+        "test_ssl_verify_variants",
+        "test_mcp_port_parsed_to_int",
+        "test_findit_fuzzy_threshold_parsed_to_float"
+      ],
+      "totalLines": 70,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/test_driver.py": {
+      "filePath": "tests/test_000_foundations/test_driver.py",
+      "contentHash": "6ce637252f0e6bcd56f0869046c08f84c7909432f53af6bc5fdf4db5172c5a16",
+      "functions": [
+        {
+          "name": "_reset_driver",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "_make_mock_driver",
+          "params": [],
+          "returnType": "tuple[MagicMock, MagicMock]",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "mock_graph_database",
+          "params": [],
+          "returnType": "MagicMock",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "test_singleton",
+          "params": [
+            "mock_graph_database"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "test_close_driver_resets_singleton",
+          "params": [
+            "mock_graph_database"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 9
+        },
+        {
+          "name": "test_read_session_context_manager",
+          "params": [
+            "mock_graph_database"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "test_write_session_context_manager",
+          "params": [
+            "mock_graph_database"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "test_read_session_lazy_inits_after_close",
+          "params": [
+            "mock_graph_database"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 7
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "MagicMock",
+            "patch"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph",
+          "specifiers": [
+            "driver_mod"
+          ]
+        }
+      ],
+      "exports": [
+        "_reset_driver",
+        "_make_mock_driver",
+        "mock_graph_database",
+        "test_singleton",
+        "test_close_driver_resets_singleton",
+        "test_read_session_context_manager",
+        "test_write_session_context_manager",
+        "test_read_session_lazy_inits_after_close"
+      ],
+      "totalLines": 78,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/test_indexes.py": {
+      "filePath": "tests/test_000_foundations/test_indexes.py",
+      "contentHash": "18da61be241a318446b4a9a8922b54a0c09e7a5cc81bfaefe4b6ddb3234215cd",
+      "functions": [
+        {
+          "name": "_make_mock_driver",
+          "params": [
+            "run_side_effect"
+          ],
+          "returnType": "MagicMock",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "test_all_statements_run",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "test_partial_failure_continues",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 10
+        },
+        {
+          "name": "test_idempotent_second_call",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "unittest.mock",
+          "specifiers": [
+            "MagicMock"
+          ]
+        },
+        {
+          "source": "neo4j",
+          "specifiers": [
+            "neo4j"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "neo4j.exceptions",
+          "specifiers": [
+            "ClientError"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.indexes",
+          "specifiers": [
+            "_INDEXES",
+            "ensure_indexes"
+          ]
+        }
+      ],
+      "exports": [
+        "_make_mock_driver",
+        "test_all_statements_run",
+        "test_partial_failure_continues",
+        "test_idempotent_second_call"
+      ],
+      "totalLines": 47,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/test_models.py": {
+      "filePath": "tests/test_000_foundations/test_models.py",
+      "contentHash": "4dad1e429acb97021a299241b9a9e77457dbf778927ad47465dd1308a422eb43",
+      "functions": [
+        {
+          "name": "test_full_round_trip",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 13
+        },
+        {
+          "name": "test_enum_string_equality",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 4
+        },
+        {
+          "name": "test_sortable_version_formula",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        },
+        {
+          "name": "test_source_section_map_completeness",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 12
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.models",
+          "specifiers": [
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntitiesBatch",
+            "ScopeLevel",
+            "SOURCE_SECTION_TO_RULE_TYPE",
+            "sortable_version"
+          ]
+        }
+      ],
+      "exports": [
+        "test_full_round_trip",
+        "test_enum_string_equality",
+        "test_sortable_version_formula",
+        "test_source_section_map_completeness"
+      ],
+      "totalLines": 106,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_000_foundations/test_smoke.py": {
+      "filePath": "tests/test_000_foundations/test_smoke.py",
+      "contentHash": "29f77d8ec7257197061eb6a81b378b7bc064cebe8f4fb98e190c9e49ba0d8038",
+      "functions": [
+        {
+          "name": "test_ensure_indexes_on_live_neo4j",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 24
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.config",
+          "specifiers": [
+            "config"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.driver",
+          "specifiers": [
+            "driver_mod"
+          ]
+        },
+        {
+          "source": "migration_oracle.graph.indexes",
+          "specifiers": [
+            "_EXPECTED_CONSTRAINTS",
+            "ensure_indexes"
+          ]
+        }
+      ],
+      "exports": [
+        "test_ensure_indexes_on_live_neo4j"
+      ],
+      "totalLines": 42,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/conftest.py": {
+      "filePath": "tests/test_002_pipeline_core/conftest.py",
+      "contentHash": "99fdf17d0ebfb0e73e8c60d4a8381252195b6a0b8e2a3dcf6bcbd8d0b8778c56",
+      "functions": [
+        {
+          "name": "_neo4j_env",
+          "params": [
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 5
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "importlib",
+          "specifiers": [
+            "importlib"
+          ]
+        },
+        {
+          "source": "os",
+          "specifiers": [
+            "os"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.config",
+          "specifiers": [
+            "config"
+          ]
+        }
+      ],
+      "exports": [
+        "_neo4j_env"
+      ],
+      "totalLines": 20,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/test_cache.py": {
+      "filePath": "tests/test_002_pipeline_core/test_cache.py",
+      "contentHash": "60a96bc0aa526097d25bee9529eb711a8d971250a3c3d9d6e773e5be0aac8e2e",
+      "functions": [
+        {
+          "name": "test_json_cache_skips_both_llm_calls",
+          "params": [
+            "tmp_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 19
+        },
+        {
+          "name": "test_filtered_cache_skips_filter_when_raw_cached",
+          "params": [
+            "tmp_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 18
+        },
+        {
+          "name": "test_force_extract_sets_stale_warnings",
+          "params": [
+            "tmp_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 19
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._cache",
+          "specifiers": [
+            "resolve_cache_flags"
+          ]
+        }
+      ],
+      "exports": [
+        "test_json_cache_skips_both_llm_calls",
+        "test_filtered_cache_skips_filter_when_raw_cached",
+        "test_force_extract_sets_stale_warnings"
+      ],
+      "totalLines": 68,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py": {
+      "filePath": "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py",
+      "contentHash": "b2896cb539b4a2d6fd66ed232d2871175b6f36fb002e1ddf7dcf439ae289b0f9",
+      "functions": [
+        {
+          "name": "_minimal_entities_json",
+          "params": [],
+          "returnType": "str",
+          "exported": true,
+          "lineCount": 36
+        },
+        {
+          "name": "test_cache_flags_skip_filter_when_nodes_artifact_exists",
+          "params": [
+            "tmp_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "test_cache_flags_skip_both_llm_when_json_exists",
+          "params": [
+            "tmp_path"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 21
+        },
+        {
+          "name": "test_extract_only_skips_filter_and_entity_llm",
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 35
+        },
+        {
+          "name": "test_cli_skips_filter_llm_when_nodes_file_exists",
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 59
+        },
+        {
+          "name": "test_cli_skips_both_llm_when_json_exists",
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 56
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "migration_oracle.cli",
+          "specifiers": [
+            "cli_module"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "click.testing",
+          "specifiers": [
+            "CliRunner"
+          ]
+        },
+        {
+          "source": "migration_oracle.cli",
+          "specifiers": [
+            "export_extract_populate_framework"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "BreakingScopeInput",
+            "Effort",
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntitiesBatch",
+            "MigrationEntity",
+            "MigrationStep",
+            "ScopeLevel",
+            "Severity",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline._cache",
+          "specifiers": [
+            "resolve_cache_flags"
+          ]
+        }
+      ],
+      "exports": [
+        "_minimal_entities_json",
+        "test_cache_flags_skip_filter_when_nodes_artifact_exists",
+        "test_cache_flags_skip_both_llm_when_json_exists",
+        "test_extract_only_skips_filter_and_entity_llm",
+        "test_cli_skips_filter_llm_when_nodes_file_exists",
+        "test_cli_skips_both_llm_when_json_exists"
+      ],
+      "totalLines": 264,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/test_populator_helpers.py": {
+      "filePath": "tests/test_002_pipeline_core/test_populator_helpers.py",
+      "contentHash": "975117e94991865508ae1772f615342b6bffd7b7d2ab049d8af4bb081574977d",
+      "functions": [
+        {
+          "name": "test_actionable_when_steps_present",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 20
+        },
+        {
+          "name": "test_incomplete_when_entities_only",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 11
+        },
+        {
+          "name": "test_informational_when_empty",
+          "params": [],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 8
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntity",
+            "MigrationStep",
+            "Effort",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.populator",
+          "specifiers": [
+            "derive_entity_classification"
+          ]
+        }
+      ],
+      "exports": [
+        "test_actionable_when_steps_present",
+        "test_incomplete_when_entities_only",
+        "test_informational_when_empty"
+      ],
+      "totalLines": 58,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/test_populator_idempotency.py": {
+      "filePath": "tests/test_002_pipeline_core/test_populator_idempotency.py",
+      "contentHash": "ae3ef23ba1978baaeb3943c055094d062d90878b14db280997257e58bbcc9c71",
+      "functions": [
+        {
+          "name": "sample_batch",
+          "params": [],
+          "returnType": "MigrationEntitiesBatch",
+          "exported": true,
+          "lineCount": 38
+        },
+        {
+          "name": "_count_nodes",
+          "params": [
+            "state",
+            "label"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "_count_edges",
+          "params": [
+            "state",
+            "rel"
+          ],
+          "returnType": "int",
+          "exported": true,
+          "lineCount": 2
+        },
+        {
+          "name": "test_populator_is_idempotent",
+          "params": [
+            "sample_batch",
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 42
+        }
+      ],
+      "classes": [
+        {
+          "name": "GraphState",
+          "methods": [
+            "merge_node",
+            "merge_edge"
+          ],
+          "properties": [
+            "nodes",
+            "edges"
+          ],
+          "exported": true,
+          "lineCount": 24
+        },
+        {
+          "name": "FakeResult",
+          "methods": [
+            "__init__",
+            "single"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 6
+        },
+        {
+          "name": "FakeSession",
+          "methods": [
+            "__init__",
+            "run"
+          ],
+          "properties": [],
+          "exported": true,
+          "lineCount": 80
+        }
+      ],
+      "imports": [
+        {
+          "source": "dataclasses",
+          "specifiers": [
+            "dataclass",
+            "field"
+          ]
+        },
+        {
+          "source": "typing",
+          "specifiers": [
+            "Any"
+          ]
+        },
+        {
+          "source": "pytest",
+          "specifiers": [
+            "pytest"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "BreakingScopeInput",
+            "Effort",
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntitiesBatch",
+            "MigrationEntity",
+            "MigrationStep",
+            "ScopeLevel",
+            "Severity",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline",
+          "specifiers": [
+            "populator"
+          ]
+        }
+      ],
+      "exports": [
+        "GraphState",
+        "FakeResult",
+        "FakeSession",
+        "sample_batch",
+        "_count_nodes",
+        "_count_edges",
+        "test_populator_is_idempotent"
+      ],
+      "totalLines": 234,
+      "hasStructuralAnalysis": true
+    },
+    "tests/test_002_pipeline_core/test_quickstart.py": {
+      "filePath": "tests/test_002_pipeline_core/test_quickstart.py",
+      "contentHash": "843c1c55c83fe49cad7a58af2b8c9960f1da570558484b380b9f3661cb16b645",
+      "functions": [
+        {
+          "name": "_sample_batch",
+          "params": [],
+          "returnType": "MigrationEntitiesBatch",
+          "exported": true,
+          "lineCount": 33
+        },
+        {
+          "name": "test_quickstart_dry_run_creates_artifacts",
+          "params": [
+            "tmp_path",
+            "monkeypatch"
+          ],
+          "returnType": "None",
+          "exported": true,
+          "lineCount": 48
+        }
+      ],
+      "classes": [],
+      "imports": [
+        {
+          "source": "pathlib",
+          "specifiers": [
+            "Path"
+          ]
+        },
+        {
+          "source": "migration_oracle.cli",
+          "specifiers": [
+            "cli_module"
+          ]
+        },
+        {
+          "source": "click.testing",
+          "specifiers": [
+            "CliRunner"
+          ]
+        },
+        {
+          "source": "migration_oracle.cli",
+          "specifiers": [
+            "export_extract_populate_framework"
+          ]
+        },
+        {
+          "source": "migration_oracle.models.entities",
+          "specifiers": [
+            "AffectedEntity",
+            "BreakingScopeInput",
+            "Effort",
+            "EntityKind",
+            "EntityRole",
+            "MigrationEntitiesBatch",
+            "MigrationEntity",
+            "MigrationStep",
+            "ScopeLevel",
+            "Severity",
+            "StepType"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.extractor",
+          "specifiers": [
+            "ExtractionResult"
+          ]
+        },
+        {
+          "source": "migration_oracle.pipeline.filters",
+          "specifiers": [
+            "FilterResult"
+          ]
+        }
+      ],
+      "exports": [
+        "_sample_batch",
+        "test_quickstart_dry_run_creates_artifacts"
+      ],
+      "totalLines": 108,
+      "hasStructuralAnalysis": true
+    }
+  }
+}

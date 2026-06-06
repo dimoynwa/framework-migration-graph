@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -11,12 +12,70 @@ import httpx
 
 from migration_oracle import config
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
+
+__all__ = [
+    "BaseExtractor",
+    "DocumentedChange",
+    "ExtractionResult",
+    "is_jboss_ga_version",
+    "is_infinispan_ga_version",
+    "is_spring_boot_ga_version",
+]
 from migration_oracle.pipeline.extractors.parsing import (
     compute_hops,
     versions_in_range,
 )
 
 logger = logging.getLogger(__name__)
+
+# Matches GA releases for the JBoss/Red Hat Maven ecosystem: X.Y.Z.Final
+_JBOSS_GA_PATTERN = re.compile(r"^\d+\.\d+\.\d+\.Final$")
+
+# Matches GA releases for Spring Boot: plain X.Y.Z with no suffix
+_SPRING_GA_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def is_jboss_ga_version(version: str) -> bool:
+    """Return True only for JBoss-ecosystem GA releases (X.Y.Z.Final).
+
+    Rejects: Alpha, Beta, CR, SP (service pack is kept — see NOTE below).
+    Used by: WildFly (already filtered), Hibernate ORM, RESTEasy, WildFly Elytron.
+
+    NOTE: Service pack versions like X.Y.Z.SP1 are also excluded by this filter.
+    SP releases are rare and do not have standalone GitHub release pages. If a
+    user needs to include an SP version in their range they must use
+    JBOSS_SKIP_PRERELEASE=0 to disable the filter entirely.
+    """
+    return bool(_JBOSS_GA_PATTERN.match(version))
+
+
+def is_infinispan_ga_version(version: str) -> bool:
+    """Return True for GA Infinispan releases.
+
+    Infinispan changed version conventions at 16.x:
+    - 15.x and older: GA releases end in .Final (e.g. 15.0.20.Final)
+    - 16.x and newer: GA releases are plain X.Y.Z (e.g. 16.2.0)
+
+    Rejects: X.Y.Z.Dev01, X.Y.Z.Dev02, X.Y.Z.Beta1, X.Y.Z.CR1, etc.
+    16.x lines using .Final (e.g. 16.2.0.Final) are rejected as non-GA.
+    """
+    if _SPRING_GA_PATTERN.match(version):
+        return True
+    if _JBOSS_GA_PATTERN.match(version):
+        major = int(version.split(".", maxsplit=1)[0])
+        return major < 16
+    return False
+
+
+def is_spring_boot_ga_version(version: str) -> bool:
+    """Return True only for Spring Boot GA releases (plain X.Y.Z, no suffix).
+
+    Rejects: 4.1.0-M4, 4.1.0-RC1, 4.0.0-SNAPSHOT, 3.3.0-M2, etc.
+    Required because as of Spring Boot 4.0.0-M1, milestone and RC builds
+    are published to Maven Central alongside GA releases.
+    """
+    return bool(_SPRING_GA_PATTERN.match(version))
+
 
 GITHUB_HEADERS = {
     "Accept": "application/vnd.github+json",
@@ -63,6 +122,44 @@ class BaseExtractor(ABC):
     @property
     def redhat_docs_delay_sec(self) -> float:
         return self._redhat_delay
+
+    def _http_get_cached(self, url: str, *, timeout: float | None = None) -> str:
+        """Sync URL fetch with instance cache; returns '' on any failure."""
+        if url in self._cache:
+            cached = self._cache[url]
+            return cached.decode() if isinstance(cached, bytes) else cached
+        try:
+            response = httpx.get(
+                url,
+                timeout=timeout or self.default_timeout,
+                verify=self._ssl_verify,
+                follow_redirects=True,
+            )
+            if response.status_code != 200:
+                return ""
+            text = response.text
+            self._cache[url] = text
+            return text
+        except Exception:
+            return ""
+
+    async def _fetch_maven_versions(self, url: str) -> list[str]:
+        xml = await self.fetch(url)
+        from migration_oracle.pipeline.extractors.parsing import (
+            parse_maven_metadata_versions,
+        )
+
+        return parse_maven_metadata_versions(xml)
+
+    def get_available_versions(self) -> list[str]:
+        """Sync wrapper for version discovery (used by tests and verification)."""
+        import asyncio
+
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.discover_versions())
+        raise RuntimeError("get_available_versions() cannot run inside a running event loop")
 
     async def fetch(
         self,

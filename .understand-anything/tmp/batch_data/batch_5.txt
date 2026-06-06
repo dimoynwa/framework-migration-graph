@@ -1,0 +1,17 @@
+batchIndex: 5
+files:
+1. `.specify/extensions.yml` (164 lines, language: `yaml`, fileCategory: `config`)
+2. `.specify/feature.json` (1 lines, language: `json`, fileCategory: `config`)
+3. `.specify/init-options.json` (8 lines, language: `json`, fileCategory: `config`)
+4. `.specify/integration.json` (20 lines, language: `json`, fileCategory: `config`)
+
+batchImportData:
+{
+  ".specify/extensions.yml": [],
+  ".specify/feature.json": [],
+  ".specify/init-options.json": [],
+  ".specify/integration.json": []
+}
+
+neighborMap:
+{}

@@ -1,0 +1,249 @@
+{
+  "nodes": [
+    {
+      "id": "document:.cursor/skills/speckit-clarify/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-clarify/SKILL.md",
+      "summary": "Spec Kit clarify skill that drives interactive ambiguity-reduction sessions on a feature spec, asking up to 5 targeted questions and encoding answers back into the spec file.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-constitution/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-constitution/SKILL.md",
+      "summary": "Spec Kit constitution skill that creates or updates the project constitution from principle inputs, ensuring all dependent templates remain in sync.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-git-commit/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-git-commit/SKILL.md",
+      "summary": "Spec Kit git-commit skill that auto-stages and commits all changes after a Spec Kit command completes, driven by event-based hook configuration.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-git-feature/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-git-feature/SKILL.md",
+      "summary": "Spec Kit git-feature skill that creates and switches to a new feature branch using sequential or timestamp numbering conventions.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-git-initialize/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-git-initialize/SKILL.md",
+      "summary": "Spec Kit git-initialize skill that initializes a Git repository with an initial commit if one does not already exist.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-git-remote/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-git-remote/SKILL.md",
+      "summary": "Spec Kit git-remote skill that detects the Git remote URL for GitHub integration, used by issue-creation and PR workflows.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-git-validate/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-git-validate/SKILL.md",
+      "summary": "Spec Kit git-validate skill that checks whether the current Git branch follows expected feature branch naming conventions.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-implement/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-implement/SKILL.md",
+      "summary": "Spec Kit implement skill that executes the implementation plan by processing all tasks defined in tasks.md in dependency order.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-plan/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-plan/SKILL.md",
+      "summary": "Spec Kit plan skill that executes the implementation planning workflow using the plan template to produce design artifacts.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-specify/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-specify/SKILL.md",
+      "summary": "Spec Kit specify skill that creates or updates the feature specification from a natural language feature description.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-tasks/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-tasks/SKILL.md",
+      "summary": "Spec Kit tasks skill that generates an actionable, dependency-ordered tasks.md for a feature based on available design artifacts.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "workflow",
+        "ai-skill"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-taskstoissues/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-taskstoissues/SKILL.md",
+      "summary": "Spec Kit taskstoissues skill that converts tasks.md entries into dependency-ordered GitHub Issues for a feature.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "git",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-agent-context-update/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-agent-context-update/SKILL.md",
+      "summary": "Spec Kit agent-context-update skill that refreshes the managed Spec Kit section inside the active coding agent context file (e.g. CLAUDE.md).",
+      "tags": [
+        "documentation",
+        "speckit",
+        "configuration",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-analyze/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-analyze/SKILL.md",
+      "summary": "Spec Kit analyze skill that performs a non-destructive cross-artifact consistency and quality analysis across spec.md, plan.md, and tasks.md.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "validation",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "document:.cursor/skills/speckit-checklist/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": ".cursor/skills/speckit-checklist/SKILL.md",
+      "summary": "Spec Kit checklist skill that generates custom requirement-quality checklists acting as unit tests for requirements writing on the current feature.",
+      "tags": [
+        "documentation",
+        "speckit",
+        "validation",
+        "ai-skill"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:migration_oracle/models/changes.py",
+      "type": "file",
+      "name": "changes.py",
+      "filePath": "migration_oracle/models/changes.py",
+      "summary": "Public re-export shim for DocumentedChange and ExtractionResult, providing a stable import surface for extractor consumers without exposing the full entities module.",
+      "tags": [
+        "barrel",
+        "type-definition",
+        "serialization"
+      ],
+      "complexity": "simple",
+      "languageNotes": "Pure re-export pattern using __all__ \u2014 no logic, just a public API alias for migration_oracle.models.entities."
+    },
+    {
+      "id": "file:migration_oracle/graph/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "migration_oracle/graph/__init__.py",
+      "summary": "Empty package initializer for the migration_oracle.graph namespace, making the directory a Python package without exposing any public symbols.",
+      "tags": [
+        "entry-point",
+        "barrel"
+      ],
+      "complexity": "simple"
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:migration_oracle/models/changes.py",
+      "target": "file:migration_oracle/models/entities.py",
+      "type": "imports",
+      "direction": "forward",
+      "weight": 0.7
+    }
+  ]
+}

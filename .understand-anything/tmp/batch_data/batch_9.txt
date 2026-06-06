@@ -1,0 +1,17 @@
+batchIndex: 9
+files:
+1. `.specify/extensions/git/scripts/bash/auto-commit.sh` (140 lines, language: `shell`, fileCategory: `script`)
+2. `.specify/extensions/git/scripts/bash/create-new-feature.sh` (453 lines, language: `shell`, fileCategory: `script`)
+3. `.specify/extensions/git/scripts/bash/git-common.sh` (54 lines, language: `shell`, fileCategory: `script`)
+4. `.specify/extensions/git/scripts/bash/initialize-repo.sh` (54 lines, language: `shell`, fileCategory: `script`)
+
+batchImportData:
+{
+  ".specify/extensions/git/scripts/bash/auto-commit.sh": [],
+  ".specify/extensions/git/scripts/bash/create-new-feature.sh": [],
+  ".specify/extensions/git/scripts/bash/git-common.sh": [],
+  ".specify/extensions/git/scripts/bash/initialize-repo.sh": []
+}
+
+neighborMap:
+{}

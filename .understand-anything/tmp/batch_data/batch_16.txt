@@ -1,0 +1,21 @@
+batchIndex: 16
+files:
+1. `specs/002-pipeline-core/data-model.md` (64 lines, language: `markdown`, fileCategory: `docs`)
+2. `specs/002-pipeline-core/plan.md` (81 lines, language: `markdown`, fileCategory: `docs`)
+3. `specs/002-pipeline-core/quickstart.md` (45 lines, language: `markdown`, fileCategory: `docs`)
+4. `specs/002-pipeline-core/spec.md` (116 lines, language: `markdown`, fileCategory: `docs`)
+5. `specs/002-pipeline-core/tasks.md` (180 lines, language: `markdown`, fileCategory: `docs`)
+6. `specs/002-pipeline-core/verification-protocol.md` (699 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  "specs/002-pipeline-core/data-model.md": [],
+  "specs/002-pipeline-core/plan.md": [],
+  "specs/002-pipeline-core/quickstart.md": [],
+  "specs/002-pipeline-core/spec.md": [],
+  "specs/002-pipeline-core/tasks.md": [],
+  "specs/002-pipeline-core/verification-protocol.md": []
+}
+
+neighborMap:
+{}

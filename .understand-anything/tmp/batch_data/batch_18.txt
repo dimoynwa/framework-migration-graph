@@ -1,0 +1,59 @@
+batchIndex: 18
+files:
+1. `.claude/settings.json` (13 lines, language: `json`, fileCategory: `config`)
+2. `.claude/skills/changelog-migration-extractor/SKILL.md` (178 lines, language: `markdown`, fileCategory: `docs`)
+3. `.claude/skills/migration-filter/SKILL.md` (224 lines, language: `markdown`, fileCategory: `docs`)
+4. `.claude/skills/speckit-agent-context-update/SKILL.md` (30 lines, language: `markdown`, fileCategory: `docs`)
+5. `.claude/skills/speckit-analyze/SKILL.md` (257 lines, language: `markdown`, fileCategory: `docs`)
+6. `.claude/skills/speckit-checklist/SKILL.md` (371 lines, language: `markdown`, fileCategory: `docs`)
+7. `.claude/skills/speckit-clarify/SKILL.md` (283 lines, language: `markdown`, fileCategory: `docs`)
+8. `.claude/skills/speckit-constitution/SKILL.md` (154 lines, language: `markdown`, fileCategory: `docs`)
+9. `.claude/skills/speckit-git-commit/SKILL.md` (52 lines, language: `markdown`, fileCategory: `docs`)
+10. `.claude/skills/speckit-git-feature/SKILL.md` (71 lines, language: `markdown`, fileCategory: `docs`)
+11. `.claude/skills/speckit-git-initialize/SKILL.md` (53 lines, language: `markdown`, fileCategory: `docs`)
+12. `.claude/skills/speckit-git-remote/SKILL.md` (49 lines, language: `markdown`, fileCategory: `docs`)
+13. `.claude/skills/speckit-git-validate/SKILL.md` (53 lines, language: `markdown`, fileCategory: `docs`)
+14. `.claude/skills/speckit-implement/SKILL.md` (221 lines, language: `markdown`, fileCategory: `docs`)
+15. `.claude/skills/speckit-plan/SKILL.md` (161 lines, language: `markdown`, fileCategory: `docs`)
+16. `.claude/skills/speckit-sdd-buddy/SKILL.md` (325 lines, language: `markdown`, fileCategory: `docs`)
+17. `.claude/skills/speckit-specify/SKILL.md` (342 lines, language: `markdown`, fileCategory: `docs`)
+18. `.claude/skills/speckit-tasks/SKILL.md` (212 lines, language: `markdown`, fileCategory: `docs`)
+19. `.claude/skills/speckit-taskstoissues/SKILL.md` (104 lines, language: `markdown`, fileCategory: `docs`)
+20. `.claude/skills/verification-protocol-writer/references/level-design-rationale.md` (222 lines, language: `markdown`, fileCategory: `docs`)
+21. `.claude/skills/verification-protocol-writer/SKILL.md` (276 lines, language: `markdown`, fileCategory: `docs`)
+22. `.cursor/rules/specify-rules.mdc` (9 lines, language: `mdc`, fileCategory: `code`)
+23. `.cursor/skills/speckit-agent-context-update/SKILL.md` (30 lines, language: `markdown`, fileCategory: `docs`)
+24. `.cursor/skills/speckit-analyze/SKILL.md` (257 lines, language: `markdown`, fileCategory: `docs`)
+25. `.cursor/skills/speckit-checklist/SKILL.md` (371 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  ".claude/settings.json": [],
+  ".claude/skills/changelog-migration-extractor/SKILL.md": [],
+  ".claude/skills/migration-filter/SKILL.md": [],
+  ".claude/skills/speckit-agent-context-update/SKILL.md": [],
+  ".claude/skills/speckit-analyze/SKILL.md": [],
+  ".claude/skills/speckit-checklist/SKILL.md": [],
+  ".claude/skills/speckit-clarify/SKILL.md": [],
+  ".claude/skills/speckit-constitution/SKILL.md": [],
+  ".claude/skills/speckit-git-commit/SKILL.md": [],
+  ".claude/skills/speckit-git-feature/SKILL.md": [],
+  ".claude/skills/speckit-git-initialize/SKILL.md": [],
+  ".claude/skills/speckit-git-remote/SKILL.md": [],
+  ".claude/skills/speckit-git-validate/SKILL.md": [],
+  ".claude/skills/speckit-implement/SKILL.md": [],
+  ".claude/skills/speckit-plan/SKILL.md": [],
+  ".claude/skills/speckit-sdd-buddy/SKILL.md": [],
+  ".claude/skills/speckit-specify/SKILL.md": [],
+  ".claude/skills/speckit-tasks/SKILL.md": [],
+  ".claude/skills/speckit-taskstoissues/SKILL.md": [],
+  ".claude/skills/verification-protocol-writer/references/level-design-rationale.md": [],
+  ".claude/skills/verification-protocol-writer/SKILL.md": [],
+  ".cursor/rules/specify-rules.mdc": [],
+  ".cursor/skills/speckit-agent-context-update/SKILL.md": [],
+  ".cursor/skills/speckit-analyze/SKILL.md": [],
+  ".cursor/skills/speckit-checklist/SKILL.md": []
+}
+
+neighborMap:
+{}

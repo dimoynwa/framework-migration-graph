@@ -1,0 +1,15 @@
+batchIndex: 11
+files:
+1. `.specify/integrations/claude-code.manifest.json` (23 lines, language: `json`, fileCategory: `config`)
+2. `.specify/integrations/cursor-agent.manifest.json` (16 lines, language: `json`, fileCategory: `config`)
+3. `.specify/integrations/speckit.manifest.json` (17 lines, language: `json`, fileCategory: `config`)
+
+batchImportData:
+{
+  ".specify/integrations/claude-code.manifest.json": [],
+  ".specify/integrations/cursor-agent.manifest.json": [],
+  ".specify/integrations/speckit.manifest.json": []
+}
+
+neighborMap:
+{}

@@ -1,0 +1,1501 @@
+{
+  "entities": [
+    {
+      "source_section": "breaking_change",
+      "title": "Undertow support dropped",
+      "jira_keys": ["GH-46917"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Undertow is not compatible with Servlet 6.1, which is the baseline for Spring Boot 4. Applications using Undertow as their embedded server must switch to Tomcat or Jetty before upgrading. There is no compatibility shim; this is a hard removal.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-undertow", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-tomcat", "role": "replacement" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-jetty", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace spring-boot-starter-undertow with Tomcat or Jetty starter",
+          "instruction": "In pom.xml (or build.gradle), remove the exclusion of `spring-boot-starter-tomcat` from `spring-boot-starter-web` and remove the `spring-boot-starter-undertow` dependency. If you use Maven: delete the `<exclusion>` block for `spring-boot-starter-tomcat` and the `<dependency>` for `spring-boot-starter-undertow`. For Jetty: exclude `spring-boot-starter-tomcat` from `spring-boot-starter-web` and add `spring-boot-starter-jetty` instead. Undertow-specific thread-count and buffer-size properties (e.g. `server.undertow.*`) have no direct equivalent; map them manually to `server.tomcat.*` or `server.jetty.*` properties. Perform this migration while still on Spring Boot 3.5.x before upgrading to 4.x. Per the Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts with Tomcat or Jetty. No `server.undertow.*` properties remain in `application.properties`/`application.yml`. No `spring-boot-starter-undertow` dependency in the dependency tree (`mvn dependency:tree` or `gradle dependencies`).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Jersey support dropped (then restored)",
+      "jira_keys": ["GH-47017"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "spec_compliance",
+      "reason": "Jersey was dropped in Spring Boot 4.0-M3 due to lack of JAX-RS 4 support and subsequently restored in RC2 once Jersey added JAX-RS 4 / Jakarta EE 11 compatibility. Applications must ensure their Jersey version supports JAX-RS 4 before upgrading.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-jersey", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Confirm Jersey version supports JAX-RS 4 / Jakarta EE 11",
+          "instruction": "Check the Jersey version declared in your build file. Jersey 3.1.x supports Jakarta EE 10 (JAX-RS 3.1); Jersey 4.0.x supports Jakarta EE 11 (JAX-RS 4.0). Spring Boot 4 requires JAX-RS 4. If you are on Jersey 3.x, upgrade to Jersey 4.0.x. Update your `pom.xml` or `build.gradle` to reference `org.glassfish.jersey.containers:jersey-container-servlet-core:4.0.x` and the matching `org.glassfish.jersey.ext:jersey-spring6:4.0.x` artifact. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without `ClassNotFoundException` or `NoClassDefFoundError` related to JAX-RS or Jersey. `mvn dependency:tree` shows Jersey 4.x artifacts.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Jackson 3 required; Jackson 2 deprecated",
+      "jira_keys": ["GH-45535"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot 4 requires Jackson 3 as its primary JSON library. Jackson 3 changed the Maven group ID from `com.fasterxml.jackson.core` to `tools.jackson.core` and renamed the base package from `com.fasterxml.jackson` to `tools.jackson`. A deprecated `spring-boot-jackson2` compatibility module is provided for gradual migration, but Jackson 2 support will be removed entirely in Spring Boot 4.3.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "com.fasterxml.jackson.core:jackson-databind", "role": "removed" },
+        { "kind": "dependency", "name": "tools.jackson.core:jackson-databind", "role": "replacement" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-jackson2", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Add spring-boot-jackson2 as transitional compatibility dependency",
+          "instruction": "If your application code imports classes from `com.fasterxml.jackson.*` (e.g. `com.fasterxml.jackson.databind.ObjectMapper`, `com.fasterxml.jackson.databind.JsonNode`), add `org.springframework.boot:spring-boot-jackson2` as a `compile`-scope dependency in your `pom.xml` or `build.gradle`. This shim keeps Jackson 2 on the classpath alongside Jackson 3 during the transition period. Also add `spring.jackson.use-jackson2-defaults=true` to `application.properties` to preserve Jackson 2 behavioural defaults in the Jackson 3 runtime. Per Spring Boot 4.0 Migration Guide and spring.io blog.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application starts without `ClassNotFoundException: com.fasterxml.jackson.databind.ObjectMapper`. All existing JSON serialization tests pass.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Migrate application imports from com.fasterxml.jackson to tools.jackson",
+          "instruction": "Replace all imports of `com.fasterxml.jackson.*` with `tools.jackson.*` throughout application source code. Key mappings: `com.fasterxml.jackson.databind.ObjectMapper` → `tools.jackson.databind.json.JsonMapper`; `com.fasterxml.jackson.databind.JsonNode` → `tools.jackson.databind.node.JsonNode`; `com.fasterxml.jackson.core.*` → `tools.jackson.core.*`. The OpenRewrite recipe `org.openrewrite.java.jackson.UpgradeJackson_2_3` can automate the majority of import and API renames. Annotations in `com.fasterxml.jackson.annotation.*` are NOT moved — they remain under the same coordinates and are compatible with both versions. Remove `spring-boot-jackson2` once all imports are migrated. Per spring.io/blog Jackson 3 introduction and OpenRewrite docs.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [0],
+          "verification": "No `com.fasterxml.jackson.databind` or `com.fasterxml.jackson.core` imports remain in production source (annotations package excepted). All serialization/deserialization unit tests pass. `spring-boot-jackson2` dependency removed from `pom.xml`/`build.gradle`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Jackson annotation and class renames",
+      "jira_keys": ["GH-47625", "GH-47471"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring-specific Jackson wrapper classes and annotations have been renamed to clarify that they are Jackson-specific rather than generic JSON utilities. `JsonMapper` is now `JacksonJsonMapper`, `SharedObjectMapper` is now `SharedJsonMapper`, and `@JsonComponent` / `@JsonMixin` are now `@JacksonComponent` / `@JacksonMixin`. All direct usages in application code will fail to compile.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.http.converter.json.JsonMapper", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.http.converter.json.JacksonJsonMapper", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.boot.jackson.JsonComponent", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.jackson.JacksonComponent", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.boot.jackson.JsonMixin", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.jackson.JacksonMixin", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename JsonMapper, SharedObjectMapper, @JsonComponent, @JsonMixin to Jackson* equivalents",
+          "instruction": "Perform the following renames across all Java/Kotlin source files: (1) `org.springframework.http.converter.json.JsonMapper` → `org.springframework.http.converter.json.JacksonJsonMapper`; (2) `SharedObjectMapper` → `SharedJsonMapper`; (3) `@JsonComponent` (Spring Boot annotation, not the Jackson 3 annotation) → `@JacksonComponent`; (4) `@JsonMixin` → `@JacksonMixin`. Note: standard Jackson 3 annotations such as `@JsonProperty`, `@JsonFormat`, `@JsonIgnore` in `com.fasterxml.jackson.annotation` are unchanged. The OpenRewrite recipe `org.openrewrite.java.spring.boot4.MigrateJacksonAnnotations` can automate these renames. Per Spring Boot 4.0 Migration Guide and danvega.dev Jackson 3 in Spring Boot 4 post.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles without errors. No references to `JsonMapper`, `@JsonComponent`, or `@JsonMixin` remain in production source code (confirm with `grep -r 'JsonMapper\\|@JsonComponent\\|@JsonMixin' src/main`).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`spring.jackson.*` property renames",
+      "jira_keys": ["GH-47327", "GH-47328"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Jackson configuration properties have been reorganised to be JSON-specific rather than mapper-specific. `spring.jackson.datetime.<feature>` moves to `spring.jackson.datatype.datetime.<feature>`, and the read/write feature namespaces have been adjusted. Any unrecognised property keys will be silently ignored at startup, meaning misconfigured properties will have no effect.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.jackson.datetime", "role": "removed" },
+        { "kind": "property", "name": "spring.jackson.datatype.datetime", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename spring.jackson.datetime.* to spring.jackson.datatype.datetime.*",
+          "instruction": "In all `application.properties`, `application.yml`, and profile-specific variants: rename `spring.jackson.datetime.<feature>` to `spring.jackson.datatype.datetime.<feature>`. Additionally, rename `spring.jackson.read.*` to `spring.jackson.json.read.*` and `spring.jackson.write.*` to `spring.jackson.json.write.*` for JsonMapper-specific feature flags. Add `org.springframework.boot:spring-boot-properties-migrator` as a `runtime` dependency temporarily to identify all property mismatches at startup. Remove the migrator after renaming is complete. Per OpenRewrite recipe `org.openrewrite.java.spring.boot4.SpringBootProperties_4_0` and Spring Boot 4.0 Configuration Changelog.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Application starts without `UnrecognizedPropertyException` or warnings from `spring-boot-properties-migrator` about `spring.jackson.*` keys. Jackson serialisation behaviour is verified by existing integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Embedded jar launch scripts removed",
+      "jira_keys": ["GH-47666"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Support for embedding launch scripts directly inside the executable jar has been removed. Any deployment pipeline that relies on running the fat jar as a Unix service via an embedded script will break. External launch mechanisms (systemd unit files, shell wrappers, or container entry points) must be used instead.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove embeddedLaunchScript / executable=true from Maven/Gradle Spring Boot plugin",
+          "instruction": "In Maven: remove `<executable>true</executable>` from the `spring-boot-maven-plugin` configuration block in `pom.xml`. In Gradle: remove `bootJar { launchScript() }` from `build.gradle`. Replace any init.d or systemd service that executed the jar directly (e.g. `/opt/app/myapp.jar start`) with an explicit `java -jar /opt/app/myapp.jar` invocation in a systemd `ExecStart` directive or a wrapper shell script. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The built jar does not execute directly as a shell script. Service starts cleanly via `java -jar myapp.jar` or the updated systemd/init.d unit.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`spring-boot-loader-classic` removed",
+      "jira_keys": ["GH-45714"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The legacy `spring-boot-loader-classic` artifact has been removed with no compatibility shim. Build configurations that explicitly set `loaderImplementation=CLASSIC` will fail to resolve the artifact. The current `spring-boot-loader` is the only supported loader.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-loader-classic", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-loader", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove CLASSIC loaderImplementation from Maven/Gradle Spring Boot plugin",
+          "instruction": "In Maven `pom.xml`, remove `<loaderImplementation>CLASSIC</loaderImplementation>` from the `spring-boot-maven-plugin` `<configuration>` block. In Gradle `build.gradle`, remove `loaderImplementation = org.springframework.boot.loader.tools.LoaderImplementation.CLASSIC` from the `bootJar` block. Also remove any explicit `<dependency>` on `org.springframework.boot:spring-boot-loader-classic`. The default loader (`spring-boot-loader`) is used automatically. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build succeeds. The packaged jar starts correctly with `java -jar`. No `ClassNotFoundException` referencing `org.springframework.boot.loader.classic` package at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "SQL and Reactor starters removed",
+      "jira_keys": ["GH-47378"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`spring-boot-starter-sql` and `spring-boot-starter-reactor` have been removed because they were purely transitive aggregators with no added value. Any project declaring a direct dependency on either will fail to resolve the artifact after upgrading.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-sql", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-reactor", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Replace spring-boot-starter-sql and spring-boot-starter-reactor with explicit dependencies",
+          "instruction": "Remove `org.springframework.boot:spring-boot-starter-sql` and `org.springframework.boot:spring-boot-starter-reactor` from your `pom.xml` or `build.gradle`. Add explicit dependencies for the modules you actually need: for SQL support add `org.springframework.boot:spring-boot-starter-jdbc` and/or `org.springframework.boot:spring-boot-starter-data-jpa`; for Reactor add `io.projectreactor:reactor-core` directly. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build resolves successfully. No `ArtifactNotFoundException` for `spring-boot-starter-sql` or `spring-boot-starter-reactor`. Application starts and database/reactive features work as before.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Spring Session MongoDB and Hazelcast support removed",
+      "jira_keys": ["GH-47662", "GH-47661"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Auto-configuration for Spring Session with MongoDB and Hazelcast backends has been removed. Applications relying on these session stores will no longer have their session configuration wired automatically and must provide their own `@Bean` configuration.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Implement manual Spring Session MongoDB or Hazelcast configuration",
+          "instruction": "If your application uses `spring.session.store-type=mongodb` or `spring.session.store-type=hazelcast`, the auto-configuration that previously wired these is gone. Create a `@Configuration` class that manually declares the required beans. For MongoDB sessions: declare a `@Bean` of type `org.springframework.session.data.mongo.MongoIndexedSessionRepository` configured with your `MongoOperations` bean. For Hazelcast: declare a `@Bean` of type `org.springframework.session.hazelcast.HazelcastIndexedSessionRepository` configured with your `HazelcastInstance` bean. Refer to the Spring Session reference documentation for the current manual configuration pattern for each store type.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts without `NoSuchBeanDefinitionException` for the session repository. Session is persisted to and read from MongoDB or Hazelcast in an integration test.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Auto-configurations made final with no public members",
+      "jira_keys": ["GH-32883"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/32883",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "All Spring Boot auto-configuration classes are now declared `final` and their methods and nested classes have been made package-private. Code that extends, overrides, or directly references internal members of auto-configuration classes will fail to compile or throw `IllegalAccessError` at runtime. The supported extension model is `@Bean` override, `*Customizer` beans, and `@ConditionalOn*` conditions.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Refactor code that extends or references auto-configuration internals to use supported extension points",
+          "instruction": "Search the codebase for any class that `extends` a Spring Boot auto-configuration class (e.g. `extends DataSourceAutoConfiguration`) or directly calls internal methods on them. Replace each such pattern with the supported alternative: (1) To override a `@Bean` defined in auto-configuration, declare a `@Bean` of the same type in your own `@Configuration` class — Spring Boot's `@ConditionalOnMissingBean` will suppress the auto-configured one. (2) To customise behaviour, implement and register the appropriate `*Customizer` interface (e.g. `TomcatConnectorCustomizer`, `RestTemplateCustomizer`). (3) To conditionally activate configuration, use `@ConditionalOnBean`, `@ConditionalOnProperty`, or `@ConditionalOnClass` rather than referencing the auto-configuration class directly. Use `grep -r 'extends.*AutoConfiguration' src/` to find violations. Per Spring Boot 4.0 Migration Guide and GitHub issue #32883.",
+          "effort": "architectural",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without errors. No `extends.*AutoConfiguration` pattern in production source. Application starts successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`*DataProperties` renamed to `Data*Properties`",
+      "jira_keys": ["GH-47043"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Spring Boot data properties classes have been renamed to follow a consistent `Data*Properties` naming pattern. For example, `MongoDataProperties` is the old name; the new name follows `DataMongoProperties` or a similar `Data`-prefixed convention. Any application code referencing these classes by name will fail to compile.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Update *DataProperties class references to Data*Properties pattern",
+          "instruction": "Search the codebase for references to Spring Boot properties classes matching the `*DataProperties` suffix pattern (e.g. `MongoDataProperties`, `RedisDataProperties`, `CassandraDataProperties`). Rename each to its new `Data*Properties` form per the Spring Boot 4.0 Configuration Changelog (accessible at https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Configuration-Changelog). Use `grep -r 'DataProperties' src/` to find all references. The OpenRewrite Spring Boot 4.0 recipe set can automate many of these renames.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles without `cannot find symbol` errors for any `*DataProperties` class. No references to the old names remain in production source.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "`spring-boot-tx` module renamed to `spring-boot-transaction`",
+      "jira_keys": ["GH-47603"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The internal transaction support module has been renamed from `spring-boot-tx` to `spring-boot-transaction`. Any build file that declares `org.springframework.boot:spring-boot-tx` as a direct dependency will fail to resolve the artifact.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-tx", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-transaction", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace spring-boot-tx with spring-boot-transaction in build files",
+          "instruction": "In `pom.xml` or `build.gradle`, replace the dependency `org.springframework.boot:spring-boot-tx` with `org.springframework.boot:spring-boot-transaction`. The group ID and version remain `org.springframework.boot` and the Spring Boot BOM version. No code changes are required; this is a build-only rename.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build resolves successfully. `mvn dependency:tree` or `gradle dependencies` shows `spring-boot-transaction` and not `spring-boot-tx`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "AOP starter renamed from spring-boot-starter-aop to spring-boot-starter-aspectj",
+      "jira_keys": ["GH-42948"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`spring-boot-starter-aop` has been renamed to `spring-boot-starter-aspectj` to reflect that AspectJ is the specific AOP implementation being bundled. Build files referencing the old artifact name will fail to resolve.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-aop", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-aspectj", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace spring-boot-starter-aop with spring-boot-starter-aspectj in build files",
+          "instruction": "In `pom.xml` or `build.gradle`, rename the dependency `org.springframework.boot:spring-boot-starter-aop` to `org.springframework.boot:spring-boot-starter-aspectj`. No Java code changes are required. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build succeeds. `mvn dependency:tree` shows `spring-boot-starter-aspectj`. AOP-based features (e.g. `@Transactional`, `@Cacheable`, custom `@Aspect` beans) function correctly at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "MongoDB properties renamed to use `spring.mongodb.*`",
+      "jira_keys": ["GH-47050", "GH-47052"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "All MongoDB-related configuration properties have been standardised under the `spring.mongodb.*` namespace (previously inconsistently `spring.mongo.*` in some places). Additionally, `spring.mongodb.uuid-representation` has been renamed to `spring.mongodb.representation.uuid`. Properties using the old keys will be silently ignored, causing misconfiguration.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.mongo", "role": "removed" },
+        { "kind": "property", "name": "spring.mongodb", "role": "replacement" },
+        { "kind": "property", "name": "spring.mongodb.uuid-representation", "role": "removed" },
+        { "kind": "property", "name": "spring.mongodb.representation.uuid", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename spring.mongo.* properties to spring.mongodb.* and update uuid-representation key",
+          "instruction": "In all `application.properties`, `application.yml`, and profile-specific files: (1) Rename any `spring.mongo.<key>` properties to `spring.mongodb.<key>`. (2) Rename `spring.mongodb.uuid-representation` to `spring.mongodb.representation.uuid`. (3) Rename `management.health.mongo.enabled` to `management.health.mongodb.enabled` and `management.metrics.mongo.*` to `management.metrics.mongodb.*`. Add `org.springframework.boot:spring-boot-properties-migrator` as a `runtime` scope dependency temporarily; it will log warnings at startup for all unrecognised property keys. Remove the migrator once all renames are complete. Per Spring Boot 4.0 Migration Guide and OpenRewrite recipe `SpringBootProperties_4_0`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No warnings from `spring-boot-properties-migrator` about `spring.mongo.*`. Application connects to MongoDB successfully on startup. Health endpoint returns `{ \"mongo\": { \"status\": \"UP\" } }` (or equivalent).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "GridFs removed from `MongoConnectionDetails`",
+      "jira_keys": ["GH-47044"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The GridFS-related methods have been removed from the `MongoConnectionDetails` interface. Any custom implementation of this interface that overrides GridFS methods will fail to compile.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.autoconfigure.mongo.MongoConnectionDetails", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "remove",
+          "summary": "Remove GridFS method overrides from MongoConnectionDetails implementations",
+          "instruction": "Search the codebase for classes that implement `org.springframework.boot.autoconfigure.mongo.MongoConnectionDetails`. Remove any GridFS-related method overrides (e.g. `getGridFs()`, `GridFs`-typed return methods) from those implementations. If your application requires GridFS configuration, configure it separately via a `@Bean GridFsTemplate` definition using the standard `MongoTemplate` and a dedicated bucket name. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without `method does not override` or `cannot find symbol` errors related to `MongoConnectionDetails`. GridFS operations (if used) succeed in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Spring Session properties renamed",
+      "jira_keys": ["GH-47333"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Spring Session properties that depended on Spring Data have been renamed. Properties under `spring.session.mongodb.*` now begin with `spring.session.data.mongodb.*`. Using old keys silently disables the intended session configuration.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.session.mongodb", "role": "removed" },
+        { "kind": "property", "name": "spring.session.data.mongodb", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename spring.session.mongodb.* to spring.session.data.mongodb.*",
+          "instruction": "In all `application.properties` and `application.yml` files, rename `spring.session.mongodb.<key>` to `spring.session.data.mongodb.<key>`. Review the full list of changed `spring.session.*` properties in the Spring Boot 4.0 Configuration Changelog at https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Configuration-Changelog. Use `spring-boot-properties-migrator` at runtime to detect any remaining mismatches.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `spring-boot-properties-migrator` warnings for `spring.session.*`. Session store is correctly initialised at startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Error properties moved out of `server.*` namespace",
+      "jira_keys": ["GH-48201"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Error configuration properties have been moved out of the `server.error.*` namespace to a general web namespace. Applications using `server.error.include-message`, `server.error.include-stacktrace`, etc. will find those keys silently ignored after upgrading.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "server.error", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Migrate server.error.* properties to new web namespace",
+          "instruction": "Search all `application.properties` and `application.yml` files for keys starting with `server.error.`. Check the Spring Boot 4.0 Configuration Changelog (https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Configuration-Changelog) for the exact new key names for each property. Add `org.springframework.boot:spring-boot-properties-migrator` as a `runtime` dependency to receive startup-time warnings for any remaining `server.error.*` keys that need migration.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `spring-boot-properties-migrator` warnings for `server.error.*`. Error response payloads include or exclude stack traces and messages as configured.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Tomcat and Jetty runtime modules converted to starters",
+      "jira_keys": ["GH-48175", "GH-48677"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`spring-boot-tomcat` and `spring-boot-jetty` have been converted from plain runtime modules to starters. Additionally, `org.eclipse.jetty.ee11:jetty-ee11-servlets` is no longer a transitive dependency of `spring-boot-jetty`. Applications that use Jetty servlet classes from that artifact must add an explicit dependency.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-tomcat", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-jetty", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.eclipse.jetty.ee11:jetty-ee11-servlets", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Update spring-boot-tomcat and spring-boot-jetty dependency declarations to starter form",
+          "instruction": "If your build explicitly declares `org.springframework.boot:spring-boot-tomcat` or `org.springframework.boot:spring-boot-jetty`, update those declarations to use the new starter coordinates. If your application uses classes from `org.eclipse.jetty.ee11:jetty-ee11-servlets` (e.g. `org.eclipse.jetty.ee11.servlets.CrossOriginFilter`, `DoSFilter`), add an explicit dependency: `org.eclipse.jetty.ee11:jetty-ee11-servlets` with the Jetty version managed by your Spring Boot BOM.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Build succeeds. Application starts on the expected server. If Jetty servlet classes were used, they resolve at runtime without `ClassNotFoundException`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Spring Retry dependency management removed",
+      "jira_keys": ["GH-46309"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot no longer provides managed version metadata for Spring Retry. Projects that relied on Spring Boot's BOM to pin the Spring Retry version will get no version and the build will fail unless an explicit version is declared.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.retry:spring-retry", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Declare explicit version for spring-retry in build file",
+          "instruction": "If your `pom.xml` or `build.gradle` declares `org.springframework.retry:spring-retry` without a version (relying on Spring Boot BOM management), add an explicit `<version>` (Maven) or version string (Gradle). As of Spring Boot 4.0, the recommended compatible version is Spring Retry 2.0.x. In Maven: `<dependency><groupId>org.springframework.retry</groupId><artifactId>spring-retry</artifactId><version>2.0.11</version></dependency>`. In Gradle: `implementation 'org.springframework.retry:spring-retry:2.0.11'`. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Build resolves `spring-retry` successfully. `@Retryable`-annotated methods function correctly in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Layertools jar mode removed; use extract mode",
+      "jira_keys": ["GH-48568"],
+      "source_url": "https://github.com/spring-projects/spring-boot/issues/48568",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "The deprecated `layertools` jar mode has been removed. Dockerfiles and build pipelines that invoke `java -Djarmode=layertools -jar app.jar extract` will fail with an unknown jar-mode error. The replacement is `java -Djarmode=tools -jar app.jar extract --layers`.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace -Djarmode=layertools with -Djarmode=tools in Dockerfile and build scripts",
+          "instruction": "In your multi-stage Dockerfile (and any CI/CD scripts), replace the layer extraction command: OLD: `java -Djarmode=layertools -jar application.jar extract` NEW: `java -Djarmode=tools -jar application.jar extract --layers --destination extracted` Then update the `COPY` directives in subsequent Docker stages to use the `extracted/` directory structure produced by the tools mode. Per Spring Boot 4.1.0-M1 Release Notes and Spring Boot reference documentation on Dockerfiles.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Docker image builds successfully. Container starts and application runs. `docker run --rm myapp java -Djarmode=tools -jar application.jar` prints the tools help without error.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Deprecated Logback properties removed",
+      "jira_keys": ["GH-48489"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Support for deprecated Logback configuration properties (previously deprecated in Spring Boot 3.x) has been fully removed. Any application still using old Logback property keys will silently fall back to defaults, potentially changing logging behaviour.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Migrate deprecated Logback properties to current names",
+          "instruction": "Review the Spring Boot 4.0 Configuration Changelog (https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Configuration-Changelog) for the complete list of removed Logback property keys. Common renames include moving from `logging.pattern.*` variants deprecated in 3.x to their current equivalents. Use `spring-boot-properties-migrator` at runtime to identify any remaining deprecated keys in your configuration. After renaming, verify logging output matches expectations.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `spring-boot-properties-migrator` warnings about Logback properties. Application log output format and level configuration match the expected configuration.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Default security misconfigured without `spring-boot-health`",
+      "jira_keys": ["GH-50188", "GH-50190"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "When `spring-boot-actuator-autoconfigure` is on the classpath but `spring-boot-health` is not, the default security auto-configuration is incorrect and may expose actuator endpoints without the intended protection. Fixed in 4.0.6 and 4.1.0-RC1; applications must ensure `spring-boot-health` is present or configure security rules explicitly.",
+      "scopes": [
+        { "scope": "build", "severity": "critical" },
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-health", "role": "co-required" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-actuator-autoconfigure", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add spring-boot-health dependency or explicit security rules for actuator endpoints",
+          "instruction": "Option A (recommended): Add `org.springframework.boot:spring-boot-health` as a `compile`-scope dependency in your `pom.xml` or `build.gradle`. This ensures the health auto-configuration is present and security is correctly wired. Option B: If you do not want `spring-boot-health` on the classpath, explicitly configure your `SecurityFilterChain` bean to apply the intended access rules to `/actuator/**` endpoints using `http.securityMatcher(\"/actuator/**\").authorizeHttpRequests(r -> r.requestMatchers(\"/actuator/health\").permitAll().anyRequest().authenticated())`. Upgrade to Spring Boot 4.0.6+ or 4.1.0-RC1+ where the bug is fixed. Per GH-50188.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "GET /actuator/health returns 200 with appropriate body. GET /actuator/env (if exposed) requires authentication and returns 401 without credentials. No actuator endpoint is unintentionally open.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "Security matchers fail with `NoClassDefFoundError` in WAR deployment",
+      "jira_keys": ["GH-48388"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "`WebServerNamespace` resolution can fail with `NoClassDefFoundError` in traditional WAR deployments, causing Spring Security matchers to break at startup. Fixed in Spring Boot 4.0.1; WAR deployments must apply at least that patch version.",
+      "scopes": [
+        { "scope": "runtime", "severity": "critical" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.security.web.server.util.matcher.ServerWebExchangeMatcher", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Upgrade to Spring Boot 4.0.1+ before WAR deployment",
+          "instruction": "If you deploy as a WAR to an external servlet container, ensure your project uses Spring Boot 4.0.1 or later (the minimum patch that contains the fix for GH-48388). Update your `pom.xml` or `build.gradle` Spring Boot version property to `4.0.1` or higher. Verify using `mvn dependency:resolve | grep spring-boot` that the resolved version is 4.0.1+.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "WAR deploys to the servlet container and application context starts without `NoClassDefFoundError` related to `WebServerNamespace`. Security matchers apply as configured.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_fix",
+      "title": "gRPC CSRF property inverted",
+      "jira_keys": ["GH-50145"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "`GrpcDisableCsrfHttpConfigurer` was reading the inverse value of `spring.grpc.server.security.csrf.enabled`, meaning CSRF protection was disabled when the property was set to `true` and vice versa. Fixed in 4.1.0-RC1; any application that explicitly set this property had the opposite security behaviour intended.",
+      "scopes": [
+        { "scope": "config", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.grpc.server.security.csrf.enabled", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify spring.grpc.server.security.csrf.enabled value after upgrading to 4.1.0-RC1+",
+          "instruction": "After upgrading to Spring Boot 4.1.0-RC1 or later (where the bug is fixed), check whether you have `spring.grpc.server.security.csrf.enabled` set in any `application.properties` or `application.yml`. If this property is present, its effective behaviour has been inverted by the fix: `true` now correctly means CSRF protection is enabled (was previously behaving as disabled). Review your intended security posture and adjust the property value accordingly so that the gRPC CSRF configuration matches your security requirements.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "gRPC endpoint rejects requests that should be CSRF-protected (if `csrf.enabled=true`) and accepts expected traffic. No unintended security bypass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Neo4j Java Driver 6.0.0 required",
+      "jira_keys": ["GH-47381"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot 4 requires Neo4j Java Driver 6.0.0 or later. Projects on an older driver version will encounter incompatibility errors at startup. Driver 6.x introduces API changes from 5.x that may require code updates.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.neo4j.driver:neo4j-java-driver", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Upgrade neo4j-java-driver to 6.0.0+",
+          "instruction": "Update your `pom.xml` or `build.gradle` to use `org.neo4j.driver:neo4j-java-driver:6.0.0` or later (the Spring Boot BOM will manage this version if you are using the BOM). Review the Neo4j Java Driver 6.0 changelog for API changes: the `Session` and `AsyncSession` APIs have been restructured and the `Value` type hierarchy has changed. Refer to https://github.com/neo4j/neo4j-java-driver/wiki/6.0-migration-guide for specific migration steps.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application connects to Neo4j at startup. `driver.verifyConnectivity()` succeeds. All Neo4j repository tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Gradle minimum version raised to 8.14",
+      "jira_keys": ["GH-43574"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "The Spring Boot Gradle plugin now requires Gradle 8.14 or later. Projects on older Gradle versions will fail to apply the plugin.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade Gradle wrapper to 8.14+",
+          "instruction": "Run `./gradlew wrapper --gradle-version 8.14` (or the latest 8.x release) to update the Gradle wrapper. Commit the updated `gradle/wrapper/gradle-wrapper.properties` and `gradle-wrapper.jar`. Verify that all existing Gradle tasks continue to function after the wrapper upgrade.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`./gradlew --version` shows Gradle 8.14 or later. `./gradlew build` succeeds without plugin compatibility errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "GraalVM baseline raised to 25",
+      "jira_keys": ["GH-47433"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Native image builds now require GraalVM 25 or later. Projects using an older GraalVM version for native compilation will fail during the native-image build step.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Upgrade GraalVM installation to version 25+",
+          "instruction": "Install GraalVM 25 or later. Using SDKMAN: `sdk install java 25-graalce`. Using GraalVM distribution directly: download from https://github.com/graalvm/graalvm-ce-builds/releases and set `JAVA_HOME` and `GRAALVM_HOME` to point to the new installation. Update any CI/CD pipeline configurations (e.g. GitHub Actions `graalvm/setup-graalvm` action) to specify `java-version: '25'`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`native-image --version` shows GraalVM 25.x. `mvn -Pnative spring-boot:build-image` or `gradle nativeCompile` completes successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Elasticsearch auto-configures new `Rest5Client`",
+      "jira_keys": ["GH-46061"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot 4 auto-configures the new `Rest5Client` (targeting Elasticsearch 9.x) instead of the legacy low-level `RestClient`. The legacy `org.elasticsearch.client:elasticsearch-rest-client` and `elasticsearch-rest-client-sniffer` modules are no longer managed. Applications that inject `RestClient` beans or use `RestClientBuilderCustomizer` will break.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "critical" },
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.elasticsearch.client.RestClient", "role": "removed" },
+        { "kind": "class", "name": "co.elastic.clients.transport.rest5_client.Rest5Client", "role": "replacement" },
+        { "kind": "class", "name": "org.springframework.boot.elasticsearch.autoconfigure.RestClientBuilderCustomizer", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.elasticsearch.autoconfigure.Rest5ClientBuilderCustomizer", "role": "replacement" },
+        { "kind": "dependency", "name": "org.elasticsearch.client:elasticsearch-rest-client", "role": "removed" },
+        { "kind": "dependency", "name": "co.elastic.clients:elasticsearch-java", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace RestClientBuilderCustomizer with Rest5ClientBuilderCustomizer",
+          "instruction": "Replace all beans implementing `org.springframework.boot.elasticsearch.autoconfigure.RestClientBuilderCustomizer` with beans implementing `org.springframework.boot.elasticsearch.autoconfigure.Rest5ClientBuilderCustomizer`. Update any `@Autowired RestClient` injection points to inject `Rest5Client` instead. Remove explicit dependencies on `org.elasticsearch.client:elasticsearch-rest-client` and `org.elasticsearch.client:elasticsearch-rest-client-sniffer` from `pom.xml` / `build.gradle`; add `co.elastic.clients:elasticsearch-java` (version managed by Spring Boot BOM). Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application connects to Elasticsearch at startup. Elasticsearch repository queries and index operations succeed in integration tests. No `ClassNotFoundException` for `org.elasticsearch.client.RestClient`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "jOOQ 3.20 with Java 21 requirement",
+      "jira_keys": ["GH-48619"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "Spring Boot 4 upgrades jOOQ to 3.20, which requires Java 21 as the minimum runtime. Applications running on Java 17 that use jOOQ will fail at startup.",
+      "scopes": [
+        { "scope": "build", "severity": "high" },
+        { "scope": "runtime", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.jooq:jooq", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Ensure Java 21+ runtime and review jOOQ 3.20 API changes",
+          "instruction": "Verify your JDK version: `java -version` must show Java 21 or later. Update your build's `<java.version>` (Maven) or `sourceCompatibility`/`targetCompatibility` (Gradle) to `21`. Review the jOOQ 3.20 migration notes at https://www.jooq.org/doc/3.20/manual/reference/migrating/ for any API changes that affect your generated code or DSL usage. Regenerate jOOQ code if using the jOOQ code generator.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`java -version` shows Java 21+. Application starts and all jOOQ-based queries execute successfully in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Kotlinx Serialization starters renamed",
+      "jira_keys": ["GH-48076", "GH-48262"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "dependency_upgrade",
+      "reason_type": "other",
+      "reason": "`spring-boot-starter-kotlin-serialization` has been renamed to `spring-boot-starter-kotlinx-serialization-json`. Build files referencing the old artifact name will fail to resolve.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-kotlin-serialization", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-kotlinx-serialization-json", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace spring-boot-starter-kotlin-serialization with spring-boot-starter-kotlinx-serialization-json",
+          "instruction": "In `pom.xml` or `build.gradle`, replace `org.springframework.boot:spring-boot-starter-kotlin-serialization` with `org.springframework.boot:spring-boot-starter-kotlinx-serialization-json`. No code changes are required.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Build resolves successfully. Kotlin Serialization-based JSON serialization works correctly in tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`spring-boot-amqp` renamed to `spring-boot-rabbitmq`",
+      "jira_keys": ["GH-49620"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.1.0-M3-Release-Notes",
+      "change_type": "dependency_upgrade",
+      "reason_type": "other",
+      "reason": "RabbitMQ support has been moved from the `spring-boot-amqp` module to a new `spring-boot-rabbitmq` module to separate RabbitMQ from the broader AMQP 1.0 support being added. Note: this rename was reverted in 4.1.0-M4 and is now scheduled for Spring Boot 4.2; verify the exact status against the target version being deployed.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-amqp", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-rabbitmq", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify spring-boot-amqp rename status for target Spring Boot version",
+          "instruction": "Check whether the target Spring Boot 4.1.x patch version includes the AMQP rename (it was reverted in 4.1.0-M4 and rescheduled for 4.2). If using a version where the rename is active, replace `org.springframework.boot:spring-boot-amqp` with `org.springframework.boot:spring-boot-rabbitmq` in `pom.xml`/`build.gradle`. If using a version where it was reverted, no change is needed until 4.2. Monitor the Spring Boot 4.1 release notes for the final decision.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Build resolves the AMQP/RabbitMQ dependency. RabbitMQ listener and template beans start successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "Foundational packages restructured",
+      "jira_keys": ["GH-47232"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "Core Spring Boot packages have been restructured to remove the dependency on the `org.springframework.boot` root package in internal modules. Code importing internal package paths from Spring Boot may break at compile time or runtime.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "high" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Update imports that reference internal Spring Boot package paths",
+          "instruction": "Run a full compile of the project after upgrading to Spring Boot 4. Identify any `cannot find symbol` or `package does not exist` errors referencing Spring Boot internal packages (e.g. packages within `org.springframework.boot` that are not part of the public API). Refer to the Spring Boot 4.0 Release Notes and Javadoc for the new package locations. The OpenRewrite recipe `org.openrewrite.java.spring.boot4.*` covers many common import moves. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles without import errors. All integration tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "`spring-boot-persistence` module created",
+      "jira_keys": ["GH-45328"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "General persistence utilities have been extracted into a new `spring-boot-persistence` module. Applications that depend on these utilities (previously bundled in other modules) must add this dependency explicitly.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-persistence", "role": "co-required" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Add spring-boot-persistence dependency if persistence utilities are used",
+          "instruction": "If the project uses Spring Boot persistence utilities (e.g. `AbstractEntityManagerFactoryBean`, JPA/JDBC helper classes previously auto-included via other starters), add `org.springframework.boot:spring-boot-persistence` to `pom.xml` or `build.gradle`. The Spring Boot BOM manages the version. This is typically needed if a compile error references a class that was previously available transitively via `spring-boot-starter-data-jpa` or `spring-boot-starter-jdbc` but is no longer included.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Project compiles without `cannot find symbol` errors for persistence utility classes. JPA/JDBC-based tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "`WebSecurityCustomizer` beans excluded by `@WebMvcTest`",
+      "jira_keys": ["GH-48055"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "security",
+      "reason": "`WebSecurityCustomizer` beans are no longer loaded in `@WebMvcTest` slices. Tests that relied on a `WebSecurityCustomizer` to disable or customise security in the slice context will now behave differently, potentially causing `401 Unauthorized` responses in tests that previously passed.",
+      "scopes": [
+        { "scope": "test", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Explicitly import WebSecurityCustomizer beans into @WebMvcTest slice configurations",
+          "instruction": "For each `@WebMvcTest` test class that requires a `WebSecurityCustomizer` bean (e.g. to call `web.ignoring().requestMatchers(\"/public/**\")`), add the configuration class containing that bean to the `@Import` annotation on the test: `@WebMvcTest(MyController.class)` + `@Import(MyWebSecurityConfig.class)`. Alternatively, place the `WebSecurityCustomizer` bean in a configuration class annotated with `@TestConfiguration` and include it in the test. Per Spring Boot 4.0 Migration Guide.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "All `@WebMvcTest` tests that previously required `WebSecurityCustomizer` pass. No unexpected `401 Unauthorized` responses in slice tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "Tracing/logging export properties renamed",
+      "jira_keys": ["GH-47959", "GH-47958", "GH-47957", "GH-47954"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "Observability export properties have been reorganised. `management.zipkin.tracing.*` moves to `management.tracing.export.zipkin.*`, `management.tracing.enabled` moves to `management.tracing.export.enabled`, and `management.logging.export.*` properties have been renamed. Old keys are silently ignored, disabling tracing export.",
+      "scopes": [
+        { "scope": "config", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "management.zipkin.tracing", "role": "removed" },
+        { "kind": "property", "name": "management.tracing.export.zipkin", "role": "replacement" },
+        { "kind": "property", "name": "management.tracing.enabled", "role": "removed" },
+        { "kind": "property", "name": "management.tracing.export.enabled", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename management.zipkin.tracing.* and management.tracing.enabled to new export namespace",
+          "instruction": "In all `application.properties` and `application.yml` files: (1) Rename `management.zipkin.tracing.endpoint` → `management.tracing.export.zipkin.endpoint`; rename all other `management.zipkin.tracing.*` keys to `management.tracing.export.zipkin.*`. (2) Rename `management.tracing.enabled` → `management.tracing.export.enabled`. (3) Review and update any `management.logging.export.*` keys per the Spring Boot 4.0 Configuration Changelog at https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Configuration-Changelog. Use `spring-boot-properties-migrator` at `runtime` scope to catch remaining mismatches.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Traces appear in Zipkin (or the configured backend) after startup. `management.tracing.export.enabled=false` stops span export when set. No `spring-boot-properties-migrator` warnings for tracing or logging export properties.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "`ConditionalOnEnabledTracing` renamed to `ConditionalOnEnabledTracingExport`",
+      "jira_keys": ["GH-47029"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The annotation `@ConditionalOnEnabledTracing` has been renamed to `@ConditionalOnEnabledTracingExport`. Custom auto-configuration classes using the old annotation will compile but the condition will not evaluate correctly.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.tracing.ConditionalOnEnabledTracing", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.actuate.autoconfigure.tracing.ConditionalOnEnabledTracingExport", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Replace @ConditionalOnEnabledTracing with @ConditionalOnEnabledTracingExport",
+          "instruction": "Search for all usages of `@ConditionalOnEnabledTracing` in the codebase and replace with `@ConditionalOnEnabledTracingExport`. Update the import from `org.springframework.boot.actuate.autoconfigure.tracing.ConditionalOnEnabledTracing` to `org.springframework.boot.actuate.autoconfigure.tracing.ConditionalOnEnabledTracingExport`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles. Beans annotated with `@ConditionalOnEnabledTracingExport` are only created when `management.tracing.export.enabled=true`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "security_config",
+      "title": "`spring.dao.exceptiontranslation.enabled` renamed",
+      "jira_keys": ["GH-76"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "mandatory_migration",
+      "reason_type": "other",
+      "reason": "The property `spring.dao.exceptiontranslation.enabled` has been renamed to `spring.persistence.exceptiontranslation.enabled`. Using the old key has no effect, silently disabling or enabling exception translation contrary to intent.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.dao.exceptiontranslation.enabled", "role": "removed" },
+        { "kind": "property", "name": "spring.persistence.exceptiontranslation.enabled", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename spring.dao.exceptiontranslation.enabled to spring.persistence.exceptiontranslation.enabled",
+          "instruction": "In all `application.properties` and `application.yml` files, rename `spring.dao.exceptiontranslation.enabled` to `spring.persistence.exceptiontranslation.enabled`. This is a one-to-one key rename with no value change.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No `spring-boot-properties-migrator` warning for `spring.dao.exceptiontranslation.enabled`. Exception translation behaviour (DAO exceptions translated to Spring DataAccessException hierarchy) functions as expected.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Micrometer module names include `micrometer`",
+      "jira_keys": ["GH-46925"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Micrometer, observation, and tracing module names and Java package paths have been renamed to consistently include the word `micrometer`. Code that references these module names explicitly or imports from the old package paths will break.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Update Micrometer module and package references to include micrometer prefix",
+          "instruction": "Search the codebase for imports from Micrometer packages that do not include `micrometer` in their path. Review the Micrometer 1.14/2.0 release notes and Spring Boot 4.0 Migration Guide for the full list of renamed modules. Update `pom.xml`/`build.gradle` dependency artifact IDs accordingly. Run a full compile and fix any `cannot find symbol` errors arising from package renames.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "Project compiles. Micrometer metrics, observations, and traces are emitted correctly in integration tests.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Readiness/liveness probes enabled by default",
+      "jira_keys": ["GH-22825"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "Kubernetes readiness and liveness probe endpoints (`/actuator/health/readiness` and `/actuator/health/liveness`) are now enabled by default, regardless of whether the application detects a Kubernetes environment. Deployments that do not intend to expose these endpoints or have misconfigured Kubernetes probes may be affected.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" },
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "management.endpoint.health.probes.enabled", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Review Kubernetes probe configuration with probes now always enabled",
+          "instruction": "Review your Kubernetes `livenessProbe` and `readinessProbe` deployment YAML to confirm they point to `/actuator/health/liveness` and `/actuator/health/readiness` respectively. If probes are not desired, set `management.endpoint.health.probes.enabled=false` in `application.properties`. If running in non-Kubernetes environments, confirm the newly-exposed endpoints do not conflict with existing health check tooling.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "GET /actuator/health/readiness returns 200 with `{\"status\":\"ACCEPTING_TRAFFIC\"}`. GET /actuator/health/liveness returns 200 with `{\"status\":\"CORRECT\"}`. Kubernetes deployment completes without liveness probe failures.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Session cookie `SameSite` defaults to `Lax`",
+      "jira_keys": ["GH-48546"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "security",
+      "reason": "`DefaultCookieSerializer` now sets `SameSite=Lax` by default (previously `null`, meaning no `SameSite` attribute was sent). This can break cross-site POST flows (e.g. OAuth redirects, SAML assertions, or embedded iframes) that relied on session cookies being sent with cross-site requests.",
+      "scopes": [
+        { "scope": "runtime", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.session.web.http.DefaultCookieSerializer", "role": "mentioned" },
+        { "kind": "property", "name": "server.servlet.session.cookie.same-site", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify session cookie SameSite=Lax does not break cross-site flows",
+          "instruction": "Test all cross-site flows (OAuth2 authorization code redirect, SAML SP-initiated SSO, payment gateway callbacks) after upgrading. If `SameSite=Lax` breaks a required cross-site POST, set `server.servlet.session.cookie.same-site=none` (requires `server.servlet.session.cookie.secure=true`) in `application.properties`. If you use Spring Session, configure `DefaultCookieSerializer` as a `@Bean` with `cookieSerializer.setSameSite(\"None\")` and `cookieSerializer.setUseSecureCookie(true)`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "OAuth2/SAML login flows complete successfully end-to-end. Session cookie in browser DevTools shows the expected `SameSite` attribute value.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`spring-boot-micrometer-tracing` split into Brave/OTel modules",
+      "jira_keys": ["GH-47953"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The unified `spring-boot-micrometer-tracing` module has been split into separate Brave-specific and OpenTelemetry-specific modules. Applications depending on the combined module must migrate to the appropriate specific starter.",
+      "scopes": [
+        { "scope": "build", "severity": "high" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-micrometer-tracing", "role": "removed" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-actuator", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace spring-boot-micrometer-tracing with Brave or OTel specific tracing starter",
+          "instruction": "Remove `org.springframework.boot:spring-boot-micrometer-tracing` from `pom.xml`/`build.gradle`. Add the appropriate specific starter: for Brave-based tracing add `io.micrometer:micrometer-tracing-bridge-brave` and `io.zipkin.reporter2:zipkin-reporter-brave`; for OpenTelemetry-based tracing add `io.micrometer:micrometer-tracing-bridge-otel` and `io.opentelemetry:opentelemetry-exporter-otlp`. Per Spring Boot 4.0 Migration Guide actuator/tracing section.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Traces appear in the configured backend (Zipkin or OTLP collector). No `ClassNotFoundException` for tracing bridge classes at startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "`SanitizableData.key` non-nullable",
+      "jira_keys": ["GH-47220"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Passing a `null` key to the `SanitizableData` constructor now throws `NullPointerException` immediately. Code that previously created `SanitizableData` with a null key and relied on it not throwing will break at runtime.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.actuate.endpoint.SanitizableData", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Fix null key passed to SanitizableData constructor",
+          "instruction": "Search the codebase for `new SanitizableData(` or constructor calls on `SanitizableData`. Ensure no `null` value is passed as the `key` parameter. Add null-guards or substitute an empty string before passing to the constructor.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "No `NullPointerException` thrown by `SanitizableData` at runtime. Actuator sanitization tests pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Maven plugin excludes optional dependencies by default",
+      "jira_keys": ["GH-47318"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "The Spring Boot Maven plugin now excludes optional dependencies from the repackaged (uber) jar by default. Projects that previously relied on optional dependencies being included at runtime will encounter `ClassNotFoundException` after upgrading.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify all required runtime classes are present after Maven repackage",
+          "instruction": "After building with `mvn spring-boot:repackage`, run the application locally and check for `ClassNotFoundException` or `NoClassDefFoundError`. Identify which optional dependency the missing class belongs to. If that dependency is genuinely needed at runtime, change it from `<optional>true</optional>` to a required dependency in `pom.xml`. Alternatively, configure the Spring Boot Maven plugin to include specific optional dependencies using the `<includeSystemScope>` or custom `<excludes>` configuration. Per Spring Boot 4.0 Maven plugin documentation.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts and all features that depend on previously optional dependencies function correctly. No `ClassNotFoundException` at runtime.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "JUnit 4 integration deprecated",
+      "jira_keys": ["GH-47256"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "Spring Boot's JUnit 4 runner and rules integration is deprecated and will be removed in a future release. Projects should migrate test code to JUnit 5.",
+      "scopes": [
+        { "scope": "test", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.test.context.junit4.SpringRunner", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.test.context.junit.jupiter.SpringExtension", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate JUnit 4 test classes to JUnit 5",
+          "instruction": "Replace `@RunWith(SpringRunner.class)` with `@ExtendWith(SpringExtension.class)` (or use `@SpringBootTest` which includes it). Replace JUnit 4 annotations: `@Before` → `@BeforeEach`, `@After` → `@AfterEach`, `@BeforeClass` → `@BeforeAll`, `@AfterClass` → `@AfterAll`, `@Ignore` → `@Disabled`. Remove the `junit:junit` dependency and ensure `org.junit.jupiter:junit-jupiter` is present. The OpenRewrite recipe `org.openrewrite.java.testing.junit5.JUnit4to5Migration` automates the majority of this migration.",
+          "effort": "moderate",
+          "automatable": true,
+          "requires": [],
+          "verification": "All tests pass using JUnit 5. No `@RunWith` annotations remain in test source. `mvn test` or `gradle test` completes without JUnit 4 deprecation warnings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`EnvironmentPostProcessor` interface moved; old package deprecated",
+      "jira_keys": ["GH-86", "GH-87"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`org.springframework.boot.env.EnvironmentPostProcessor` has been replaced by `org.springframework.boot.EnvironmentPostProcessor`. The old interface in `org.springframework.boot.env` remains but is deprecated since 4.0.0 and will be removed in 4.2.0.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.env.EnvironmentPostProcessor", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.boot.EnvironmentPostProcessor", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "namespace",
+          "summary": "Update EnvironmentPostProcessor import to org.springframework.boot package",
+          "instruction": "In all classes that implement `EnvironmentPostProcessor`, update the import from `org.springframework.boot.env.EnvironmentPostProcessor` to `org.springframework.boot.EnvironmentPostProcessor`. Also update the `META-INF/spring.factories` or `META-INF/spring/org.springframework.boot.env.EnvironmentPostProcessor.imports` registration key to use the new FQCN. Per Spring Boot 4.0 Migration Guide and GitHub issue #47272.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No deprecation warnings for `org.springframework.boot.env.EnvironmentPostProcessor`. `EnvironmentPostProcessor` implementations fire correctly at startup (verified by checking that environment customisation they apply is present in the context).",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "Derby support deprecated",
+      "jira_keys": ["GH-48567"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "Apache Derby has been retired and Spring Boot's Derby auto-configuration support is now deprecated. Applications using Derby as their embedded database should migrate to an actively maintained alternative such as H2 or HSQLDB.",
+      "scopes": [
+        { "scope": "build", "severity": "medium" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.apache.derby:derby", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace Apache Derby with H2 or HSQLDB embedded database",
+          "instruction": "Replace `org.apache.derby:derby` in `pom.xml`/`build.gradle` with `com.h2database:h2` (the Spring Boot BOM manages its version). Update any Derby-specific JDBC URLs (e.g. `jdbc:derby:memory:testdb;create=true`) to H2 equivalents (e.g. `jdbc:h2:mem:testdb`). Update SQL dialect configuration if using JPA: set `spring.jpa.database-platform=org.hibernate.dialect.H2Dialect`. For test-only usage, scope H2 as `test`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Application starts with H2. All integration tests that previously used Derby pass against H2. No Derby-related deprecation warnings at startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "OpenTelemetry `ZipkinSpanExporter` deprecated",
+      "jira_keys": ["GH-49453", "GH-49557"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "The OTel `ZipkinSpanExporter` is deprecated in Spring Boot and will be removed in Spring Boot 4.2. Applications exporting traces to Zipkin via OTel must migrate to the `management.tracing.export.zipkin.*` configuration using the Zipkin Brave reporter.",
+      "scopes": [
+        { "scope": "config", "severity": "medium" },
+        { "scope": "build", "severity": "medium" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "io.opentelemetry.exporter.zipkin.ZipkinSpanExporter", "role": "removed" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Migrate from OTel ZipkinSpanExporter to management.tracing.export.zipkin configuration",
+          "instruction": "Remove any explicit `@Bean ZipkinSpanExporter` definition and remove `io.opentelemetry:opentelemetry-exporter-zipkin` from `pom.xml`/`build.gradle`. Instead, add `io.micrometer:micrometer-tracing-bridge-brave` and `io.zipkin.reporter2:zipkin-reporter-brave`. Configure the Zipkin endpoint via `management.tracing.export.zipkin.endpoint=http://localhost:9411/api/v2/spans` in `application.properties`. Per Spring Boot 4.0 Tracing documentation.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Traces appear in Zipkin UI after startup. No deprecation warning about `ZipkinSpanExporter` at startup.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "deprecation",
+      "title": "`RootUriTemplateHandler` deprecated",
+      "jira_keys": ["GH-48350"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "deprecation",
+      "reason_type": "other",
+      "reason": "`RootUriTemplateHandler` is deprecated in favour of `DefaultUriBuilderFactory`. Code that constructs or injects `RootUriTemplateHandler` will receive deprecation warnings and must be migrated before its removal.",
+      "scopes": [
+        { "scope": "api-surface", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.boot.test.web.client.RootUriTemplateHandler", "role": "removed" },
+        { "kind": "class", "name": "org.springframework.web.util.DefaultUriBuilderFactory", "role": "replacement" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Replace RootUriTemplateHandler with DefaultUriBuilderFactory",
+          "instruction": "Replace usages of `org.springframework.boot.test.web.client.RootUriTemplateHandler` with `org.springframework.web.util.DefaultUriBuilderFactory`. When constructing: `new DefaultUriBuilderFactory(\"http://localhost:\" + port)` replaces `new RootUriTemplateHandler(\"http://localhost:\" + port)`. Update test code that sets a `UriTemplateHandler` on `TestRestTemplate` to use the new factory.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "No references to `RootUriTemplateHandler` remain. Tests using `TestRestTemplate` with a base URI pass.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "API Versioning auto-configuration",
+      "jira_keys": ["GH-46519"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Spring Framework's API Versioning support is now auto-configured via `spring.web.apiversion.*` properties, enabling versioned REST APIs without manual configuration.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "property", "name": "spring.web.apiversion", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Full Spring gRPC support in Spring Boot 4.1",
+      "jira_keys": ["GH-49043", "GH-49044", "GH-49045", "GH-49047", "GH-49048"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.1.0-M3-Release-Notes",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "Spring Boot 4.1 introduces full auto-configuration for Spring gRPC server, client, health check, testing, and security via dedicated starters. Applications with custom gRPC configurations should review for conflicts with the new auto-configuration.",
+      "scopes": [
+        { "scope": "build", "severity": "low" },
+        { "scope": "runtime", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-grpc-server", "role": "mentioned" },
+        { "kind": "dependency", "name": "org.springframework.boot:spring-boot-starter-grpc-client", "role": "mentioned" }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Check custom gRPC configuration for conflicts with new Spring Boot 4.1 auto-configuration",
+          "instruction": "If your application already configures gRPC manually (e.g. custom `ServerBuilder` beans, `ManagedChannel` beans, security interceptors), review the Spring Boot 4.1 gRPC auto-configuration classes to identify potential bean conflicts. Use `@ConditionalOnMissingBean` on your custom beans or migrate to the new auto-configuration model using `spring-boot-starter-grpc-server` and `spring-boot-starter-grpc-client`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "gRPC server starts and accepts connections. Existing gRPC tests pass without `BeanDefinitionOverrideException`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "`LazyConnectionDataSourceProxy` auto-configuration",
+      "jira_keys": ["GH-15480"],
+      "source_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+      "change_type": "informational",
+      "reason_type": "performance",
+      "reason": "Spring Boot 4.1 supports auto-configuring `LazyConnectionDataSourceProxy` to defer physical DataSource connection acquisition until a statement is actually executed, improving performance for read-heavy workloads.",
+      "scopes": [
+        { "scope": "config", "severity": "low" }
+      ],
+      "entities": [
+        { "kind": "class", "name": "org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy", "role": "mentioned" }
+      ],
+      "steps": [],
+      "subsystem": ""
+    }
+  ]
+}

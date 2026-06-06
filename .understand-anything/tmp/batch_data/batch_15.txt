@@ -1,0 +1,23 @@
+batchIndex: 15
+files:
+1. `specs/001-foundations/000-foundations.md` (101 lines, language: `markdown`, fileCategory: `docs`)
+2. `specs/001-foundations/data-model.md` (251 lines, language: `markdown`, fileCategory: `docs`)
+3. `specs/001-foundations/plan.md` (255 lines, language: `markdown`, fileCategory: `docs`)
+4. `specs/001-foundations/quickstart.md` (92 lines, language: `markdown`, fileCategory: `docs`)
+5. `specs/001-foundations/runbook.md` (379 lines, language: `markdown`, fileCategory: `docs`)
+6. `specs/001-foundations/spec.md` (173 lines, language: `markdown`, fileCategory: `docs`)
+7. `specs/001-foundations/tasks.md` (194 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  "specs/001-foundations/000-foundations.md": [],
+  "specs/001-foundations/data-model.md": [],
+  "specs/001-foundations/plan.md": [],
+  "specs/001-foundations/quickstart.md": [],
+  "specs/001-foundations/runbook.md": [],
+  "specs/001-foundations/spec.md": [],
+  "specs/001-foundations/tasks.md": []
+}
+
+neighborMap:
+{}

@@ -29,9 +29,12 @@ async def test_extract_parses_release() -> None:
             },
         )
     )
+    respx.get(
+        "https://raw.githubusercontent.com/angular/angular/main/CHANGELOG.md"
+    ).mock(return_value=Response(200, text=""))
 
     async with AngularExtractor() as extractor:
         result = await extractor.extract("18.0.0", "19.0.0")
 
     assert len(result.changes) >= 1
-    assert "blog_insights" in result.metadata or result.metadata == {}
+    assert result.metadata.get("blog_insights") == []

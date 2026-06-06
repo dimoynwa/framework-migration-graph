@@ -1,0 +1,2639 @@
+{
+  "schemaVersion": 1,
+  "algorithm": "louvain",
+  "totalFiles": 188,
+  "totalBatches": 20,
+  "exportsByPath": {
+    ".cursor/rules/specify-rules.mdc": [],
+    ".specify/extensions/.registry": [],
+    ".understand-anything/.understandignore": [],
+    "migration_oracle/__init__.py": [],
+    "migration_oracle/cli.py": [
+      "_validate_model_provider",
+      "main",
+      "pipeline"
+    ],
+    "migration_oracle/config.py": [
+      "ConfigurationError",
+      "_require",
+      "_optional",
+      "_parse_ssl_verify",
+      "_parse_bool_flag"
+    ],
+    "migration_oracle/extractors/__init__.py": [
+      "ExtractorSpec",
+      "_stub_extract",
+      "get_extractor",
+      "render_raw_markdown"
+    ],
+    "migration_oracle/graph/__init__.py": [],
+    "migration_oracle/graph/driver.py": [
+      "DriverNotInitialisedError",
+      "get_driver",
+      "_require_driver",
+      "read_session",
+      "write_session",
+      "close_driver"
+    ],
+    "migration_oracle/graph/indexes.py": [
+      "ensure_indexes"
+    ],
+    "migration_oracle/graph/queries/__init__.py": [],
+    "migration_oracle/graph/queries/pipeline.py": [
+      "PipelineRunRecord",
+      "merge_version",
+      "version_exists",
+      "upsert_version_artifact_paths",
+      "list_pipeline_runs"
+    ],
+    "migration_oracle/models/__init__.py": [],
+    "migration_oracle/models/changes.py": [],
+    "migration_oracle/models/entities.py": [
+      "DocumentedChange",
+      "ExtractionResult",
+      "EntityKind",
+      "EntityRole",
+      "StepType",
+      "Effort",
+      "ScopeLevel",
+      "Severity",
+      "AffectedEntity",
+      "BreakingScopeInput",
+      "MigrationStep",
+      "MigrationEntity",
+      "MigrationEntitiesBatch"
+    ],
+    "migration_oracle/models/graph.py": [
+      "VersionNode",
+      "MigrationRuleNode",
+      "MigrationStepNode",
+      "BreakingScopeNode",
+      "MigrationContextNode",
+      "sortable_version"
+    ],
+    "migration_oracle/pipeline/__init__.py": [],
+    "migration_oracle/pipeline/_cache.py": [
+      "is_cached",
+      "mark_cached",
+      "CacheFlags",
+      "resolve_cache_flags"
+    ],
+    "migration_oracle/pipeline/_llm.py": [
+      "LLMInvocationError",
+      "get_llm",
+      "_is_rate_limit_error",
+      "invoke_with_retry",
+      "strip_markdown_fences",
+      "strip_preamble"
+    ],
+    "migration_oracle/pipeline/_paths.py": [
+      "artifact_key",
+      "default_raw_md_path",
+      "default_filtered_md_path",
+      "default_entities_json_path",
+      "ensure_runs_directories"
+    ],
+    "migration_oracle/pipeline/extractor.py": [
+      "ExtractionResult",
+      "_parse_json_response",
+      "_invoke_structured",
+      "run_extraction"
+    ],
+    "migration_oracle/pipeline/extractors/__init__.py": [
+      "get_extractor",
+      "supported_framework_keys",
+      "render_raw_markdown"
+    ],
+    "migration_oracle/pipeline/extractors/angular.py": [
+      "_extract_changelog_section",
+      "AngularExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/base.py": [
+      "is_jboss_ga_version",
+      "is_infinispan_ga_version",
+      "is_spring_boot_ga_version",
+      "BaseExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/eap.py": [
+      "EAPVersionEntry",
+      "EAPExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/elytron.py": [
+      "ElytronExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/filters.py": [
+      "_skip_prerelease"
+    ],
+    "migration_oracle/pipeline/extractors/hibernate.py": [
+      "HibernateExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/infinispan.py": [
+      "InfinispanExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/jakarta_ee.py": [
+      "JakartaEENamespaceMapping",
+      "JakartaEEExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/parsing.py": [
+      "parse_version",
+      "version_key",
+      "compare_versions",
+      "normalize_wildfly_maven_version",
+      "parse_maven_metadata_versions",
+      "filter_release_versions",
+      "versions_in_range",
+      "compute_hops",
+      "classify_statement",
+      "detect_stability_level",
+      "parse_github_release_text",
+      "parse_markdown_statements",
+      "html_to_text",
+      "parse_asciidoc_migration_guide",
+      "apply_cli_hints",
+      "parse_pom_dependencies",
+      "bom_diff"
+    ],
+    "migration_oracle/pipeline/extractors/resteasy.py": [
+      "RestEasyExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/spring_boot.py": [
+      "_strip_dependency_upgrades",
+      "parse_github_release_text",
+      "SpringBootExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/stub_framework.py": [
+      "StubFrameworkExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/stubs.py": [
+      "StubExtractor"
+    ],
+    "migration_oracle/pipeline/extractors/wildfly_jira.py": [
+      "WildFlyJiraEntry",
+      "normalize_jira_url",
+      "build_release_index",
+      "collect_jira_keys",
+      "parse_jira_fields",
+      "fetch_jira_entry",
+      "enrich_with_jira"
+    ],
+    "migration_oracle/pipeline/extractors/wildfly.py": [
+      "WildFlyExtractor"
+    ],
+    "migration_oracle/pipeline/filters.py": [
+      "FilterResult",
+      "emit_stale_warnings",
+      "run_filter"
+    ],
+    "migration_oracle/pipeline/populator.py": [
+      "UnknownSourceSectionError",
+      "PopulationResult",
+      "derive_entity_classification",
+      "rule_type_for",
+      "_entity_label",
+      "_edge_type",
+      "_replacement_pairs",
+      "populate_graph",
+      "_write_entity",
+      "_write_step",
+      "_write_affected_entity"
+    ],
+    "scripts/run_003b_verification.py": [
+      "run_check",
+      "level_0",
+      "level_1",
+      "level_2",
+      "level_7",
+      "level_4",
+      "main"
+    ],
+    "scripts/split_wildfly_raw.py": [
+      "parse_hops",
+      "group_hops",
+      "render_file",
+      "main"
+    ],
+    "skills/changelog-migration-extractor.skill": [],
+    "skills/migration-filter.skill": [],
+    "skills/speckit-sdd-buddy.skill": [],
+    "skills/verification-protocol-writer.skill": [],
+    "tests/__init__.py": [],
+    "tests/extractors/conftest.py": [
+      "anyio_backend"
+    ],
+    "tests/extractors/test_angular.py": [
+      "test_extract_parses_release"
+    ],
+    "tests/extractors/test_eap.py": [
+      "test_extract_parses_redhat_docs"
+    ],
+    "tests/extractors/test_elytron.py": [
+      "test_elytron_not_implemented"
+    ],
+    "tests/extractors/test_hibernate.py": [
+      "test_extract_asciidoc_guide"
+    ],
+    "tests/extractors/test_infinispan.py": [
+      "test_extract_parses_release"
+    ],
+    "tests/extractors/test_jakarta_ee.py": [
+      "test_crosses_ee9_boundary",
+      "test_no_boundary_when_both_ge_9",
+      "test_no_boundary_below_9"
+    ],
+    "tests/extractors/test_registry.py": [
+      "test_registry_instantiates_all_nine_keys",
+      "test_unknown_framework_raises",
+      "test_stub_extractors_raise_not_implemented",
+      "test_supported_keys_count"
+    ],
+    "tests/extractors/test_resteasy.py": [
+      "test_resteasy_not_implemented"
+    ],
+    "tests/extractors/test_spring_boot.py": [
+      "test_extract_parses_release_body"
+    ],
+    "tests/extractors/test_wildfly_jira.py": [
+      "test_collect_jira_keys_from_body",
+      "test_enrich_with_jira_merges_description"
+    ],
+    "tests/extractors/test_wildfly.py": [
+      "test_extract_github_release"
+    ],
+    "tests/test_000_foundations/__init__.py": [],
+    "tests/test_000_foundations/conftest.py": [
+      "_required_neo4j_env"
+    ],
+    "tests/test_000_foundations/test_config.py": [
+      "_reload_config",
+      "test_missing_neo4j_uri",
+      "test_missing_neo4j_password",
+      "test_empty_neo4j_password",
+      "test_ssl_verify_variants",
+      "test_mcp_port_parsed_to_int",
+      "test_findit_fuzzy_threshold_parsed_to_float"
+    ],
+    "tests/test_000_foundations/test_driver.py": [
+      "_reset_driver",
+      "_make_mock_driver",
+      "mock_graph_database",
+      "test_singleton",
+      "test_close_driver_resets_singleton",
+      "test_read_session_context_manager",
+      "test_write_session_context_manager",
+      "test_read_session_lazy_inits_after_close"
+    ],
+    "tests/test_000_foundations/test_indexes.py": [
+      "_make_mock_driver",
+      "test_all_statements_run",
+      "test_partial_failure_continues",
+      "test_idempotent_second_call"
+    ],
+    "tests/test_000_foundations/test_models.py": [
+      "test_full_round_trip",
+      "test_enum_string_equality",
+      "test_sortable_version_formula",
+      "test_source_section_map_completeness"
+    ],
+    "tests/test_000_foundations/test_smoke.py": [
+      "test_ensure_indexes_on_live_neo4j"
+    ],
+    "tests/test_002_pipeline_core/conftest.py": [
+      "_neo4j_env"
+    ],
+    "tests/test_002_pipeline_core/test_cache.py": [
+      "test_json_cache_skips_both_llm_calls",
+      "test_filtered_cache_skips_filter_when_raw_cached",
+      "test_force_extract_sets_stale_warnings"
+    ],
+    "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py": [
+      "_minimal_entities_json",
+      "test_cache_flags_skip_filter_when_nodes_artifact_exists",
+      "test_cache_flags_skip_both_llm_when_json_exists",
+      "test_extract_only_skips_filter_and_entity_llm",
+      "test_cli_skips_filter_llm_when_nodes_file_exists",
+      "test_cli_skips_both_llm_when_json_exists"
+    ],
+    "tests/test_002_pipeline_core/test_populator_helpers.py": [
+      "test_actionable_when_steps_present",
+      "test_incomplete_when_entities_only",
+      "test_informational_when_empty"
+    ],
+    "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+      "GraphState",
+      "FakeResult",
+      "FakeSession",
+      "sample_batch",
+      "_count_nodes",
+      "_count_edges",
+      "test_populator_is_idempotent"
+    ],
+    "tests/test_002_pipeline_core/test_quickstart.py": [
+      "_sample_batch",
+      "test_quickstart_dry_run_creates_artifacts"
+    ]
+  },
+  "batches": [
+    {
+      "batchIndex": 1,
+      "files": [
+        {
+          "path": "migration_oracle/models/entities.py",
+          "language": "python",
+          "sizeLines": 129,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/__init__.py",
+          "language": "python",
+          "sizeLines": 136,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/angular.py",
+          "language": "python",
+          "sizeLines": 111,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/base.py",
+          "language": "python",
+          "sizeLines": 334,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/eap.py",
+          "language": "python",
+          "sizeLines": 84,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/elytron.py",
+          "language": "python",
+          "sizeLines": 45,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/filters.py",
+          "language": "python",
+          "sizeLines": 25,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/hibernate.py",
+          "language": "python",
+          "sizeLines": 77,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/infinispan.py",
+          "language": "python",
+          "sizeLines": 56,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/jakarta_ee.py",
+          "language": "python",
+          "sizeLines": 83,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/parsing.py",
+          "language": "python",
+          "sizeLines": 366,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/resteasy.py",
+          "language": "python",
+          "sizeLines": 47,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/spring_boot.py",
+          "language": "python",
+          "sizeLines": 126,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/stub_framework.py",
+          "language": "python",
+          "sizeLines": 34,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/stubs.py",
+          "language": "python",
+          "sizeLines": 29,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_angular.py",
+          "language": "python",
+          "sizeLines": 40,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_eap.py",
+          "language": "python",
+          "sizeLines": 25,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_elytron.py",
+          "language": "python",
+          "sizeLines": 14,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_hibernate.py",
+          "language": "python",
+          "sizeLines": 37,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_infinispan.py",
+          "language": "python",
+          "sizeLines": 40,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_jakarta_ee.py",
+          "language": "python",
+          "sizeLines": 30,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_registry.py",
+          "language": "python",
+          "sizeLines": 49,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_resteasy.py",
+          "language": "python",
+          "sizeLines": 14,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_spring_boot.py",
+          "language": "python",
+          "sizeLines": 44,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "migration_oracle/models/entities.py": [],
+        "migration_oracle/pipeline/extractors/__init__.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/angular.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/eap.py",
+          "migration_oracle/pipeline/extractors/elytron.py",
+          "migration_oracle/pipeline/extractors/hibernate.py",
+          "migration_oracle/pipeline/extractors/infinispan.py",
+          "migration_oracle/pipeline/extractors/jakarta_ee.py",
+          "migration_oracle/pipeline/extractors/resteasy.py",
+          "migration_oracle/pipeline/extractors/spring_boot.py",
+          "migration_oracle/pipeline/extractors/stub_framework.py",
+          "migration_oracle/pipeline/extractors/wildfly.py"
+        ],
+        "migration_oracle/pipeline/extractors/angular.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/base.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py",
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/eap.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/elytron.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/filters.py",
+          "migration_oracle/pipeline/extractors/parsing.py",
+          "migration_oracle/pipeline/extractors/stubs.py"
+        ],
+        "migration_oracle/pipeline/extractors/filters.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py",
+          "migration_oracle/pipeline/extractors/base.py"
+        ],
+        "migration_oracle/pipeline/extractors/hibernate.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/filters.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/infinispan.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/filters.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/jakarta_ee.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/parsing.py": [
+          "migration_oracle/models/entities.py"
+        ],
+        "migration_oracle/pipeline/extractors/resteasy.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/filters.py",
+          "migration_oracle/pipeline/extractors/parsing.py",
+          "migration_oracle/pipeline/extractors/stubs.py"
+        ],
+        "migration_oracle/pipeline/extractors/spring_boot.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py",
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/parsing.py"
+        ],
+        "migration_oracle/pipeline/extractors/stub_framework.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py"
+        ],
+        "migration_oracle/pipeline/extractors/stubs.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py"
+        ],
+        "tests/extractors/test_angular.py": [
+          "migration_oracle/pipeline/extractors/angular.py"
+        ],
+        "tests/extractors/test_eap.py": [
+          "migration_oracle/pipeline/extractors/eap.py"
+        ],
+        "tests/extractors/test_elytron.py": [
+          "migration_oracle/pipeline/extractors/elytron.py"
+        ],
+        "tests/extractors/test_hibernate.py": [
+          "migration_oracle/pipeline/extractors/hibernate.py"
+        ],
+        "tests/extractors/test_infinispan.py": [
+          "migration_oracle/pipeline/extractors/infinispan.py"
+        ],
+        "tests/extractors/test_jakarta_ee.py": [
+          "migration_oracle/pipeline/extractors/jakarta_ee.py"
+        ],
+        "tests/extractors/test_registry.py": [
+          "migration_oracle/pipeline/extractors/__init__.py",
+          "migration_oracle/pipeline/extractors/stubs.py"
+        ],
+        "tests/extractors/test_resteasy.py": [
+          "migration_oracle/pipeline/extractors/resteasy.py"
+        ],
+        "tests/extractors/test_spring_boot.py": [
+          "migration_oracle/pipeline/extractors/spring_boot.py"
+        ]
+      },
+      "neighborMap": {
+        "migration_oracle/models/entities.py": [
+          {
+            "path": "migration_oracle/models/__init__.py",
+            "batchIndex": 2,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/models/changes.py",
+            "batchIndex": 19,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/pipeline/extractor.py",
+            "batchIndex": 3,
+            "symbols": [
+              "ExtractionResult",
+              "_parse_json_response",
+              "_invoke_structured",
+              "run_extraction"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/wildfly.py",
+            "batchIndex": 4,
+            "symbols": [
+              "WildFlyExtractor"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/populator.py",
+            "batchIndex": 2,
+            "symbols": [
+              "UnknownSourceSectionError",
+              "PopulationResult",
+              "derive_entity_classification",
+              "rule_type_for",
+              "_entity_label",
+              "_edge_type",
+              "_replacement_pairs",
+              "populate_graph",
+              "_write_entity",
+              "_write_step",
+              "_write_affected_entity"
+            ]
+          },
+          {
+            "path": "tests/extractors/test_wildfly_jira.py",
+            "batchIndex": 4,
+            "symbols": [
+              "test_collect_jira_keys_from_body",
+              "test_enrich_with_jira_merges_description"
+            ]
+          },
+          {
+            "path": "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_minimal_entities_json",
+              "test_cache_flags_skip_filter_when_nodes_artifact_exists",
+              "test_cache_flags_skip_both_llm_when_json_exists",
+              "test_extract_only_skips_filter_and_entity_llm",
+              "test_cli_skips_filter_llm_when_nodes_file_exists",
+              "test_cli_skips_both_llm_when_json_exists"
+            ]
+          },
+          {
+            "path": "tests/test_002_pipeline_core/test_populator_helpers.py",
+            "batchIndex": 2,
+            "symbols": [
+              "test_actionable_when_steps_present",
+              "test_incomplete_when_entities_only",
+              "test_informational_when_empty"
+            ]
+          },
+          {
+            "path": "tests/test_002_pipeline_core/test_populator_idempotency.py",
+            "batchIndex": 2,
+            "symbols": [
+              "GraphState",
+              "FakeResult",
+              "FakeSession",
+              "sample_batch",
+              "_count_nodes",
+              "_count_edges",
+              "test_populator_is_idempotent"
+            ]
+          },
+          {
+            "path": "tests/test_002_pipeline_core/test_quickstart.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_sample_batch",
+              "test_quickstart_dry_run_creates_artifacts"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractors/__init__.py": [
+          {
+            "path": "migration_oracle/pipeline/extractors/wildfly.py",
+            "batchIndex": 4,
+            "symbols": [
+              "WildFlyExtractor"
+            ]
+          },
+          {
+            "path": "migration_oracle/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_validate_model_provider",
+              "main",
+              "pipeline"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractors/base.py": [
+          {
+            "path": "migration_oracle/__init__.py",
+            "batchIndex": 3,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/config.py",
+            "batchIndex": 2,
+            "symbols": [
+              "ConfigurationError",
+              "_require",
+              "_optional",
+              "_parse_ssl_verify",
+              "_parse_bool_flag"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/wildfly.py",
+            "batchIndex": 4,
+            "symbols": [
+              "WildFlyExtractor"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractors/filters.py": [
+          {
+            "path": "migration_oracle/__init__.py",
+            "batchIndex": 3,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/config.py",
+            "batchIndex": 2,
+            "symbols": [
+              "ConfigurationError",
+              "_require",
+              "_optional",
+              "_parse_ssl_verify",
+              "_parse_bool_flag"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/wildfly.py",
+            "batchIndex": 4,
+            "symbols": [
+              "WildFlyExtractor"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractors/parsing.py": [
+          {
+            "path": "migration_oracle/pipeline/extractors/wildfly.py",
+            "batchIndex": 4,
+            "symbols": [
+              "WildFlyExtractor"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractors/spring_boot.py": [
+          {
+            "path": "migration_oracle/__init__.py",
+            "batchIndex": 3,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/config.py",
+            "batchIndex": 2,
+            "symbols": [
+              "ConfigurationError",
+              "_require",
+              "_optional",
+              "_parse_ssl_verify",
+              "_parse_bool_flag"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 2,
+      "files": [
+        {
+          "path": "migration_oracle/config.py",
+          "language": "python",
+          "sizeLines": 73,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/graph/driver.py",
+          "language": "python",
+          "sizeLines": 59,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/graph/indexes.py",
+          "language": "python",
+          "sizeLines": 50,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/graph/queries/__init__.py",
+          "language": "python",
+          "sizeLines": 1,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/graph/queries/pipeline.py",
+          "language": "python",
+          "sizeLines": 101,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/models/__init__.py",
+          "language": "python",
+          "sizeLines": 49,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/models/graph.py",
+          "language": "python",
+          "sizeLines": 76,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/__init__.py",
+          "language": "python",
+          "sizeLines": 1,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/populator.py",
+          "language": "python",
+          "sizeLines": 405,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/conftest.py",
+          "language": "python",
+          "sizeLines": 24,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/test_config.py",
+          "language": "python",
+          "sizeLines": 69,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/test_indexes.py",
+          "language": "python",
+          "sizeLines": 46,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/test_models.py",
+          "language": "python",
+          "sizeLines": 105,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/test_smoke.py",
+          "language": "python",
+          "sizeLines": 41,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/conftest.py",
+          "language": "python",
+          "sizeLines": 19,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/test_populator_helpers.py",
+          "language": "python",
+          "sizeLines": 57,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/test_populator_idempotency.py",
+          "language": "python",
+          "sizeLines": 233,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "migration_oracle/config.py": [],
+        "migration_oracle/graph/driver.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py"
+        ],
+        "migration_oracle/graph/indexes.py": [],
+        "migration_oracle/graph/queries/__init__.py": [],
+        "migration_oracle/graph/queries/pipeline.py": [
+          "migration_oracle/graph/driver.py",
+          "migration_oracle/models/graph.py"
+        ],
+        "migration_oracle/models/__init__.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/models/graph.py"
+        ],
+        "migration_oracle/models/graph.py": [],
+        "migration_oracle/pipeline/__init__.py": [],
+        "migration_oracle/pipeline/populator.py": [
+          "migration_oracle/graph/driver.py",
+          "migration_oracle/graph/indexes.py",
+          "migration_oracle/graph/queries/__init__.py",
+          "migration_oracle/models/entities.py",
+          "migration_oracle/models/graph.py"
+        ],
+        "tests/test_000_foundations/conftest.py": [
+          "migration_oracle/config.py"
+        ],
+        "tests/test_000_foundations/test_config.py": [
+          "migration_oracle/config.py"
+        ],
+        "tests/test_000_foundations/test_indexes.py": [
+          "migration_oracle/graph/indexes.py"
+        ],
+        "tests/test_000_foundations/test_models.py": [
+          "migration_oracle/models/__init__.py"
+        ],
+        "tests/test_000_foundations/test_smoke.py": [
+          "migration_oracle/config.py",
+          "migration_oracle/graph/driver.py",
+          "migration_oracle/graph/indexes.py"
+        ],
+        "tests/test_002_pipeline_core/conftest.py": [
+          "migration_oracle/config.py"
+        ],
+        "tests/test_002_pipeline_core/test_populator_helpers.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/populator.py"
+        ],
+        "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/__init__.py",
+          "migration_oracle/pipeline/populator.py"
+        ]
+      },
+      "neighborMap": {
+        "migration_oracle/config.py": [
+          {
+            "path": "migration_oracle/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_validate_model_provider",
+              "main",
+              "pipeline"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/_llm.py",
+            "batchIndex": 3,
+            "symbols": [
+              "LLMInvocationError",
+              "get_llm",
+              "_is_rate_limit_error",
+              "invoke_with_retry",
+              "strip_markdown_fences",
+              "strip_preamble"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/base.py",
+            "batchIndex": 1,
+            "symbols": [
+              "is_jboss_ga_version",
+              "is_infinispan_ga_version",
+              "is_spring_boot_ga_version",
+              "BaseExtractor"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/filters.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_skip_prerelease"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/spring_boot.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_strip_dependency_upgrades",
+              "parse_github_release_text",
+              "SpringBootExtractor"
+            ]
+          }
+        ],
+        "migration_oracle/graph/driver.py": [
+          {
+            "path": "migration_oracle/__init__.py",
+            "batchIndex": 3,
+            "symbols": []
+          }
+        ],
+        "migration_oracle/graph/queries/__init__.py": [
+          {
+            "path": "migration_oracle/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_validate_model_provider",
+              "main",
+              "pipeline"
+            ]
+          }
+        ],
+        "migration_oracle/models/__init__.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/populator.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          },
+          {
+            "path": "migration_oracle/cli.py",
+            "batchIndex": 3,
+            "symbols": [
+              "_validate_model_provider",
+              "main",
+              "pipeline"
+            ]
+          }
+        ],
+        "tests/test_002_pipeline_core/test_populator_helpers.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ],
+        "tests/test_002_pipeline_core/test_populator_idempotency.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 3,
+      "files": [
+        {
+          "path": "migration_oracle/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/cli.py",
+          "language": "python",
+          "sizeLines": 195,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/_cache.py",
+          "language": "python",
+          "sizeLines": 81,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/_llm.py",
+          "language": "python",
+          "sizeLines": 108,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/_paths.py",
+          "language": "python",
+          "sizeLines": 42,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractor.py",
+          "language": "python",
+          "sizeLines": 146,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/filters.py",
+          "language": "python",
+          "sizeLines": 167,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/test_cache.py",
+          "language": "python",
+          "sizeLines": 67,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py",
+          "language": "python",
+          "sizeLines": 263,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_002_pipeline_core/test_quickstart.py",
+          "language": "python",
+          "sizeLines": 107,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "migration_oracle/__init__.py": [],
+        "migration_oracle/cli.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py",
+          "migration_oracle/graph/queries/__init__.py",
+          "migration_oracle/pipeline/_cache.py",
+          "migration_oracle/pipeline/_paths.py",
+          "migration_oracle/pipeline/extractor.py",
+          "migration_oracle/pipeline/extractors/__init__.py",
+          "migration_oracle/pipeline/filters.py",
+          "migration_oracle/pipeline/populator.py"
+        ],
+        "migration_oracle/pipeline/_cache.py": [],
+        "migration_oracle/pipeline/_llm.py": [
+          "migration_oracle/__init__.py",
+          "migration_oracle/config.py"
+        ],
+        "migration_oracle/pipeline/_paths.py": [],
+        "migration_oracle/pipeline/extractor.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/_cache.py",
+          "migration_oracle/pipeline/_llm.py"
+        ],
+        "migration_oracle/pipeline/filters.py": [
+          "migration_oracle/pipeline/_cache.py",
+          "migration_oracle/pipeline/_llm.py"
+        ],
+        "tests/test_002_pipeline_core/test_cache.py": [
+          "migration_oracle/pipeline/_cache.py"
+        ],
+        "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py": [
+          "migration_oracle/cli.py",
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/_cache.py"
+        ],
+        "tests/test_002_pipeline_core/test_quickstart.py": [
+          "migration_oracle/cli.py",
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractor.py",
+          "migration_oracle/pipeline/filters.py"
+        ]
+      },
+      "neighborMap": {
+        "migration_oracle/__init__.py": [
+          {
+            "path": "migration_oracle/graph/driver.py",
+            "batchIndex": 2,
+            "symbols": [
+              "DriverNotInitialisedError",
+              "get_driver",
+              "_require_driver",
+              "read_session",
+              "write_session",
+              "close_driver"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/base.py",
+            "batchIndex": 1,
+            "symbols": [
+              "is_jboss_ga_version",
+              "is_infinispan_ga_version",
+              "is_spring_boot_ga_version",
+              "BaseExtractor"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/filters.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_skip_prerelease"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/spring_boot.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_strip_dependency_upgrades",
+              "parse_github_release_text",
+              "SpringBootExtractor"
+            ]
+          }
+        ],
+        "migration_oracle/cli.py": [
+          {
+            "path": "migration_oracle/config.py",
+            "batchIndex": 2,
+            "symbols": [
+              "ConfigurationError",
+              "_require",
+              "_optional",
+              "_parse_ssl_verify",
+              "_parse_bool_flag"
+            ]
+          },
+          {
+            "path": "migration_oracle/graph/queries/__init__.py",
+            "batchIndex": 2,
+            "symbols": []
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/__init__.py",
+            "batchIndex": 1,
+            "symbols": [
+              "get_extractor",
+              "supported_framework_keys",
+              "render_raw_markdown"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/populator.py",
+            "batchIndex": 2,
+            "symbols": [
+              "UnknownSourceSectionError",
+              "PopulationResult",
+              "derive_entity_classification",
+              "rule_type_for",
+              "_entity_label",
+              "_edge_type",
+              "_replacement_pairs",
+              "populate_graph",
+              "_write_entity",
+              "_write_step",
+              "_write_affected_entity"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/_llm.py": [
+          {
+            "path": "migration_oracle/config.py",
+            "batchIndex": 2,
+            "symbols": [
+              "ConfigurationError",
+              "_require",
+              "_optional",
+              "_parse_ssl_verify",
+              "_parse_bool_flag"
+            ]
+          }
+        ],
+        "migration_oracle/pipeline/extractor.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ],
+        "tests/test_002_pipeline_core/test_cli_cache_and_extract_only.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ],
+        "tests/test_002_pipeline_core/test_quickstart.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 4,
+      "files": [
+        {
+          "path": "migration_oracle/pipeline/extractors/wildfly.py",
+          "language": "python",
+          "sizeLines": 181,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/pipeline/extractors/wildfly_jira.py",
+          "language": "python",
+          "sizeLines": 168,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_wildfly.py",
+          "language": "python",
+          "sizeLines": 55,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/test_wildfly_jira.py",
+          "language": "python",
+          "sizeLines": 49,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "migration_oracle/pipeline/extractors/wildfly.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/base.py",
+          "migration_oracle/pipeline/extractors/filters.py",
+          "migration_oracle/pipeline/extractors/parsing.py",
+          "migration_oracle/pipeline/extractors/wildfly_jira.py"
+        ],
+        "migration_oracle/pipeline/extractors/wildfly_jira.py": [],
+        "tests/extractors/test_wildfly.py": [
+          "migration_oracle/pipeline/extractors/wildfly.py"
+        ],
+        "tests/extractors/test_wildfly_jira.py": [
+          "migration_oracle/models/entities.py",
+          "migration_oracle/pipeline/extractors/wildfly_jira.py",
+          "migration_oracle/pipeline/extractors/wildfly.py"
+        ]
+      },
+      "neighborMap": {
+        "migration_oracle/pipeline/extractors/wildfly.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/base.py",
+            "batchIndex": 1,
+            "symbols": [
+              "is_jboss_ga_version",
+              "is_infinispan_ga_version",
+              "is_spring_boot_ga_version",
+              "BaseExtractor"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/filters.py",
+            "batchIndex": 1,
+            "symbols": [
+              "_skip_prerelease"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/parsing.py",
+            "batchIndex": 1,
+            "symbols": [
+              "parse_version",
+              "version_key",
+              "compare_versions",
+              "normalize_wildfly_maven_version",
+              "parse_maven_metadata_versions",
+              "filter_release_versions",
+              "versions_in_range",
+              "compute_hops",
+              "classify_statement",
+              "detect_stability_level",
+              "parse_github_release_text",
+              "parse_markdown_statements",
+              "html_to_text",
+              "parse_asciidoc_migration_guide",
+              "apply_cli_hints",
+              "parse_pom_dependencies",
+              "bom_diff"
+            ]
+          },
+          {
+            "path": "migration_oracle/pipeline/extractors/__init__.py",
+            "batchIndex": 1,
+            "symbols": [
+              "get_extractor",
+              "supported_framework_keys",
+              "render_raw_markdown"
+            ]
+          }
+        ],
+        "tests/extractors/test_wildfly_jira.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 5,
+      "files": [
+        {
+          "path": ".specify/extensions.yml",
+          "language": "yaml",
+          "sizeLines": 164,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/feature.json",
+          "language": "json",
+          "sizeLines": 1,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/init-options.json",
+          "language": "json",
+          "sizeLines": 8,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integration.json",
+          "language": "json",
+          "sizeLines": 20,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions.yml": [],
+        ".specify/feature.json": [],
+        ".specify/init-options.json": [],
+        ".specify/integration.json": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 6,
+      "files": [
+        {
+          "path": ".specify/extensions/agent-context/README.md",
+          "language": "markdown",
+          "sizeLines": 57,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/agent-context/agent-context-config.yml",
+          "language": "yaml",
+          "sizeLines": 4,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/extensions/agent-context/extension.yml",
+          "language": "yaml",
+          "sizeLines": 34,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/agent-context/README.md": [],
+        ".specify/extensions/agent-context/agent-context-config.yml": [],
+        ".specify/extensions/agent-context/extension.yml": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 7,
+      "files": [
+        {
+          "path": ".specify/extensions/git/README.md",
+          "language": "markdown",
+          "sizeLines": 100,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/git/config-template.yml",
+          "language": "yaml",
+          "sizeLines": 62,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/extensions/git/extension.yml",
+          "language": "yaml",
+          "sizeLines": 140,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/extensions/git/git-config.yml",
+          "language": "yaml",
+          "sizeLines": 62,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/git/README.md": [],
+        ".specify/extensions/git/config-template.yml": [],
+        ".specify/extensions/git/extension.yml": [],
+        ".specify/extensions/git/git-config.yml": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 8,
+      "files": [
+        {
+          "path": ".specify/extensions/git/commands/speckit.git.commit.md",
+          "language": "markdown",
+          "sizeLines": 48,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/git/commands/speckit.git.feature.md",
+          "language": "markdown",
+          "sizeLines": 67,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/git/commands/speckit.git.initialize.md",
+          "language": "markdown",
+          "sizeLines": 49,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/git/commands/speckit.git.remote.md",
+          "language": "markdown",
+          "sizeLines": 45,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/git/commands/speckit.git.validate.md",
+          "language": "markdown",
+          "sizeLines": 49,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/git/commands/speckit.git.commit.md": [],
+        ".specify/extensions/git/commands/speckit.git.feature.md": [],
+        ".specify/extensions/git/commands/speckit.git.initialize.md": [],
+        ".specify/extensions/git/commands/speckit.git.remote.md": [],
+        ".specify/extensions/git/commands/speckit.git.validate.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 9,
+      "files": [
+        {
+          "path": ".specify/extensions/git/scripts/bash/auto-commit.sh",
+          "language": "shell",
+          "sizeLines": 140,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/bash/create-new-feature.sh",
+          "language": "shell",
+          "sizeLines": 453,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/bash/git-common.sh",
+          "language": "shell",
+          "sizeLines": 54,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/bash/initialize-repo.sh",
+          "language": "shell",
+          "sizeLines": 54,
+          "fileCategory": "script"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/git/scripts/bash/auto-commit.sh": [],
+        ".specify/extensions/git/scripts/bash/create-new-feature.sh": [],
+        ".specify/extensions/git/scripts/bash/git-common.sh": [],
+        ".specify/extensions/git/scripts/bash/initialize-repo.sh": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 10,
+      "files": [
+        {
+          "path": ".specify/extensions/git/scripts/powershell/auto-commit.ps1",
+          "language": "powershell",
+          "sizeLines": 169,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/powershell/create-new-feature.ps1",
+          "language": "powershell",
+          "sizeLines": 403,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/powershell/git-common.ps1",
+          "language": "powershell",
+          "sizeLines": 51,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/git/scripts/powershell/initialize-repo.ps1",
+          "language": "powershell",
+          "sizeLines": 69,
+          "fileCategory": "script"
+        }
+      ],
+      "batchImportData": {
+        ".specify/extensions/git/scripts/powershell/auto-commit.ps1": [],
+        ".specify/extensions/git/scripts/powershell/create-new-feature.ps1": [],
+        ".specify/extensions/git/scripts/powershell/git-common.ps1": [],
+        ".specify/extensions/git/scripts/powershell/initialize-repo.ps1": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 11,
+      "files": [
+        {
+          "path": ".specify/integrations/claude-code.manifest.json",
+          "language": "json",
+          "sizeLines": 23,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integrations/cursor-agent.manifest.json",
+          "language": "json",
+          "sizeLines": 16,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/integrations/speckit.manifest.json",
+          "language": "json",
+          "sizeLines": 17,
+          "fileCategory": "config"
+        }
+      ],
+      "batchImportData": {
+        ".specify/integrations/claude-code.manifest.json": [],
+        ".specify/integrations/cursor-agent.manifest.json": [],
+        ".specify/integrations/speckit.manifest.json": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 12,
+      "files": [
+        {
+          "path": ".specify/scripts/bash/check-prerequisites.sh",
+          "language": "shell",
+          "sizeLines": 192,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/bash/common.sh",
+          "language": "shell",
+          "sizeLines": 644,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/bash/create-new-feature.sh",
+          "language": "shell",
+          "sizeLines": 413,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/bash/setup-plan.sh",
+          "language": "shell",
+          "sizeLines": 91,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/scripts/bash/setup-tasks.sh",
+          "language": "shell",
+          "sizeLines": 96,
+          "fileCategory": "script"
+        }
+      ],
+      "batchImportData": {
+        ".specify/scripts/bash/check-prerequisites.sh": [],
+        ".specify/scripts/bash/common.sh": [],
+        ".specify/scripts/bash/create-new-feature.sh": [],
+        ".specify/scripts/bash/setup-plan.sh": [],
+        ".specify/scripts/bash/setup-tasks.sh": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 13,
+      "files": [
+        {
+          "path": ".specify/templates/checklist-template.md",
+          "language": "markdown",
+          "sizeLines": 40,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/constitution-template.md",
+          "language": "markdown",
+          "sizeLines": 50,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/plan-template.md",
+          "language": "markdown",
+          "sizeLines": 113,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/spec-template.md",
+          "language": "markdown",
+          "sizeLines": 131,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/templates/tasks-template.md",
+          "language": "markdown",
+          "sizeLines": 252,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".specify/templates/checklist-template.md": [],
+        ".specify/templates/constitution-template.md": [],
+        ".specify/templates/plan-template.md": [],
+        ".specify/templates/spec-template.md": [],
+        ".specify/templates/tasks-template.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 14,
+      "files": [
+        {
+          "path": "docs/SPEC_ORGANIZATION.md",
+          "language": "markdown",
+          "sizeLines": 379,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/export-extract-populate-framework-pipeline.md",
+          "language": "markdown",
+          "sizeLines": 956,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/extractor-research-report.md",
+          "language": "markdown",
+          "sizeLines": 196,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/graph-mcp-skills-and-paysafe-resolution.md",
+          "language": "markdown",
+          "sizeLines": 1501,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/legacy_graph_structure.md",
+          "language": "markdown",
+          "sizeLines": 126,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "docs/migration-oracle-redesign.md",
+          "language": "markdown",
+          "sizeLines": 1184,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "docs/SPEC_ORGANIZATION.md": [],
+        "docs/export-extract-populate-framework-pipeline.md": [],
+        "docs/extractor-research-report.md": [],
+        "docs/graph-mcp-skills-and-paysafe-resolution.md": [],
+        "docs/legacy_graph_structure.md": [],
+        "docs/migration-oracle-redesign.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 15,
+      "files": [
+        {
+          "path": "specs/001-foundations/000-foundations.md",
+          "language": "markdown",
+          "sizeLines": 101,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/data-model.md",
+          "language": "markdown",
+          "sizeLines": 251,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/plan.md",
+          "language": "markdown",
+          "sizeLines": 255,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/quickstart.md",
+          "language": "markdown",
+          "sizeLines": 92,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/runbook.md",
+          "language": "markdown",
+          "sizeLines": 379,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/spec.md",
+          "language": "markdown",
+          "sizeLines": 173,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/001-foundations/tasks.md",
+          "language": "markdown",
+          "sizeLines": 194,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "specs/001-foundations/000-foundations.md": [],
+        "specs/001-foundations/data-model.md": [],
+        "specs/001-foundations/plan.md": [],
+        "specs/001-foundations/quickstart.md": [],
+        "specs/001-foundations/runbook.md": [],
+        "specs/001-foundations/spec.md": [],
+        "specs/001-foundations/tasks.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 16,
+      "files": [
+        {
+          "path": "specs/002-pipeline-core/data-model.md",
+          "language": "markdown",
+          "sizeLines": 64,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/plan.md",
+          "language": "markdown",
+          "sizeLines": 81,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/quickstart.md",
+          "language": "markdown",
+          "sizeLines": 45,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/spec.md",
+          "language": "markdown",
+          "sizeLines": 116,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/tasks.md",
+          "language": "markdown",
+          "sizeLines": 180,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/verification-protocol.md",
+          "language": "markdown",
+          "sizeLines": 699,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "specs/002-pipeline-core/data-model.md": [],
+        "specs/002-pipeline-core/plan.md": [],
+        "specs/002-pipeline-core/quickstart.md": [],
+        "specs/002-pipeline-core/spec.md": [],
+        "specs/002-pipeline-core/tasks.md": [],
+        "specs/002-pipeline-core/verification-protocol.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 17,
+      "files": [
+        {
+          "path": "specs/003-framework-http-extractors/data-model.md",
+          "language": "markdown",
+          "sizeLines": 75,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/plan.md",
+          "language": "markdown",
+          "sizeLines": 120,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/quickstart.md",
+          "language": "markdown",
+          "sizeLines": 45,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/research.md",
+          "language": "markdown",
+          "sizeLines": 25,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/spec.md",
+          "language": "markdown",
+          "sizeLines": 109,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/tasks.md",
+          "language": "markdown",
+          "sizeLines": 203,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/verification-protocol.md",
+          "language": "markdown",
+          "sizeLines": 1271,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        "specs/003-framework-http-extractors/data-model.md": [],
+        "specs/003-framework-http-extractors/plan.md": [],
+        "specs/003-framework-http-extractors/quickstart.md": [],
+        "specs/003-framework-http-extractors/research.md": [],
+        "specs/003-framework-http-extractors/spec.md": [],
+        "specs/003-framework-http-extractors/tasks.md": [],
+        "specs/003-framework-http-extractors/verification-protocol.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 18,
+      "files": [
+        {
+          "path": ".claude/settings.json",
+          "language": "json",
+          "sizeLines": 13,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".claude/skills/changelog-migration-extractor/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 178,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/migration-filter/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 224,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-agent-context-update/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 30,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-analyze/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 257,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-checklist/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 371,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-clarify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 283,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-constitution/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 154,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-git-commit/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 52,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-git-feature/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 71,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-git-initialize/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 53,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-git-remote/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 49,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-git-validate/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 53,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-implement/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 221,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-plan/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 161,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-sdd-buddy/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 325,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-specify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 342,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-tasks/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 212,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/speckit-taskstoissues/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 104,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/verification-protocol-writer/references/level-design-rationale.md",
+          "language": "markdown",
+          "sizeLines": 222,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".claude/skills/verification-protocol-writer/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 276,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/rules/specify-rules.mdc",
+          "language": "mdc",
+          "sizeLines": 9,
+          "fileCategory": "code"
+        },
+        {
+          "path": ".cursor/skills/speckit-agent-context-update/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 30,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-analyze/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 257,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-checklist/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 371,
+          "fileCategory": "docs"
+        }
+      ],
+      "batchImportData": {
+        ".claude/settings.json": [],
+        ".claude/skills/changelog-migration-extractor/SKILL.md": [],
+        ".claude/skills/migration-filter/SKILL.md": [],
+        ".claude/skills/speckit-agent-context-update/SKILL.md": [],
+        ".claude/skills/speckit-analyze/SKILL.md": [],
+        ".claude/skills/speckit-checklist/SKILL.md": [],
+        ".claude/skills/speckit-clarify/SKILL.md": [],
+        ".claude/skills/speckit-constitution/SKILL.md": [],
+        ".claude/skills/speckit-git-commit/SKILL.md": [],
+        ".claude/skills/speckit-git-feature/SKILL.md": [],
+        ".claude/skills/speckit-git-initialize/SKILL.md": [],
+        ".claude/skills/speckit-git-remote/SKILL.md": [],
+        ".claude/skills/speckit-git-validate/SKILL.md": [],
+        ".claude/skills/speckit-implement/SKILL.md": [],
+        ".claude/skills/speckit-plan/SKILL.md": [],
+        ".claude/skills/speckit-sdd-buddy/SKILL.md": [],
+        ".claude/skills/speckit-specify/SKILL.md": [],
+        ".claude/skills/speckit-tasks/SKILL.md": [],
+        ".claude/skills/speckit-taskstoissues/SKILL.md": [],
+        ".claude/skills/verification-protocol-writer/references/level-design-rationale.md": [],
+        ".claude/skills/verification-protocol-writer/SKILL.md": [],
+        ".cursor/rules/specify-rules.mdc": [],
+        ".cursor/skills/speckit-agent-context-update/SKILL.md": [],
+        ".cursor/skills/speckit-analyze/SKILL.md": [],
+        ".cursor/skills/speckit-checklist/SKILL.md": []
+      },
+      "neighborMap": {}
+    },
+    {
+      "batchIndex": 19,
+      "files": [
+        {
+          "path": ".cursor/skills/speckit-clarify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 283,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-constitution/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 154,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-git-commit/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 52,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-git-feature/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 71,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-git-initialize/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 53,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-git-remote/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 49,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-git-validate/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 53,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-implement/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 221,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-plan/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 161,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-specify/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 342,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-tasks/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 212,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".cursor/skills/speckit-taskstoissues/SKILL.md",
+          "language": "markdown",
+          "sizeLines": 104,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/.registry",
+          "language": "unknown",
+          "sizeLines": 36,
+          "fileCategory": "code"
+        },
+        {
+          "path": ".specify/extensions/agent-context/commands/speckit.agent-context.update.md",
+          "language": "markdown",
+          "sizeLines": 26,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh",
+          "language": "shell",
+          "sizeLines": 200,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1",
+          "language": "powershell",
+          "sizeLines": 237,
+          "fileCategory": "script"
+        },
+        {
+          "path": ".specify/memory/constitution.md",
+          "language": "markdown",
+          "sizeLines": 50,
+          "fileCategory": "docs"
+        },
+        {
+          "path": ".specify/workflows/speckit/workflow.yml",
+          "language": "yaml",
+          "sizeLines": 77,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".specify/workflows/workflow-registry.json",
+          "language": "json",
+          "sizeLines": 12,
+          "fileCategory": "config"
+        },
+        {
+          "path": ".understand-anything/.understandignore",
+          "language": "unknown",
+          "sizeLines": 36,
+          "fileCategory": "code"
+        },
+        {
+          "path": "CLAUDE.md",
+          "language": "markdown",
+          "sizeLines": 5,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "contracts/003-framework-http-extractors.md",
+          "language": "markdown",
+          "sizeLines": 10,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "migration_oracle/extractors/__init__.py",
+          "language": "python",
+          "sizeLines": 98,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/graph/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        },
+        {
+          "path": "migration_oracle/models/changes.py",
+          "language": "python",
+          "sizeLines": 5,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        ".cursor/skills/speckit-clarify/SKILL.md": [],
+        ".cursor/skills/speckit-constitution/SKILL.md": [],
+        ".cursor/skills/speckit-git-commit/SKILL.md": [],
+        ".cursor/skills/speckit-git-feature/SKILL.md": [],
+        ".cursor/skills/speckit-git-initialize/SKILL.md": [],
+        ".cursor/skills/speckit-git-remote/SKILL.md": [],
+        ".cursor/skills/speckit-git-validate/SKILL.md": [],
+        ".cursor/skills/speckit-implement/SKILL.md": [],
+        ".cursor/skills/speckit-plan/SKILL.md": [],
+        ".cursor/skills/speckit-specify/SKILL.md": [],
+        ".cursor/skills/speckit-tasks/SKILL.md": [],
+        ".cursor/skills/speckit-taskstoissues/SKILL.md": [],
+        ".specify/extensions/.registry": [],
+        ".specify/extensions/agent-context/commands/speckit.agent-context.update.md": [],
+        ".specify/extensions/agent-context/scripts/bash/update-agent-context.sh": [],
+        ".specify/extensions/agent-context/scripts/powershell/update-agent-context.ps1": [],
+        ".specify/memory/constitution.md": [],
+        ".specify/workflows/speckit/workflow.yml": [],
+        ".specify/workflows/workflow-registry.json": [],
+        ".understand-anything/.understandignore": [],
+        "CLAUDE.md": [],
+        "contracts/003-framework-http-extractors.md": [],
+        "migration_oracle/extractors/__init__.py": [
+          "migration_oracle/models/changes.py"
+        ],
+        "migration_oracle/graph/__init__.py": [],
+        "migration_oracle/models/changes.py": [
+          "migration_oracle/models/entities.py"
+        ]
+      },
+      "neighborMap": {
+        "migration_oracle/graph/__init__.py": [
+          {
+            "path": "tests/test_000_foundations/test_driver.py",
+            "batchIndex": 20,
+            "symbols": [
+              "_reset_driver",
+              "_make_mock_driver",
+              "mock_graph_database",
+              "test_singleton",
+              "test_close_driver_resets_singleton",
+              "test_read_session_context_manager",
+              "test_write_session_context_manager",
+              "test_read_session_lazy_inits_after_close"
+            ]
+          }
+        ],
+        "migration_oracle/models/changes.py": [
+          {
+            "path": "migration_oracle/models/entities.py",
+            "batchIndex": 1,
+            "symbols": [
+              "DocumentedChange",
+              "ExtractionResult",
+              "EntityKind",
+              "EntityRole",
+              "StepType",
+              "Effort",
+              "ScopeLevel",
+              "Severity",
+              "AffectedEntity",
+              "BreakingScopeInput",
+              "MigrationStep",
+              "MigrationEntity",
+              "MigrationEntitiesBatch"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "batchIndex": 20,
+      "files": [
+        {
+          "path": "pyproject.toml",
+          "language": "toml",
+          "sizeLines": 46,
+          "fileCategory": "config"
+        },
+        {
+          "path": "scripts/run_003b_verification.py",
+          "language": "python",
+          "sizeLines": 678,
+          "fileCategory": "code"
+        },
+        {
+          "path": "scripts/run_raw_extractions.sh",
+          "language": "shell",
+          "sizeLines": 59,
+          "fileCategory": "script"
+        },
+        {
+          "path": "scripts/split_wildfly_raw.py",
+          "language": "python",
+          "sizeLines": 103,
+          "fileCategory": "code"
+        },
+        {
+          "path": "skills/changelog-migration-extractor.skill",
+          "language": "skill",
+          "sizeLines": 12,
+          "fileCategory": "code"
+        },
+        {
+          "path": "skills/migration-filter.skill",
+          "language": "skill",
+          "sizeLines": 13,
+          "fileCategory": "code"
+        },
+        {
+          "path": "skills/speckit-sdd-buddy.skill",
+          "language": "skill",
+          "sizeLines": 26,
+          "fileCategory": "code"
+        },
+        {
+          "path": "skills/verification-protocol-writer.skill",
+          "language": "skill",
+          "sizeLines": 38,
+          "fileCategory": "code"
+        },
+        {
+          "path": "specs/002-pipeline-core/checklists/requirements.md",
+          "language": "markdown",
+          "sizeLines": 34,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/002-pipeline-core/contracts/002-pipeline-core.md",
+          "language": "markdown",
+          "sizeLines": 18,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/checklists/requirements.md",
+          "language": "markdown",
+          "sizeLines": 34,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md",
+          "language": "markdown",
+          "sizeLines": 17,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003a-extractors-prerelease-filter/spec.md",
+          "language": "markdown",
+          "sizeLines": 204,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003a-extractors-prerelease-filter/verification-protocol.md",
+          "language": "markdown",
+          "sizeLines": 492,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003b-extractors-improvements/spec.md",
+          "language": "markdown",
+          "sizeLines": 955,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "specs/003b-extractors-improvements/verification-protocol.md",
+          "language": "markdown",
+          "sizeLines": 1525,
+          "fileCategory": "docs"
+        },
+        {
+          "path": "tests/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/extractors/conftest.py",
+          "language": "python",
+          "sizeLines": 10,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/__init__.py",
+          "language": "python",
+          "sizeLines": 0,
+          "fileCategory": "code"
+        },
+        {
+          "path": "tests/test_000_foundations/test_driver.py",
+          "language": "python",
+          "sizeLines": 77,
+          "fileCategory": "code"
+        }
+      ],
+      "batchImportData": {
+        "pyproject.toml": [],
+        "scripts/run_003b_verification.py": [],
+        "scripts/run_raw_extractions.sh": [],
+        "scripts/split_wildfly_raw.py": [],
+        "skills/changelog-migration-extractor.skill": [],
+        "skills/migration-filter.skill": [],
+        "skills/speckit-sdd-buddy.skill": [],
+        "skills/verification-protocol-writer.skill": [],
+        "specs/002-pipeline-core/checklists/requirements.md": [],
+        "specs/002-pipeline-core/contracts/002-pipeline-core.md": [],
+        "specs/003-framework-http-extractors/checklists/requirements.md": [],
+        "specs/003-framework-http-extractors/contracts/003-framework-http-extractors.md": [],
+        "specs/003a-extractors-prerelease-filter/spec.md": [],
+        "specs/003a-extractors-prerelease-filter/verification-protocol.md": [],
+        "specs/003b-extractors-improvements/spec.md": [],
+        "specs/003b-extractors-improvements/verification-protocol.md": [],
+        "tests/__init__.py": [],
+        "tests/extractors/conftest.py": [],
+        "tests/test_000_foundations/__init__.py": [],
+        "tests/test_000_foundations/test_driver.py": [
+          "migration_oracle/graph/__init__.py"
+        ]
+      },
+      "neighborMap": {
+        "tests/test_000_foundations/test_driver.py": [
+          {
+            "path": "migration_oracle/graph/__init__.py",
+            "batchIndex": 19,
+            "symbols": []
+          }
+        ]
+      }
+    }
+  ]
+}

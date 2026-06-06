@@ -1,0 +1,23 @@
+batchIndex: 17
+files:
+1. `specs/003-framework-http-extractors/data-model.md` (75 lines, language: `markdown`, fileCategory: `docs`)
+2. `specs/003-framework-http-extractors/plan.md` (120 lines, language: `markdown`, fileCategory: `docs`)
+3. `specs/003-framework-http-extractors/quickstart.md` (45 lines, language: `markdown`, fileCategory: `docs`)
+4. `specs/003-framework-http-extractors/research.md` (25 lines, language: `markdown`, fileCategory: `docs`)
+5. `specs/003-framework-http-extractors/spec.md` (109 lines, language: `markdown`, fileCategory: `docs`)
+6. `specs/003-framework-http-extractors/tasks.md` (203 lines, language: `markdown`, fileCategory: `docs`)
+7. `specs/003-framework-http-extractors/verification-protocol.md` (1271 lines, language: `markdown`, fileCategory: `docs`)
+
+batchImportData:
+{
+  "specs/003-framework-http-extractors/data-model.md": [],
+  "specs/003-framework-http-extractors/plan.md": [],
+  "specs/003-framework-http-extractors/quickstart.md": [],
+  "specs/003-framework-http-extractors/research.md": [],
+  "specs/003-framework-http-extractors/spec.md": [],
+  "specs/003-framework-http-extractors/tasks.md": [],
+  "specs/003-framework-http-extractors/verification-protocol.md": []
+}
+
+neighborMap:
+{}

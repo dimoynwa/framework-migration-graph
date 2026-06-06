@@ -1,0 +1,19 @@
+batchIndex: 12
+files:
+1. `.specify/scripts/bash/check-prerequisites.sh` (192 lines, language: `shell`, fileCategory: `script`)
+2. `.specify/scripts/bash/common.sh` (644 lines, language: `shell`, fileCategory: `script`)
+3. `.specify/scripts/bash/create-new-feature.sh` (413 lines, language: `shell`, fileCategory: `script`)
+4. `.specify/scripts/bash/setup-plan.sh` (91 lines, language: `shell`, fileCategory: `script`)
+5. `.specify/scripts/bash/setup-tasks.sh` (96 lines, language: `shell`, fileCategory: `script`)
+
+batchImportData:
+{
+  ".specify/scripts/bash/check-prerequisites.sh": [],
+  ".specify/scripts/bash/common.sh": [],
+  ".specify/scripts/bash/create-new-feature.sh": [],
+  ".specify/scripts/bash/setup-plan.sh": [],
+  ".specify/scripts/bash/setup-tasks.sh": []
+}
+
+neighborMap:
+{}
