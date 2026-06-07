@@ -38,7 +38,8 @@ OLLAMA_HOST: str = _optional("OLLAMA_HOST", "http://localhost:11434")
 AWS_REGION: str = _optional("AWS_REGION", "eu-central-1")
 GITHUB_TOKEN: str = _optional("GITHUB_TOKEN", "")
 FINDIT_AUTH_TOKEN: str = _optional("FINDIT_AUTH_TOKEN", "")
-FINDIT_BASE_URL: str = _optional("FINDIT_BASE_URL", "https://findit.paysafe.com")
+FINDIT_BASE_URL: str = _optional("FINDIT_BASE_URL", "https://findit-api.icd.paysafe.cloud")
+GITLAB_API_KEY: str = _optional("GITLAB_API_KEY", "")
 SENTENCE_TRANSFORMERS_MODEL: str = _optional(
     "SENTENCE_TRANSFORMERS_MODEL", "all-mpnet-base-v2"
 )
