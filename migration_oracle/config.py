@@ -72,3 +72,4 @@ JBOSS_SKIP_PRERELEASE: bool = _parse_bool_flag(
 SPRING_INCLUDE_PRERELEASE: bool = _parse_bool_flag(
     _optional("SPRING_INCLUDE_PRERELEASE", "1")
 )
+MCP_STATELESS_HTTP: bool = _parse_bool_flag(_optional("MCP_STATELESS_HTTP", "false"))

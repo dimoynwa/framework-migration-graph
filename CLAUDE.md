@@ -1,5 +1,5 @@
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-located at /Users/dimo.drangov/paysafe-version-migration-graph/specs/004-paysafe-resolver/plan.md.
+at specs/005-mcp-server/plan.md
 <!-- SPECKIT END -->
