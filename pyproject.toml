@@ -19,6 +19,7 @@ dependencies = [
     "streamlit>=1.35",
     "click>=8.1",
     "rapidfuzz>=3.0",
+    "packaging>=24.0",
     "structlog>=24.0",
     "langchain-anthropic>=1.4.4",
     "langchain-ollama>=1.1.0",

@@ -11,7 +11,7 @@
 | `001` | Foundations | ✅ Complete | `specs/001-foundations/` |
 | `002` | Pipeline Core | ✅ Complete | `specs/002-pipeline-core/` |
 | `003` | Extractors | ✅ Complete | `specs/003-extractors/` |
-| `004` | Paysafe Resolver | 🔲 Not started | `specs/004-paysafe-resolver/` |
+| `004` | Paysafe Resolver | ✅ Complete | `specs/004-paysafe-resolver/` |
 | `005` | MCP Server | 🔲 Not started | `specs/005-mcp-server/` |
 | `006` | Streamlit UI | 🔲 Not started | `specs/006-streamlit-ui/` |
  
@@ -22,21 +22,21 @@
 ## Dependency graph
  
 ```
-000-foundations
+001-foundations
        │
-       ├──► 001-pipeline-core
+       ├──► 002-pipeline-core
        │           │
-       │           └──► 002-extractors ──────────────┐
+       │           └──► 003-extractors ──────────────┐
        │                                               │
-       ├──► 003-paysafe-resolver ────────────────────►│
+       ├──► 004-paysafe-resolver ────────────────────►│
        │                                               ▼
-       │                                       004-mcp-server
+       │                                       005-mcp-server
        │                                               │
        │                                               ▼
-       └───────────────────────────────── 005-streamlit-ui
+       └───────────────────────────────── 006-streamlit-ui
 ```
  
-`002-extractors` and `003-paysafe-resolver` may be developed in parallel once `001-pipeline-core` is complete.
+`003-extractors` and `004-paysafe-resolver` may be developed in parallel once `002-pipeline-core` is complete.
  
 ---
  
@@ -44,7 +44,7 @@
  
 ---
  
-### `000` — Foundations
+### `001` — Foundations
  
 **Purpose:** Shared types, graph connection, and project scaffolding that every other spec imports. Nothing else can be built until this is solid.
  
@@ -77,11 +77,11 @@ migration_oracle/
  
 ---
  
-### `001` — Pipeline Core
+### `002` — Pipeline Core
  
 **Purpose:** The two LLM calls (filter-and-group, entity extraction), the graph population logic for the new schema, artifact caching, and the CLI command.
  
-**Prerequisite:** `000-foundations` ✅
+**Prerequisite:** `001-foundations` ✅
  
 **Repository scope:**
  
@@ -135,11 +135,11 @@ This makes the graph the discovery index for the FE — no filesystem scan, no s
  
 ---
  
-### `002` — Extractors
+### `003` — Extractors
  
 **Purpose:** All nine framework HTTP extractors that conform to the output contract defined in `001-pipeline-core`.
  
-**Prerequisite:** `001-pipeline-core` ✅
+**Prerequisite:** `002-pipeline-core` ✅
  
 **Repository scope:**
  
@@ -185,11 +185,11 @@ Each extractor, given `(from_version, to_version)` for one hop, returns a list o
  
 ---
  
-### `003` — Paysafe Resolver
+### `004` — Paysafe Resolver
  
 **Purpose:** The `resolve_paysafe_dependency_by_service_name` resolution flow — FindIt registry lookup, GitLab tag discovery, build-file compatibility checking, and version selection.
  
-**Prerequisite:** `000-foundations` ✅  
+**Prerequisite:** `001-foundations` ✅  
 **Can run in parallel with:** `002-extractors`
  
 **Repository scope:**
@@ -237,11 +237,11 @@ migration_oracle/
  
 ---
  
-### `004` — MCP Server
+### `005` — MCP Server
  
 **Purpose:** The `PaysafeMigrationOracle` MCP server with all 21 tools (14 existing + 5 new context-management tools + 2 new artifact-access tools), all skill resources, and transport configuration.
  
-**Prerequisites:** `001-pipeline-core` ✅, `003-paysafe-resolver` ✅
+**Prerequisites:** `002-pipeline-core` ✅, `004-paysafe-resolver` ✅
  
 **Repository scope:**
  
@@ -298,11 +298,11 @@ migration_oracle/
  
 ---
  
-### `005` — Streamlit UI
+### `006` — Streamlit UI
  
 **Purpose:** Browser-based interface for triggering pipeline runs, browsing artifacts, exploring the graph, managing migration contexts, and submitting community insights.
  
-**Prerequisite:** `004-mcp-server` ✅
+**Prerequisite:** `005-mcp-server` ✅
  
 **Repository scope:**
  
