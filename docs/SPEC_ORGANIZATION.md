@@ -11,7 +11,7 @@
 | `001` | Foundations | ✅ Complete | `specs/001-foundations/` |
 | `002` | Pipeline Core | ✅ Complete | `specs/002-pipeline-core/` |
 | `003` | Extractors | ✅ Complete | `specs/003-extractors/` |
-| `004` | Paysafe Resolver | 🔲 Not started | `specs/004-paysafe-resolver/` |
+| `004` | Paysafe Resolver | ✅ Complete | `specs/004-paysafe-resolver/` |
 | `005` | MCP Server | 🔲 Not started | `specs/005-mcp-server/` |
 | `006` | Streamlit UI | 🔲 Not started | `specs/006-streamlit-ui/` |
  
