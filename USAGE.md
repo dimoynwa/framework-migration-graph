@@ -214,11 +214,67 @@ loads these to understand the four-loop harness and scanning patterns:
 
 ---
 
-## The four-loop harness — prompt and tool call order
+## The 3 prompts
 
-### Starting prompt
+The server registers three MCP prompts that clients with prompt support (Claude
+Code, Cursor) can invoke directly from the slash-command palette or prompt picker.
 
-Paste this into Claude Code or Cursor after the server is connected:
+| Prompt | Parameters | Purpose |
+|---|---|---|
+| `start_migration` | `framework`, `current_version`, `target_version`, `project_id` | Start a new four-loop migration harness |
+| `resume_migration` | `context_id` | Resume from an existing `MigrationContext` |
+| `migration_workflow_prompt` | *(none)* | Zero-parameter fallback for clients that don't support parameterized prompts |
+
+### `start_migration` (recommended)
+
+**In Claude Code / Cursor prompt picker** — invoke the prompt with parameters:
+
+```
+framework: Spring Boot
+current_version: 2.7
+target_version: 3.2
+project_id: payments-service
+```
+
+The server renders this into the agent:
+
+```
+Load skill://framework-migration/main.
+
+Migrate project 'payments-service' from Spring Boot 2.7 to Spring Boot 3.2.
+
+Run the four-loop migration harness:
+- Loop I: scan the codebase, call create_migration_context
+- Loop II: query the graph in scope-gated tiers (api-surface → runtime → config/build → test)
+- Loop III: execute each pending step (auto or manual; ask me to confirm manual steps)
+- Loop IV: submit new insights via submit_migration_insight, then call close_migration_context
+```
+
+### `resume_migration`
+
+Use after a previous session ended with pending steps. Pass the UUID returned
+by `create_migration_context` or `get_pending_steps`:
+
+```
+context_id: 3f2a1b4c-...
+```
+
+The server renders this into the agent:
+
+```
+Load skill://framework-migration/main.
+
+Resume migration context '3f2a1b4c-...'.
+
+Call get_pending_steps(context_id='3f2a1b4c-...') to see what remains.
+Continue from Loop III: execute each pending step, then run Loop IV
+(submit insights, close context).
+```
+
+### `migration_workflow_prompt` (fallback)
+
+For clients that do not support parameterized prompts. Paste and fill in the
+placeholders manually:
 
 ```
 Load skill://framework-migration/main.
@@ -231,24 +287,11 @@ Run the four-loop migration harness:
 - Loop II: query the graph in scope-gated tiers (api-surface → runtime → config/build → test)
 - Loop III: execute each pending step (auto or manual)
 - Loop IV: submit any new insights, close the context
-
-Ask me to confirm before each manual step.
 ```
 
-Replace `[framework]`, `[current_version]`, `[target_version]`, and
-`[your-project-id]` with real values. Example:
+---
 
-```
-Load skill://framework-migration/main.
-
-I want to migrate this project from Spring Boot 2.7 to 3.2.
-Project ID: payments-service
-
-Run the four-loop migration harness:
-...
-```
-
-### Tool call sequence
+## The four-loop harness — tool call order
 
 The agent follows this order internally. You do not call these manually — the
 harness skill drives the sequence.

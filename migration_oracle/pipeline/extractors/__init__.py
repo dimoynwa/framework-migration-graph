@@ -30,17 +30,7 @@ FRAMEWORK_DISPLAY_NAMES: dict[str, str] = {
     "jakarta-ee": "Jakarta EE",
 }
 
-REGISTRY_KEYS: list[str] = [
-    "spring-boot",
-    "angular",
-    "wildfly",
-    "eap",
-    "hibernate",
-    "resteasy",
-    "infinispan",
-    "elytron",
-    "jakarta-ee",
-]
+REGISTRY_KEYS: list[str] = list(FRAMEWORK_DISPLAY_NAMES.keys())
 
 _EXTRACTOR_CLASSES: dict[str, Type[BaseExtractor]] = {
     "stub_framework": StubFrameworkExtractor,
