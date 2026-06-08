@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 _INDEXES = [
     "CREATE CONSTRAINT version_unique IF NOT EXISTS FOR (v:Version) REQUIRE (v.framework, v.version) IS UNIQUE",
-    "CREATE CONSTRAINT migration_rule_url IF NOT EXISTS FOR (r:MigrationRule) REQUIRE r.sourceUrl IS UNIQUE",
+    "CREATE CONSTRAINT migration_rule_id IF NOT EXISTS FOR (r:MigrationRule) REQUIRE r.ruleId IS UNIQUE",
     "CREATE CONSTRAINT class_name IF NOT EXISTS FOR (c:Class) REQUIRE c.name IS UNIQUE",
     "CREATE CONSTRAINT property_name IF NOT EXISTS FOR (p:ApplicationProperty) REQUIRE p.name IS UNIQUE",
     "CREATE CONSTRAINT dependency_name IF NOT EXISTS FOR (d:Dependency) REQUIRE d.name IS UNIQUE",
@@ -27,7 +27,7 @@ _INDEXES = [
 
 _EXPECTED_CONSTRAINTS = {
     "version_unique",
-    "migration_rule_url",
+    "migration_rule_id",
     "class_name",
     "property_name",
     "dependency_name",

@@ -159,14 +159,12 @@ def _write_entity(
     framework_display: str,
     to_version: str,
 ) -> None:
-    source_url = (
-        entity.source_url
-        or f"pipeline://{framework_display}/{to_version}/{entity.title}"
-    )
+    rule_id_key = f"pipeline://{framework_display}/{to_version}/{entity.title}"
+    source_url = entity.source_url or rule_id_key
     rule_record = session.run(
         """
         MATCH (v:Version {framework: $framework, version: $version})
-        MERGE (rule:MigrationRule {sourceUrl: $source_url})
+        MERGE (rule:MigrationRule {ruleId: $rule_id_key})
         ON CREATE SET
           rule.statement = $reason,
           rule.title = $title,
@@ -175,7 +173,8 @@ def _write_entity(
           rule.changeType = $change_type,
           rule.reasonType = $reason_type,
           rule.entityClassification = $classification,
-          rule.subsystem = $subsystem
+          rule.subsystem = $subsystem,
+          rule.sourceUrl = $source_url
         ON MATCH SET
           rule.statement = $reason,
           rule.title = $title,
@@ -184,12 +183,14 @@ def _write_entity(
           rule.changeType = $change_type,
           rule.reasonType = $reason_type,
           rule.entityClassification = $classification,
-          rule.subsystem = $subsystem
+          rule.subsystem = $subsystem,
+          rule.sourceUrl = $source_url
         MERGE (v)-[:INCLUDES_RULE]->(rule)
         RETURN elementId(rule) AS rule_id
         """,
         framework=framework_display,
         version=to_version,
+        rule_id_key=rule_id_key,
         source_url=source_url,
         reason=entity.reason,
         title=entity.title,

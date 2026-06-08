@@ -1,0 +1,46 @@
+# Version control
+.git/
+.gitignore
+
+# Spec and planning artifacts
+specs/
+SpecKit-plans/
+.specify/
+
+# Development and test artifacts
+tests/
+eval/
+runs/
+*.md
+!migration_oracle/**/*.md
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE and tooling
+.vscode/
+.idea/
+.cursor/
+.claude/
+.specify/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation outside of package
+docs/
+USAGE.md
+EVALUATION*.md

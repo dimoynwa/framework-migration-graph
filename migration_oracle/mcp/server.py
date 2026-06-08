@@ -140,6 +140,8 @@ if __name__ == "__main__":
     if transport not in {"stdio", "sse", "streamable-http"}:
         raise ValueError(f"Unsupported MCP_TRANSPORT: {transport}")
     startup()
+    mcp.settings.host = config.MCP_HOST
+    mcp.settings.port = config.MCP_PORT
     if transport == "streamable-http":
         mcp.settings.stateless_http = config.MCP_STATELESS_HTTP
     try:
