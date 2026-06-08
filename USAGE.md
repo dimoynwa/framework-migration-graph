@@ -101,6 +101,95 @@ call — you do not need to start it manually in stdio mode.
 
 ---
 
+## Running with Docker
+
+No local Python environment or `uv` install required — only Docker.
+
+### Build the image
+
+```bash
+docker build -t paysafe-migration-oracle:latest .
+```
+
+The embedding model (`all-mpnet-base-v2`, ~400 MB) is downloaded and baked into the
+image at build time. First requests are not penalised by a cold download.
+
+To use a different model, pass `--build-arg`:
+
+```bash
+docker build --build-arg SENTENCE_TRANSFORMERS_MODEL=all-MiniLM-L6-v2 \
+  -t paysafe-migration-oracle:latest .
+```
+
+### Run with docker run
+
+```bash
+docker run -d \
+  -e NEO4J_URI=bolt://host.docker.internal:7687 \
+  -e NEO4J_PASSWORD=your-password \
+  -e ANTHROPIC_API_KEY=your-key \
+  -p 8080:8080 \
+  -p 8501:8501 \
+  paysafe-migration-oracle:latest
+```
+
+Both services start automatically:
+
+| Service | Default port | URL |
+|---|---|---|
+| MCP SSE server | 8080 | `http://localhost:8080/sse` |
+| Streamlit UI | 8501 | `http://localhost:8501` |
+
+Override ports with `-e MCP_PORT=9090 -e STREAMLIT_SERVER_PORT=9091` (also adjust `-p`).
+
+### Run with Docker Compose (includes Neo4j)
+
+```bash
+docker compose up -d
+```
+
+The compose file starts the oracle alongside a Neo4j 5 sidecar with a named data
+volume. The oracle waits for Neo4j to become healthy before starting. Both services
+are reachable on the same default ports.
+
+To stop and preserve data:
+
+```bash
+docker compose down      # volumes retained
+docker compose down -v   # volumes deleted
+```
+
+### Connect Claude Code to the running SSE server
+
+Once the container is running, point Claude Code at the SSE endpoint instead of
+starting a local process:
+
+```json
+{
+  "mcpServers": {
+    "migration-oracle": {
+      "type": "sse",
+      "url": "http://localhost:8080/sse"
+    }
+  }
+}
+```
+
+### Container health
+
+The image declares a built-in health-check. View its status:
+
+```bash
+docker inspect --format='{{.State.Health.Status}}' <container-id>
+```
+
+Status moves from `starting` to `healthy` within ~60 seconds of launch. The check
+probes both the MCP SSE endpoint and the Streamlit health endpoint; a crash in either
+service transitions the container to `unhealthy` (and the fail-fast entrypoint also
+stops the container with a non-zero exit code).
+
+---
+
 ## Starting the server manually (HTTP / SSE mode)
 
 stdio is managed by the client. For HTTP transports, start the server yourself:

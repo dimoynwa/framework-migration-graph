@@ -76,7 +76,8 @@ def hydrate_nodes(
     OPTIONAL MATCH (n)-[:INCLUDES_RULE|DISCOVERED_IN]-(v:Version)
     WHERE $framework IS NULL OR v.framework = $framework
     WITH n, collect(DISTINCT v.version) AS versions
-    WHERE $include_community_insights OR 'MigrationRule' IN labels(n)
+    WHERE ($framework IS NULL OR size(versions) > 0)
+      AND ($include_community_insights OR 'MigrationRule' IN labels(n))
     RETURN elementId(n) AS node_id,
            labels(n)[0] AS node_type,
            n.statement AS statement,
