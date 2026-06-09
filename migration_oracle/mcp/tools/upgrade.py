@@ -6,6 +6,12 @@ from migration_oracle.mcp.graph.queries import upgrade as upgrade_queries
 from migration_oracle.mcp.instance import mcp
 
 
+def _to_minor_zero(version: str) -> str:
+    """Normalise 'major.minor.patch' → 'major.minor.0' for graph lookups."""
+    parts = version.split(".", 2)
+    return f"{parts[0]}.{parts[1]}.0"
+
+
 def _flatten_rules(rows: list[dict]) -> list[dict]:
     rules: list[dict] = []
     for row in rows:
@@ -39,14 +45,12 @@ def analyze_upgrade_path(
     Each rule contains steps: [] and scopes: [] when no MigrationStep/BreakingScope nodes
     exist in the graph (pre-redesign data) — this is expected, not an error.
     """
-    classes = classification or ["actionable", "incomplete"]
-
     rows = upgrade_queries.analyze_upgrade_path(
         framework=framework,
-        current_version=current_version,
-        target_version=target_version,
+        current_version=_to_minor_zero(current_version),
+        target_version=_to_minor_zero(target_version),
         user_entities=user_entities or [],
-        classification=classes,
+        classification=classification,
         scope_filter=scope_filter or [],
         min_severity=min_severity,
     )
@@ -98,8 +102,8 @@ def build_recipe_plan(
     """
     plan = upgrade_queries.build_recipe_plan(
         framework=framework,
-        current_version=current_version,
-        target_version=target_version,
+        current_version=_to_minor_zero(current_version),
+        target_version=_to_minor_zero(target_version),
         user_entities=user_entities,
         classification=classification,
         scope_filter=scope_filter or [],

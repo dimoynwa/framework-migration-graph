@@ -38,16 +38,22 @@ CREATE (ci)-[:DISCOVERED_IN]->(v)
 WITH ci
 FOREACH (class_name IN coalesce($affected_classes, []) |
   MERGE (c:Class {name: class_name})
+  ON CREATE SET c.framework = $framework
+  ON MATCH SET  c.framework = coalesce(c.framework, $framework)
   MERGE (ci)-[:AFFECTS_CLASS]->(c)
 )
 WITH ci
 FOREACH (prop_name IN coalesce($affected_properties, []) |
   MERGE (p:ApplicationProperty {name: prop_name})
+  ON CREATE SET p.framework = $framework
+  ON MATCH SET  p.framework = coalesce(p.framework, $framework)
   MERGE (ci)-[:AFFECTS_PROPERTY]->(p)
 )
 WITH ci
 FOREACH (dep_name IN coalesce($affected_dependencies, []) |
   MERGE (d:Dependency {name: dep_name})
+  ON CREATE SET d.framework = $framework
+  ON MATCH SET  d.framework = coalesce(d.framework, $framework)
   MERGE (ci)-[:AFFECTS_DEPENDENCY]->(d)
 )
 RETURN elementId(ci) AS insight_id

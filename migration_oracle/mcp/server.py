@@ -123,11 +123,17 @@ from migration_oracle.mcp.tools import (  # noqa: E402, F401
 
 
 def startup() -> None:
-    """Ordered startup: config (import time) → connectivity → indexes."""
+    """Ordered startup: config (import time) → connectivity → indexes → model warm-up."""
     driver = get_driver()
     with driver.session() as session:
         session.run("RETURN 1").single()
     ensure_indexes(driver)
+    try:
+        from migration_oracle.mcp.tools.search import get_embedding_model
+        get_embedding_model()
+        logger.info("Embedding model warm-up complete")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Embedding model warm-up skipped: %s", exc)
     logger.info(
         "PaysafeMigrationOracle ready — transport=%s",
         config.MCP_TRANSPORT,

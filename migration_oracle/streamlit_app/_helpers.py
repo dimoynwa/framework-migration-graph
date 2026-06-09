@@ -7,6 +7,20 @@ import streamlit as st
 from migration_oracle.streamlit_app._constants import FRAMEWORK_DISPLAY_NAMES
 
 
+def clear_on_nav(page_id: str) -> None:
+    """Guarantee a clean slate when the user navigates to this page.
+
+    On the first run after a navigation event st.session_state still holds the
+    previous page's __page_id__.  We detect the change, update the sentinel,
+    and call st.rerun() *before* any elements are rendered.  Streamlit then
+    sends empty deltas to the frontend which unmounts every stale element from
+    the old page.  The second (immediate) run renders the real content.
+    """
+    if st.session_state.get("__page_id__") != page_id:
+        st.session_state["__page_id__"] = page_id
+        st.rerun()
+
+
 def call_tool(fn: Callable, *args: Any, **kwargs: Any) -> Any | None:
     try:
         return fn(*args, **kwargs)

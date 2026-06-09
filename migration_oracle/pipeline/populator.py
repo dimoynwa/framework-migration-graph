@@ -217,7 +217,7 @@ def _write_entity(
         )
 
     for step in entity.steps:
-        _write_step(session, rule_id=rule_id, step=step, entity=entity)
+        _write_step(session, rule_id=rule_id, step=step, entity=entity, framework_display=framework_display)
 
     for step in entity.steps:
         for prereq_index in step.requires:
@@ -261,6 +261,7 @@ def _write_step(
     rule_id: str,
     step: MigrationStep,
     entity: MigrationEntity,
+    framework_display: str,
 ) -> None:
     session.run(
         """
@@ -328,6 +329,8 @@ def _write_step(
                 f"""
                 MATCH (s:MigrationStep {{ruleId: $rule_id, stepIndex: $step_index}})
                 MERGE (e:{label} {{name: $name}})
+                ON CREATE SET e.framework = $framework
+                ON MATCH SET  e.framework = coalesce(e.framework, $framework)
                 MERGE (s)-[rel:{edge}]->(e)
                 SET rel.role = $role
                 """,
@@ -335,6 +338,7 @@ def _write_step(
                 step_index=step.index,
                 name=affected.name,
                 role=affected.role.value,
+                framework=framework_display,
             )
 
 
@@ -354,6 +358,8 @@ def _write_affected_entity(
     session.run(
         f"""
         MERGE (e:{label} {{name: $name}})
+        ON CREATE SET e.framework = $framework
+        ON MATCH SET  e.framework = coalesce(e.framework, $framework)
         WITH e
         MATCH (rule:MigrationRule)
         WHERE elementId(rule) = $rule_id
@@ -363,6 +369,7 @@ def _write_affected_entity(
         name=affected.name,
         rule_id=rule_id,
         role=role,
+        framework=framework_display,
     )
 
     if affected.role == EntityRole.REMOVED:
