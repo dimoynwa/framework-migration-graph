@@ -10,6 +10,10 @@ from migration_oracle.mcp.instance import mcp
 def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dict:
     """Return deprecation metadata and replacement for a single entity name (one hop only).
 
+    entity_name must be the fully-qualified name as stored in the graph
+    (e.g. 'org.springframework.boot.env.EnvironmentPostProcessor', not 'EnvironmentPostProcessor').
+    Short or partial names will return status='not_found'.
+
     Returns: deprecated_in, removed_in, replaced_by (direct successor only), and related rules.
     For the full replacement chain across multiple versions use entity_evolution instead.
     Returns status='not_found' when the entity is not in the graph.
@@ -54,6 +58,9 @@ def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dic
 @mcp.tool()
 def entity_evolution(entity_name: str, framework: str = "Spring Boot") -> dict:
     """Trace the full REPLACED_BY replacement chain for an entity, up to 5 hops.
+
+    entity_name must be the fully-qualified name as stored in the graph
+    (e.g. 'org.springframework.boot.env.EnvironmentPostProcessor', not 'EnvironmentPostProcessor').
 
     Returns: chain list where each node includes entity_name, entity_type, deprecated_in,
     removed_in, and related rules. The chain starts at entity_name and follows REPLACED_BY

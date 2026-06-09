@@ -8,6 +8,14 @@ from migration_oracle.mcp.tools.search import get_embedding_model
 from migration_oracle.models.graph import sortable_version
 
 
+def _normalise_version(v: str) -> str:
+    """Pad 'major' → 'major.0.0' and 'major.minor' → 'major.minor.0'."""
+    parts = v.split(".")
+    while len(parts) < 3:
+        parts.append("0")
+    return ".".join(parts[:3])
+
+
 @mcp.tool()
 def submit_migration_insight(
     statement: str,
@@ -29,11 +37,16 @@ def submit_migration_insight(
     Note: the parameter 'spring_boot_version' holds the framework version string
     regardless of the 'framework' value (e.g. '3.2' for Spring Boot, '30' for WildFly).
     """
-    embedding = get_embedding_model().encode(statement).tolist()
+    embedding: list[float] | None = None
+    try:
+        _vec = get_embedding_model().encode(statement)
+        embedding = _vec.tolist()
+    except Exception:
+        pass
     insight_id, is_duplicate = community_queries.submit_insight(
         statement=statement,
         framework=framework,
-        version=spring_boot_version,
+        version=_normalise_version(spring_boot_version),
         solution=solution,
         affected_properties=affected_properties,
         affected_classes=affected_classes,

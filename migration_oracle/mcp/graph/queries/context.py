@@ -74,13 +74,13 @@ RETURN elementId(s) AS step_id,
        bs.scope AS scope,
        bs.severity AS severity,
        rec.recipeId AS recipe_id,
+       s.stepIndex AS _step_index,
+       CASE bs.severity
+         WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+         WHEN 'medium'   THEN 2 ELSE 3
+       END AS _severity_rank,
        collect(DISTINCT elementId(prereq)) AS requires
-ORDER BY
-  CASE bs.severity
-    WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-    WHEN 'medium'   THEN 2 ELSE 3
-  END ASC,
-  s.stepIndex ASC
+ORDER BY _severity_rank ASC, _step_index ASC
 """
 
 _RECORD_STEP_OUTCOME = """
@@ -167,7 +167,7 @@ def get_pending_steps(
     scope_filter: list[str] | None = None,
 ) -> list[dict]:
     with read_session() as session:
-        return [
+        rows = [
             dict(row)
             for row in session.run(
                 _GET_PENDING_STEPS,
@@ -176,6 +176,8 @@ def get_pending_steps(
                 scope_filter=scope_filter or [],
             )
         ]
+    _internal = {"_step_index", "_severity_rank"}
+    return [{k: v for k, v in row.items() if k not in _internal} for row in rows]
 
 
 def record_step_outcome(

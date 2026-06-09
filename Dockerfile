@@ -72,6 +72,7 @@ RUN chmod +x ./entrypoint.sh
 RUN mkdir -p /data && chown oracle:oracle /data
 
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
     MCP_TRANSPORT=sse \
     MCP_HOST=0.0.0.0 \
     MCP_PORT=8080 \

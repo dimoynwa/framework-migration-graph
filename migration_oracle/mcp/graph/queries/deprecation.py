@@ -16,19 +16,25 @@ OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
 WHERE (rule:MigrationRule OR rule:CommunityInsight)
   AND EXISTS { (rule)-[:INCLUDES_RULE|DISCOVERED_IN]-(:Version {framework: $framework}) }
 
+WITH e, depV, remV, replacement,
+     collect({
+       type: labels(rule)[0],
+       statement: rule.statement,
+       reason: rule.reason,
+       solution: rule.solution,
+       action_step: rule.actionStep
+     }) AS rules
+
+OPTIONAL MATCH (introV:Version {framework: $framework})-[:INTRODUCES]->(e)
+OPTIONAL MATCH (removedByV:Version {framework: $framework})-[:REMOVES]->(e)
+
 RETURN
   labels(e)[0] AS entity_type,
   e.name AS original_entity,
   replacement.name AS replaced_by,
-  depV.version AS deprecated_in,
-  remV.version AS removed_in,
-  collect({
-    type: labels(rule)[0],
-    statement: rule.statement,
-    reason: rule.reason,
-    solution: rule.solution,
-    action_step: rule.actionStep
-  }) AS rules
+  coalesce(depV.version, introV.version) AS deprecated_in,
+  coalesce(remV.version, removedByV.version) AS removed_in,
+  rules
 """
 
 _ENTITY_EVOLUTION = """

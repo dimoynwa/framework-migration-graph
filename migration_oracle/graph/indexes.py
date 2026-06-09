@@ -23,6 +23,10 @@ _INDEXES = [
     "CREATE INDEX step_effort IF NOT EXISTS FOR (s:MigrationStep) ON (s.effort)",
     "CREATE INDEX breaking_scope_scope IF NOT EXISTS FOR (bs:BreakingScope) ON (bs.scope)",
     "CREATE INDEX context_project IF NOT EXISTS FOR (mc:MigrationContext) ON (mc.projectId)",
+    "CREATE FULLTEXT INDEX migration_text IF NOT EXISTS "
+    "FOR (n:MigrationRule|CommunityInsight) ON EACH [n.statement, n.reason, n.solution]",
+    "CREATE FULLTEXT INDEX openrewrite_recipe_description IF NOT EXISTS "
+    "FOR (r:OpenRewriteRecipe) ON EACH [r.description, r.displayName]",
 ]
 
 _EXPECTED_CONSTRAINTS = {
@@ -33,6 +37,19 @@ _EXPECTED_CONSTRAINTS = {
     "dependency_name",
     "breaking_scope_pair",
     "migration_context_key",
+}
+
+_EXPECTED_INDEXES = {
+    "version_sortable",
+    "version_framework",
+    "rule_statement",
+    "step_instruction",
+    "step_rule_index",
+    "step_effort",
+    "breaking_scope_scope",
+    "context_project",
+    "migration_text",
+    "openrewrite_recipe_description",
 }
 
 

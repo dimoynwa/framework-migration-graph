@@ -6,6 +6,7 @@ from migration_oracle.graph.driver import read_session
 from migration_oracle.mcp.graph.queries._severity import filter_by_scope_and_severity
 from migration_oracle.models.graph import sortable_version
 
+
 _ANALYZE_UPGRADE_PATH = """
 MATCH (v:Version {framework: $framework})
 WHERE v.sortableVersion > $current_version_sortable
@@ -21,7 +22,7 @@ WITH v, collect(DISTINCT {
     entity_name: e_lc.name
 }) AS raw_lifecycle_events
 
-OPTIONAL MATCH (v)-[:INCLUDES_RULE|DISCOVERED_IN]-(rule)
+OPTIONAL MATCH (v)-[:INCLUDES_RULE]->(rule:MigrationRule)
 OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ruleEntity)
 
 WITH v, raw_lifecycle_events, rule,
@@ -30,11 +31,13 @@ WITH v, raw_lifecycle_events, rule,
 WHERE rule IS NULL
    OR (
        (size($user_entities) = 0
+          OR size(affected_entities) = 0
           OR ANY(e IN affected_entities
                    WHERE ANY(u IN $user_entities
                               WHERE toLower(e) CONTAINS toLower(u))))
        AND
-       (rule.entityClassification IS NULL
+       (size($classification) = 0
+          OR rule.entityClassification IS NULL
           OR rule.entityClassification IN $classification)
      )
 
@@ -95,12 +98,14 @@ WHERE v.sortableVersion > $current_version_sortable
   AND v.sortableVersion <= $target_version_sortable
 
 MATCH (v)-[:INCLUDES_RULE]->(rule:MigrationRule)
-WHERE rule.entityClassification IS NULL
+WHERE size($classification) = 0
+   OR rule.entityClassification IS NULL
    OR rule.entityClassification IN $classification
 
 OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ruleEntity)
 WITH v, rule, collect(DISTINCT ruleEntity.name) AS affected_entities
 WHERE size($user_entities) = 0
+   OR size(affected_entities) = 0
    OR ANY(e IN affected_entities
             WHERE ANY(u IN $user_entities
                        WHERE toLower(e) CONTAINS toLower(u)))
@@ -148,7 +153,7 @@ def analyze_upgrade_path(
     min_severity: str | None = None,
 ) -> list[dict]:
     entities = user_entities or []
-    classes = classification or ["actionable", "incomplete"]
+    classes = classification or []
     scopes = scope_filter or []
     params = {
         "framework": framework,
@@ -191,7 +196,7 @@ def build_recipe_plan(
     min_severity: str | None = None,
 ) -> dict:
     entities = user_entities or []
-    classes = classification or ["actionable", "incomplete"]
+    classes = classification or []
     scopes = scope_filter or []
     params = {
         "framework": framework,
