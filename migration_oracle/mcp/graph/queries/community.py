@@ -10,88 +10,105 @@ from migration_oracle.mcp.graph.queries.search import bm25_search, vector_search
 _DUPLICATE_SIMILARITY_THRESHOLD = 0.92
 
 _FIND_EXACT_STATEMENT = """
-MATCH (ci:CommunityInsight)
-WHERE ci.statement = $statement
-RETURN elementId(ci) AS insight_id
+MATCH (r:MigrationRule)
+WHERE r.statement = $statement AND r.ruleType = 'community_insight'
+RETURN elementId(r) AS insight_id
 LIMIT 1
 """
 
 _FETCH_EMBEDDING = """
-MATCH (ci:CommunityInsight) WHERE elementId(ci) = $insight_id
-RETURN ci.embedding AS embedding
+MATCH (r:MigrationRule) WHERE elementId(r) = $insight_id
+RETURN r.embedding AS embedding
 """
 
 _SUBMIT_INSIGHT = """
 MATCH (v:Version {framework: $framework, version: $version})
-CREATE (ci:CommunityInsight {
-  statement: $statement,
-  solution: coalesce($solution, ''),
-  sourceUrl: coalesce($evidence_url, ''),
-  submittedBy: coalesce($submitted_by, 'mcp-agent'),
-  createdAt: toString(datetime()),
-  confidence: coalesce($confidence, 0.5),
-  votes: 0,
-  verified: false,
-  embedding: $embedding
+CREATE (r:MigrationRule {
+  statement:            $statement,
+  ruleType:             'community_insight',
+  sourceUrl:            coalesce($evidence_url, ''),
+  communitySubmittedBy: coalesce($submitted_by, 'mcp-agent'),
+  communityCreatedAt:   toString(datetime()),
+  communityConfidence:  coalesce($confidence, 0.5),
+  communityVotes:       0,
+  communityVerified:    false
 })
-CREATE (ci)-[:DISCOVERED_IN]->(v)
-WITH ci
+WITH r, v
+FOREACH (emb IN CASE WHEN $embedding IS NOT NULL THEN [1] ELSE [] END |
+  SET r.embedding = $embedding
+)
+WITH r, v
+CREATE (v)-[:INCLUDES_RULE]->(r)
+CREATE (s:MigrationStep {
+  stepType:    'manual',
+  summary:     coalesce($solution, ''),
+  instruction: coalesce($solution, ''),
+  effort:      'moderate',
+  automatable: false
+})
+CREATE (r)-[:REQUIRES_STEP]->(s)
+WITH r
 FOREACH (class_name IN coalesce($affected_classes, []) |
   MERGE (c:Class {name: class_name})
   ON CREATE SET c.framework = $framework
   ON MATCH SET  c.framework = coalesce(c.framework, $framework)
-  MERGE (ci)-[:AFFECTS_CLASS]->(c)
+  MERGE (r)-[:AFFECTS_CLASS]->(c)
 )
-WITH ci
+WITH r
 FOREACH (prop_name IN coalesce($affected_properties, []) |
   MERGE (p:ApplicationProperty {name: prop_name})
   ON CREATE SET p.framework = $framework
   ON MATCH SET  p.framework = coalesce(p.framework, $framework)
-  MERGE (ci)-[:AFFECTS_PROPERTY]->(p)
+  MERGE (r)-[:AFFECTS_PROPERTY]->(p)
 )
-WITH ci
+WITH r
 FOREACH (dep_name IN coalesce($affected_dependencies, []) |
   MERGE (d:Dependency {name: dep_name})
   ON CREATE SET d.framework = $framework
   ON MATCH SET  d.framework = coalesce(d.framework, $framework)
-  MERGE (ci)-[:AFFECTS_DEPENDENCY]->(d)
+  MERGE (r)-[:AFFECTS_DEPENDENCY]->(d)
 )
-RETURN elementId(ci) AS insight_id
+RETURN elementId(r) AS insight_id
 """
 
 _QUERY_INSIGHTS = """
-MATCH (ci:CommunityInsight)-[:DISCOVERED_IN]->(v:Version {framework: $framework})
-WHERE ($from_sortable IS NULL OR v.sortableVersion >= $from_sortable)
+MATCH (v:Version {framework: $framework})-[:INCLUDES_RULE]->(r:MigrationRule)
+WHERE r.ruleType = 'community_insight'
+  AND ($from_sortable IS NULL OR v.sortableVersion >= $from_sortable)
   AND ($to_sortable IS NULL OR v.sortableVersion <= $to_sortable)
-  AND ($verified_only = false OR ci.verified = true)
-OPTIONAL MATCH (ci)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
-WITH ci, v, collect(DISTINCT e.name) AS affected_entities
+  AND ($verified_only = false OR r.communityVerified = true)
+OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WITH r, v, collect(DISTINCT e.name) AS affected_entities
 WHERE $entity_name IS NULL
    OR ANY(name IN affected_entities WHERE name = $entity_name)
-RETURN elementId(ci) AS insight_id,
-       ci.statement AS statement,
-       ci.solution AS solution,
-       ci.sourceUrl AS source_url,
-       ci.submittedBy AS submitted_by,
-       ci.createdAt AS created_at,
-       ci.confidence AS confidence,
-       ci.votes AS votes,
-       ci.verified AS verified,
-       v.version AS version,
+OPTIONAL MATCH (r)-[:REQUIRES_STEP]->(s:MigrationStep)
+WITH r, v, affected_entities, s
+ORDER BY s.stepIndex ASC
+WITH r, v, affected_entities, collect(s)[0] AS first_step
+RETURN elementId(r)                          AS insight_id,
+       r.statement                            AS statement,
+       coalesce(first_step.instruction, '')   AS solution,
+       r.sourceUrl                            AS source_url,
+       r.communitySubmittedBy                 AS submitted_by,
+       r.communityCreatedAt                   AS created_at,
+       r.communityConfidence                  AS confidence,
+       r.communityVotes                       AS votes,
+       r.communityVerified                    AS verified,
+       v.version                              AS version,
        affected_entities
-ORDER BY ci.votes DESC, ci.createdAt DESC
+ORDER BY r.communityVotes DESC, r.communityCreatedAt DESC
 """
 
 _VOTE_INSIGHT = """
-MATCH (ci:CommunityInsight) WHERE elementId(ci) = $insight_id
-SET ci.votes = coalesce(ci.votes, 0) + $delta
-RETURN elementId(ci) AS insight_id, ci.votes AS votes
+MATCH (r:MigrationRule) WHERE elementId(r) = $insight_id
+SET r.communityVotes = coalesce(r.communityVotes, 0) + $delta
+RETURN elementId(r) AS insight_id, r.communityVotes AS votes
 """
 
 _VERIFY_INSIGHT = """
-MATCH (ci:CommunityInsight) WHERE elementId(ci) = $insight_id
-SET ci.verified = true
-RETURN elementId(ci) AS insight_id, ci.verified AS verified
+MATCH (r:MigrationRule) WHERE elementId(r) = $insight_id
+SET r.communityVerified = true
+RETURN elementId(r) AS insight_id, r.communityVerified AS verified
 """
 
 
@@ -115,7 +132,7 @@ def _find_exact_statement(*, statement: str) -> str | None:
 
 
 def _best_bm25_duplicate(*, statement: str, embedding: list[float]) -> str | None:
-    hits = bm25_search(query=statement, index="migration_text", top_k=5)
+    hits = bm25_search(query=statement, index="rule_statement", top_k=5)
     for hit_id in hits:
         with read_session() as session:
             record = session.run(_FETCH_EMBEDDING, insight_id=hit_id).single()
@@ -137,7 +154,7 @@ def find_near_duplicate(
         return None
     vector_hits = vector_search(
         embedding=embedding,
-        index="migration_knowledge_vector_ci",
+        index="migration_knowledge_vector_mr",
         top_k=5,
         min_similarity=_DUPLICATE_SIMILARITY_THRESHOLD,
     )
@@ -179,7 +196,7 @@ def submit_insight(
     with write_session() as session:
         record = session.run(_SUBMIT_INSIGHT, params).single()
     if record is None:
-        raise RuntimeError("Failed to create CommunityInsight")
+        raise ValueError(f"Version not found: {framework} {version}")
     return record["insight_id"], False
 
 

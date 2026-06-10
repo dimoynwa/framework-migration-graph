@@ -24,7 +24,7 @@ _INDEXES = [
     "CREATE INDEX breaking_scope_scope IF NOT EXISTS FOR (bs:BreakingScope) ON (bs.scope)",
     "CREATE INDEX context_project IF NOT EXISTS FOR (mc:MigrationContext) ON (mc.projectId)",
     "CREATE FULLTEXT INDEX migration_text IF NOT EXISTS "
-    "FOR (n:MigrationRule|CommunityInsight) ON EACH [n.statement, n.reason, n.solution]",
+    "FOR (n:MigrationRule) ON EACH [n.statement, n.reason, n.solution]",
     "CREATE FULLTEXT INDEX openrewrite_recipe_description IF NOT EXISTS "
     "FOR (r:OpenRewriteRecipe) ON EACH [r.description, r.displayName]",
 ]

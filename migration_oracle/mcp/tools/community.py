@@ -28,7 +28,7 @@ def submit_migration_insight(
     confidence: float | None = None,
     framework: str = "Spring Boot",
 ) -> dict:
-    """Submit a developer-contributed migration insight. Writes a CommunityInsight node.
+    """Submit a developer-contributed migration insight. Writes a MigrationRule node with ruleType='community_insight'.
 
     Near-duplicate detection runs before write; returns status='duplicate' if a
     similar insight already exists (cosine similarity threshold). Not idempotent —
@@ -43,18 +43,21 @@ def submit_migration_insight(
         embedding = _vec.tolist()
     except Exception:
         pass
-    insight_id, is_duplicate = community_queries.submit_insight(
-        statement=statement,
-        framework=framework,
-        version=_normalise_version(spring_boot_version),
-        solution=solution,
-        affected_properties=affected_properties,
-        affected_classes=affected_classes,
-        affected_dependencies=affected_dependencies,
-        evidence_url=evidence_url,
-        confidence=confidence,
-        embedding=embedding,
-    )
+    try:
+        insight_id, is_duplicate = community_queries.submit_insight(
+            statement=statement,
+            framework=framework,
+            version=_normalise_version(spring_boot_version),
+            solution=solution,
+            affected_properties=affected_properties,
+            affected_classes=affected_classes,
+            affected_dependencies=affected_dependencies,
+            evidence_url=evidence_url,
+            confidence=confidence,
+            embedding=embedding,
+        )
+    except ValueError as e:
+        return {"status": "error", "insight_id": "", "duplicate_of": "", "message": str(e)}
     if is_duplicate:
         return {
             "status": "duplicate",
@@ -79,7 +82,7 @@ def get_community_insights(
     verified_only: bool = False,
     framework: str = "Spring Boot",
 ) -> dict:
-    """Query CommunityInsight nodes by version range, entity name, or verified status. Read-only.
+    """Query MigrationRule nodes (ruleType='community_insight') by version range, entity name, or verified status. Read-only.
 
     Returns: insights list with statement, solution, votes, verified, confidence, version.
     Note: entity_type filter is accepted but not yet applied — all entity types are returned.

@@ -67,7 +67,6 @@ def hydrate_nodes(
     *,
     element_ids: list[str],
     framework: str | None = None,
-    include_community_insights: bool = True,
 ) -> list[dict]:
     if not element_ids:
         return []
@@ -77,12 +76,13 @@ def hydrate_nodes(
     WHERE $framework IS NULL OR v.framework = $framework
     WITH n, collect(DISTINCT v.version) AS versions
     WHERE ($framework IS NULL OR size(versions) > 0)
-      AND ($include_community_insights OR 'MigrationRule' IN labels(n))
+    OPTIONAL MATCH (n)-[:REQUIRES_STEP]->(s:MigrationStep)
+    WITH n, versions, collect(s)[0] AS first_step
     RETURN elementId(n) AS node_id,
            labels(n)[0] AS node_type,
            n.statement AS statement,
            n.reason AS reason,
-           n.solution AS solution,
+           coalesce(n.solution, first_step.instruction) AS solution,
            n.actionStep AS action_step,
            n.ruleType AS rule_type,
            n.sourceUrl AS source_url,
@@ -98,7 +98,6 @@ def hydrate_nodes(
                 cypher,
                 ids=element_ids,
                 framework=framework,
-                include_community_insights=include_community_insights,
             )
         ]
 
