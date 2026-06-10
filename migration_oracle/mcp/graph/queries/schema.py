@@ -16,7 +16,6 @@ GRAPH_SCHEMA_MD = """# Migration Knowledge Graph Schema
 - **MigrationStep**: `stepType`, `summary`, `instruction`, `effort`, `automatable`, `verificationHint`
 - **BreakingScope**: `scope`, `severity`
 - **MigrationContext**: `projectId`, `fromVersion`, `toVersion`, `status`, `completedSteps`, `skippedSteps`, `failedSteps`
-- **CommunityInsight**: `statement`, `solution`, `votes`, `verified`, `confidence`
 - **Class**, **ApplicationProperty**, **Dependency**, **OpenRewriteRecipe**
 
 ## Key relationships
@@ -29,7 +28,7 @@ GRAPH_SCHEMA_MD = """# Migration Knowledge Graph Schema
 
 ## Indexes
 - Full-text: `migration_text`, `openrewrite_recipe_description`
-- Vector: `migration_knowledge_vector_mr`, `migration_knowledge_vector_ci`, `openrewrite_recipe_vector`
+- Vector: `migration_knowledge_vector_mr`, `openrewrite_recipe_vector`
 """
 
 

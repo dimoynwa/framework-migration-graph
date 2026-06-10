@@ -96,7 +96,6 @@ def _build_hits(
     fused: list[tuple[str, float]],
     *,
     framework: str | None,
-    include_community_insights: bool,
     openrewrite: bool,
 ) -> list[dict]:
     ids = [node_id for node_id, _ in fused]
@@ -106,7 +105,6 @@ def _build_hits(
         nodes = search_queries.hydrate_nodes(
             element_ids=ids,
             framework=framework,
-            include_community_insights=include_community_insights,
         )
     by_id = {node["node_id"]: node for node in nodes}
     hits: list[dict] = []
@@ -145,7 +143,6 @@ def _build_hits(
 async def search_migration_knowledge(
     query: str,
     framework: str = "Spring Boot",
-    include_community_insights: bool = True,
     max_results: int = 5,
     rrf_k: int = 60,
     top_k_per_index: int = 50,
@@ -156,7 +153,7 @@ async def search_migration_knowledge(
     Returns up to max_results hits ordered by Reciprocal Rank Fusion score. Each hit
     includes: statement, action_step, source_url, node_type, score.
     Vector search requires embeddings; if embeddings were not generated (POPULATE_MIGRATION_EMBEDDINGS=false),
-    only BM25 results are returned. Set include_community_insights=False to exclude CommunityInsight nodes.
+    only BM25 results are returned.
     """
     bm25_hits, vector_hits = await _parallel_retrieval(
         query=query,
@@ -169,7 +166,6 @@ async def search_migration_knowledge(
     hits = _build_hits(
         fused,
         framework=framework,
-        include_community_insights=include_community_insights,
         openrewrite=False,
     )
     return {
@@ -204,7 +200,7 @@ async def search_openrewrite_recipes(
         min_vector_similarity=min_vector_similarity,
     )
     fused = rrf_fuse(bm25_hits, vector_hits, k=rrf_k)[:max_results]
-    hits = _build_hits(fused, framework=None, include_community_insights=False, openrewrite=True)
+    hits = _build_hits(fused, framework=None, openrewrite=True)
     if only_composite is not None or require_no_params:
         # Filtering deferred to hydration layer when properties are available.
         pass

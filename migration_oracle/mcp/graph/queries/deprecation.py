@@ -13,7 +13,7 @@ OPTIONAL MATCH (e)-[:REMOVED_IN]->(remV:Version {framework: $framework})
 OPTIONAL MATCH (e)-[:REPLACED_BY]->(replacement)
 
 OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
-WHERE (rule:MigrationRule OR rule:CommunityInsight)
+WHERE rule:MigrationRule
   AND EXISTS { (rule)-[:INCLUDES_RULE|DISCOVERED_IN]-(:Version {framework: $framework}) }
 
 WITH e, depV, remV, replacement,
@@ -53,7 +53,7 @@ OPTIONAL MATCH (e)-[:DEPRECATED_IN]->(depV:Version {framework: $framework})
 OPTIONAL MATCH (e)-[:REMOVED_IN]->(remV:Version {framework: $framework})
 
 OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
-WHERE rule:MigrationRule OR rule:CommunityInsight
+WHERE rule:MigrationRule
 
 RETURN
   labels(e)[0] AS entity_type,
