@@ -97,10 +97,16 @@ def _build_hits(
     *,
     framework: str | None,
     openrewrite: bool,
+    only_composite: bool | None = None,
+    require_no_params: bool = False,
 ) -> list[dict]:
     ids = [node_id for node_id, _ in fused]
     if openrewrite:
-        nodes = search_queries.hydrate_openrewrite_recipes(element_ids=ids)
+        nodes = search_queries.hydrate_openrewrite_recipes(
+            element_ids=ids,
+            only_composite=only_composite,
+            require_no_params=require_no_params,
+        )
     else:
         nodes = search_queries.hydrate_nodes(
             element_ids=ids,
@@ -129,6 +135,7 @@ def _build_hits(
                 {
                     "node_id": node_id,
                     "node_type": node.get("node_type") or "",
+                    "title": node.get("title") or (node.get("statement") or "")[:80],
                     "statement": node.get("statement") or "",
                     "score": score,
                     "source_url": node.get("source_url") or "",
@@ -200,10 +207,13 @@ async def search_openrewrite_recipes(
         min_vector_similarity=min_vector_similarity,
     )
     fused = rrf_fuse(bm25_hits, vector_hits, k=rrf_k)[:max_results]
-    hits = _build_hits(fused, framework=None, openrewrite=True)
-    if only_composite is not None or require_no_params:
-        # Filtering deferred to hydration layer when properties are available.
-        pass
+    hits = _build_hits(
+        fused,
+        framework=None,
+        openrewrite=True,
+        only_composite=only_composite,
+        require_no_params=require_no_params,
+    )
     return {
         "status": "ok",
         "query": query,

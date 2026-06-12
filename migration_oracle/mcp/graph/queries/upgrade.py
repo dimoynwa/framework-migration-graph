@@ -70,10 +70,11 @@ WITH v, raw_lifecycle_events, rule, affected_entities,
 WITH v, raw_lifecycle_events, collect(DISTINCT {
     rule_id: elementId(rule),
     rule_type: labels(rule)[0],
+    title: rule.title,
     statement: rule.statement,
     action_step: rule.actionStep,
     source_url: rule.sourceUrl,
-    reason: rule.reason,
+    reason: coalesce(rule.statement, rule.reason),
     solution: rule.solution,
     change_type: rule.changeType,
     reason_type: rule.reasonType,
@@ -84,11 +85,17 @@ WITH v, raw_lifecycle_events, collect(DISTINCT {
     recipes: [x IN recipes WHERE x.recipe_id IS NOT NULL]
 }) AS raw_rules
 
+OPTIONAL MATCH (v)-[:HAS_LIFECYCLE_ALERT]->(la:LifecycleAlert)
+
+WITH v, raw_lifecycle_events, raw_rules,
+     collect(DISTINCT {message: la.message, category: la.category, phase: la.phase}) AS raw_phase_alerts_all
+
 RETURN
     v.version AS release_version,
     v.sortableVersion AS release_sortable,
     [x IN raw_rules WHERE x.statement IS NOT NULL] AS rules,
-    [x IN raw_lifecycle_events WHERE x.event_type IS NOT NULL] AS lifecycle_events
+    [x IN raw_lifecycle_events WHERE x.event_type IS NOT NULL] AS lifecycle_events,
+    [x IN raw_phase_alerts_all WHERE x.message IS NOT NULL] AS raw_phase_alerts
 ORDER BY v.sortableVersion ASC
 """
 
@@ -113,10 +120,12 @@ WHERE size($user_entities) = 0
 OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->(s:MigrationStep)
 OPTIONAL MATCH (rule)-[:HAS_SCOPE]->(bs:BreakingScope)
 OPTIONAL MATCH (s)-[ab_s:AUTOMATED_BY]->(rec_s:OpenRewriteRecipe)
+OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ae)
 
 WITH v, rule, affected_entities, s, bs, ab_s, rec_s,
      elementId(rule) AS rule_id,
-     elementId(s) AS step_id
+     elementId(s) AS step_id,
+     collect(DISTINCT ae.name) AS all_affected_entities
 
 RETURN
     rule_id,
@@ -133,8 +142,15 @@ RETURN
     rec_s.recipeId AS recipe_id,
     ab_s.auto AS auto,
     coalesce(ab_s.missingRequiredParams, []) AS missing_required_params,
-    v.version AS version
+    v.version AS version,
+    all_affected_entities
 ORDER BY v.sortableVersion ASC, s.stepIndex ASC
+"""
+
+
+_CHECK_VERSION_IN_GRAPH = """
+MATCH (v:Version {framework: $framework, version: $version})
+RETURN count(v) > 0 AS found
 """
 
 
@@ -165,12 +181,39 @@ def analyze_upgrade_path(
     with read_session() as session:
         rows = list(session.run(_ANALYZE_UPGRADE_PATH, params))
 
+    user_ents_lower = {u.lower() for u in entities}
+
+    def _enrich(data: dict) -> dict:
+        enriched: list[dict] = []
+        for rule in (data.get("rules") or []):
+            r = dict(rule)
+            raw_affected = r.get("affected_entities") or []
+            if not user_ents_lower:
+                r["matched_entities"] = []
+                r["universally_applicable"] = len(raw_affected) == 0
+                r["applicability"] = "universal"
+            else:
+                matched = [
+                    e for e in raw_affected
+                    if e and any(u in e.lower() for u in user_ents_lower)
+                ]
+                r["matched_entities"] = matched
+                r["universally_applicable"] = len(raw_affected) == 0
+                r["applicability"] = (
+                    "universal"  if len(raw_affected) == 0 else
+                    "applicable" if matched else
+                    "not_applicable"
+                )
+            enriched.append(r)
+        data["rules"] = enriched
+        return data
+
     if not scopes and not min_severity:
-        return [dict(row) for row in rows]
+        return [_enrich(dict(row)) for row in rows]
 
     filtered: list[dict] = []
     for row in rows:
-        data = dict(row)
+        data = _enrich(dict(row))
         rules = data.get("rules") or []
         kept_rules = []
         for rule in rules:
@@ -213,7 +256,10 @@ def build_recipe_plan(
     has_steps = any(row.get("step_id") for row in rows)
     fallback_to_rule_cards = not has_steps
 
+    seen_step_ids: set[str] = set()
     seen_rule_ids: set[str] = set()
+    user_ents_lower = {e.lower() for e in (entities or [])}
+
     for row in rows:
         if scopes or min_severity:
             scope = row.get("scope")
@@ -226,6 +272,7 @@ def build_recipe_plan(
 
         step_id = row.get("step_id")
         rule_id = row.get("rule_id")
+
         if not has_steps:
             if rule_id in seen_rule_ids:
                 continue
@@ -248,6 +295,21 @@ def build_recipe_plan(
         if not step_id:
             continue
 
+        # Dedup: first occurrence of each step_id wins
+        if step_id in seen_step_ids:
+            continue
+        seen_step_ids.add(step_id)
+
+        # Applicability scoring
+        all_affected = row.get("all_affected_entities") or []
+        all_affected_lower = {e.lower() for e in all_affected if e}
+        if not user_ents_lower or not all_affected_lower:
+            applicability = "unknown"
+            matched_entities: list[str] = []
+        else:
+            matched_entities = [e for e in all_affected if e and e.lower() in user_ents_lower]
+            applicability = "applicable" if matched_entities else "not_applicable"
+
         auto_ok = (
             row.get("automatable") is True
             and row.get("effort") == "mechanical"
@@ -263,6 +325,8 @@ def build_recipe_plan(
                     "summary": row.get("summary") or "",
                     "recipe_id": row.get("recipe_id") or "",
                     "rewrite_yml_fragment": "",
+                    "applicability": applicability,
+                    "matched_entities": matched_entities,
                 }
             )
         else:
@@ -276,6 +340,8 @@ def build_recipe_plan(
                     "effort": row.get("effort") or "",
                     "blocked_reason": "",
                     "action_step": row.get("action_step") or "",
+                    "applicability": applicability,
+                    "matched_entities": matched_entities,
                 }
             )
 

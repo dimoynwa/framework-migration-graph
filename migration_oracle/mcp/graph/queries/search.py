@@ -88,6 +88,7 @@ def hydrate_nodes(
            n.sourceUrl AS source_url,
            n.description AS description,
            n.recipeId AS recipe_id,
+           n.title AS title,
            n.displayName AS display_name,
            versions
     """
@@ -102,11 +103,20 @@ def hydrate_nodes(
         ]
 
 
-def hydrate_openrewrite_recipes(*, element_ids: list[str]) -> list[dict]:
+def hydrate_openrewrite_recipes(
+    *,
+    element_ids: list[str],
+    only_composite: bool | None = None,
+    require_no_params: bool = False,
+) -> list[dict]:
     if not element_ids:
         return []
     cypher = """
     MATCH (r:OpenRewriteRecipe) WHERE elementId(r) IN $ids
+      AND (NOT $only_composite OR r.composite = true)
+      AND (NOT $require_no_params OR NOT EXISTS {
+        MATCH (r)-[:HAS_PARAM]->(p:RecipeParam) WHERE p.required = true
+      })
     RETURN elementId(r) AS node_id,
            r.recipeId AS recipe_id,
            r.displayName AS display_name,
@@ -118,4 +128,12 @@ def hydrate_openrewrite_recipes(*, element_ids: list[str]) -> list[dict]:
            coalesce(r.tags, []) AS tags
     """
     with read_session() as session:
-        return [dict(row) for row in session.run(cypher, ids=element_ids)]
+        return [
+            dict(row)
+            for row in session.run(
+                cypher,
+                ids=element_ids,
+                only_composite=only_composite is True,
+                require_no_params=require_no_params,
+            )
+        ]

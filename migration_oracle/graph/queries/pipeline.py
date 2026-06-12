@@ -51,6 +51,7 @@ def upsert_version_artifact_paths(
     raw_md_path: str,
     filtered_md_path: str,
     entities_json_path: str,
+    from_version: str = "",
 ) -> None:
     merge_version(
         framework=framework,
@@ -61,7 +62,8 @@ def upsert_version_artifact_paths(
     MATCH (v:Version {framework: $framework, version: $version})
     SET v.rawMdPath = $raw_md_path,
         v.filteredMdPath = $filtered_md_path,
-        v.entitiesJsonPath = $entities_json_path
+        v.entitiesJsonPath = $entities_json_path,
+        v.fromVersion = $from_version
     """
     with write_session() as session:
         session.run(
@@ -71,6 +73,7 @@ def upsert_version_artifact_paths(
             raw_md_path=raw_md_path,
             filtered_md_path=filtered_md_path,
             entities_json_path=entities_json_path,
+            from_version=from_version,
         )
 
 

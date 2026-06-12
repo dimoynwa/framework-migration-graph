@@ -5,6 +5,13 @@ from __future__ import annotations
 from migration_oracle.graph.driver import read_session, write_session
 from migration_oracle.mcp.graph.queries._severity import SEVERITY_RANK, severity_meets_threshold
 
+
+class VersionNotInGraphError(Exception):
+    def __init__(self, missing_version: str, available_versions: list[str]) -> None:
+        self.missing_version = missing_version
+        self.available_versions = available_versions
+        super().__init__(f"Version {missing_version!r} not found in graph")
+
 _CREATE_OR_GET_CONTEXT = """
 MERGE (ctx:MigrationContext {
   projectId: $project_id,
@@ -97,6 +104,28 @@ RETURN elementId(ctx) AS context_id,
        ctx.status AS migration_status
 """
 
+_VALIDATE_STEP_ON_PATH = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
+MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
+MATCH (v:Version)
+WHERE v.sortableVersion > from_v.sortableVersion
+  AND v.sortableVersion <= to_v.sortableVersion
+MATCH (v)-[:INCLUDES_RULE]->(:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
+WHERE elementId(s) = $step_id
+RETURN count(s) > 0 AS on_path
+"""
+
+_MERGE_STEP_OUTCOME_REL = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (s:MigrationStep) WHERE elementId(s) = $step_id
+MERGE (ctx)-[rel:STEP_OUTCOME]->(s)
+SET rel.status    = $status,
+    rel.reason    = $reason,
+    rel.updatedAt = datetime()
+RETURN elementId(rel) AS rel_id
+"""
+
 _AUTO_CLOSE_WRITE = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
 SET ctx.status = 'complete', ctx.completedAt = datetime()
@@ -112,16 +141,25 @@ WHERE v.sortableVersion > from_v.sortableVersion
   AND v.sortableVersion <= to_v.sortableVersion
 MATCH (v)-[:INCLUDES_RULE]->(r:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
-WHERE bs.scope = $scope
-OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
-WHERE e.name IN ctx.scannedEntities
-RETURN DISTINCT e.name AS entity_name,
-       labels(e)[0] AS entity_type,
-       elementId(s) AS step_id,
+WITH ctx, v, r, s, bs
+WHERE bs IS NULL OR bs.scope = $scope
+RETURN DISTINCT elementId(s) AS step_id,
        elementId(r) AS rule_id,
        s.summary AS summary,
        bs.scope AS scope,
        bs.severity AS severity
+"""
+
+_DELETE_ZOMBIE_CONTEXT = """
+MATCH (ctx:MigrationContext {projectId: $project_id, fromVersion: $from_version, toVersion: $to_version})
+WHERE NOT (ctx)-[:UPGRADES_FROM]->()
+DELETE ctx
+"""
+
+_GET_AVAILABLE_VERSIONS = """
+MATCH (v:Version {framework: $framework})
+RETURN v.version AS version
+ORDER BY v.sortableVersion
 """
 
 _CLOSE_CONTEXT = """
@@ -136,6 +174,22 @@ RETURN elementId(ctx) AS context_id,
        toString(ctx.completedAt) AS completed_at,
        coalesce(ctx.notes, '') AS notes
 """
+
+
+def _get_available_versions(framework: str) -> list[str]:
+    with read_session() as session:
+        rows = session.run(_GET_AVAILABLE_VERSIONS, framework=framework)
+        return [row["version"] for row in rows]
+
+
+def delete_zombie_context(*, project_id: str, from_version: str, to_version: str) -> None:
+    with write_session() as session:
+        session.run(
+            _DELETE_ZOMBIE_CONTEXT,
+            project_id=project_id,
+            from_version=from_version,
+            to_version=to_version,
+        )
 
 
 def create_or_get_context(
@@ -156,7 +210,8 @@ def create_or_get_context(
             scanned_entities=scanned_entities,
         ).single()
     if record is None:
-        raise RuntimeError("Failed to create or load MigrationContext")
+        available = _get_available_versions(framework)
+        raise VersionNotInGraphError(from_version, available)
     return dict(record)
 
 
@@ -185,7 +240,17 @@ def record_step_outcome(
     context_id: str,
     step_id: str,
     outcome: str,
+    reason: str = "",
 ) -> dict:
+    with read_session() as session:
+        path_record = session.run(
+            _VALIDATE_STEP_ON_PATH,
+            context_id=context_id,
+            step_id=step_id,
+        ).single()
+    if path_record is None or not path_record["on_path"]:
+        return {"on_path": False}
+
     with write_session() as session:
         record = session.run(
             _RECORD_STEP_OUTCOME,
@@ -193,6 +258,13 @@ def record_step_outcome(
             step_id=step_id,
             outcome=outcome,
         ).single()
+        session.run(
+            _MERGE_STEP_OUTCOME_REL,
+            context_id=context_id,
+            step_id=step_id,
+            status=outcome,
+            reason=reason or None,
+        )
     if record is None:
         raise ValueError(f"Context not found: {context_id}")
     return dict(record)
@@ -224,8 +296,11 @@ def get_steps_for_scope_tier(
     return [
         row
         for row in rows
-        if row.get("entity_name")
-        and severity_meets_threshold(row.get("severity"), min_severity)
+        if row.get("step_id")
+        and (
+            row.get("severity") is None
+            or severity_meets_threshold(row.get("severity"), min_severity)
+        )
     ]
 
 

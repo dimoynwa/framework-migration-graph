@@ -75,7 +75,7 @@ def entity_evolution(entity_name: str, framework: str = "Spring Boot") -> dict:
             "entity_type": row.get("entity_type") or "",
             "deprecated_in": row.get("deprecated"),
             "removed_in": row.get("removed"),
-            "rules": row.get("rules") or [],
+            "rules": [r for r in (row.get("rules") or []) if r.get("type") or r.get("statement")],
         }
         for row in chain_rows
     ]

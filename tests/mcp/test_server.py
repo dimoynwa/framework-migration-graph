@@ -14,7 +14,7 @@ from migration_oracle.mcp.instance import mcp
 @pytest.mark.asyncio
 async def test_tool_count():
     tools = await mcp.list_tools()
-    assert len(tools) == 21
+    assert len(tools) == 22
 
 
 @pytest.mark.asyncio

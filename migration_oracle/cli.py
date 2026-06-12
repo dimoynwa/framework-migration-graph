@@ -172,6 +172,7 @@ def pipeline(
         batch=extraction_result.batch,
         framework_display=display_name,
         to_version=to_version,
+        from_version=from_version,
         raw_md_path=str(raw_path),
         filtered_md_path=str(filtered_path),
         entities_json_path=str(json_path),

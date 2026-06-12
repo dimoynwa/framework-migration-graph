@@ -2,7 +2,20 @@
 
 from __future__ import annotations
 
+import os
+import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+
+import requests
 from packaging.version import InvalidVersion, Version
+
+_FINDIT_TIMEOUT_SECONDS = 10
+
+_CRED_RE = re.compile(r'https?://[^:@/\s]+:[^@\s]+@|oauth2:[^@\s]+@')
+
+
+def _scrub(s: str) -> str:
+    return _CRED_RE.sub('<redacted>@', s)
 
 from migration_oracle.paysafe import findit, gitlab
 from migration_oracle.paysafe._types import (
@@ -31,6 +44,7 @@ def _build_error(
     actionable_hint: str,
     details: dict | None = None,
 ) -> dict:
+    message = _scrub(message)
     return {
         "status": "error",
         "error": {
@@ -105,9 +119,22 @@ def resolve(
                 details={"input_name": service_name},
             )
 
-        # Step 3: FindIt lookup
+        # Step 3: FindIt lookup (time-bounded to avoid hanging on unresponsive backend)
+        _fi_executor = ThreadPoolExecutor(max_workers=1)
         try:
-            findit_record = findit.lookup(service_name)
+            _fi_future = _fi_executor.submit(findit.lookup, service_name)
+            try:
+                findit_record = _fi_future.result(timeout=_FINDIT_TIMEOUT_SECONDS)
+            except FuturesTimeout:
+                _fi_executor.shutdown(wait=False)
+                return _build_error(
+                    "findit_timeout",
+                    f"FindIt did not respond within {_FINDIT_TIMEOUT_SECONDS}s for {service_name!r}.",
+                    recoverable=True,
+                    actionable_hint="Retry the request or check network connectivity to FindIt.",
+                    details={"service_name": service_name, "timeout_seconds": _FINDIT_TIMEOUT_SECONDS},
+                )
+            _fi_executor.shutdown(wait=False)
         except _FindItError as exc:
             if exc.error_code == "service_not_found":
                 return _build_error(
@@ -159,14 +186,37 @@ def resolve(
             tags = gitlab.list_tags(code_repo_link)
         except _GitError as exc:
             if exc.error_code == "git_ls_remote_failed":
-                return _build_error(
-                    exc.error_code,
-                    exc.message or "git ls-remote failed.",
-                    recoverable=True,
-                    actionable_hint="Check GitLab access credentials and repository URL.",
-                    details={"repo_url": code_repo_link},
-                )
-            if exc.error_code == "no_tags_found":
+                artifactory_base = os.environ.get("ARTIFACTORY_BASE_URL", "").rstrip("/")
+                if not artifactory_base:
+                    return _build_error(
+                        exc.error_code,
+                        exc.message or "git ls-remote failed.",
+                        recoverable=True,
+                        actionable_hint="Check GitLab access credentials and repository URL.",
+                        details={"repo_url": code_repo_link},
+                    )
+                try:
+                    url = f"{artifactory_base}/api/search/latestVersion?a={service_name}"
+                    resp = requests.get(url, timeout=10)
+                    if resp.ok and resp.text.strip():
+                        tags = [resp.text.strip()]
+                    else:
+                        return _build_error(
+                            "git_ls_remote_failed",
+                            "GitLab failed and Artifactory returned no version.",
+                            recoverable=True,
+                            actionable_hint="Check GitLab access and Artifactory repository.",
+                            details={"repo_url": code_repo_link},
+                        )
+                except Exception:
+                    return _build_error(
+                        "git_ls_remote_failed",
+                        "GitLab failed and Artifactory fallback also failed.",
+                        recoverable=True,
+                        actionable_hint="Check GitLab access credentials and Artifactory availability.",
+                        details={"repo_url": code_repo_link},
+                    )
+            elif exc.error_code == "no_tags_found":
                 return _build_error(
                     exc.error_code,
                     exc.message or "Repository has no git tags.",
@@ -174,7 +224,7 @@ def resolve(
                     actionable_hint="Ensure the repository has version tags.",
                     details={"repo_url": code_repo_link},
                 )
-            if exc.error_code == "no_parseable_tags":
+            elif exc.error_code == "no_parseable_tags":
                 return _build_error(
                     exc.error_code,
                     exc.message or "No tags parse as semantic versions.",
@@ -182,13 +232,14 @@ def resolve(
                     actionable_hint="Ensure tags follow semver conventions.",
                     details={"repo_url": code_repo_link},
                 )
-            return _build_error(
-                exc.error_code,
-                exc.message or "Git tag listing failed.",
-                recoverable=True,
-                actionable_hint="Check GitLab repository access.",
-                details={"repo_url": code_repo_link},
-            )
+            else:
+                return _build_error(
+                    exc.error_code,
+                    exc.message or "Git tag listing failed.",
+                    recoverable=True,
+                    actionable_hint="Check GitLab repository access.",
+                    details={"repo_url": code_repo_link},
+                )
 
         # Step 6: scan tags
         compatible_tags: list[tuple[str, CompatibilityInfoObj]] = []
