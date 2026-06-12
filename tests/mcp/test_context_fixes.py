@@ -49,6 +49,11 @@ def test_normalises_patch_version(mock_create, mock_delete):
         to_version="4.1.0",
         framework="spring-boot",
         scanned_entities=[],
+        scanned_classes=[],
+        scanned_class_simple=[],
+        scanned_deps_ga=[],
+        scanned_dep_artifacts=[],
+        scanned_props=[],
     )
     mock_delete.assert_not_called()
 
@@ -246,6 +251,11 @@ def test_patch_version_full_chain(mock_create, mock_get_steps):
         to_version="4.1.0",
         framework="spring-boot",
         scanned_entities=[],
+        scanned_classes=[],
+        scanned_class_simple=[],
+        scanned_deps_ga=[],
+        scanned_dep_artifacts=[],
+        scanned_props=[],
     )
 
     steps_result = get_steps_for_scope_tier(

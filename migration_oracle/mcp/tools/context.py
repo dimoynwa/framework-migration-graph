@@ -5,7 +5,7 @@ from __future__ import annotations
 from migration_oracle.mcp.graph.queries import context as context_queries
 from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError
 from migration_oracle.mcp.instance import mcp
-from migration_oracle.mcp.tools.upgrade import to_minor_zero
+from migration_oracle.mcp.tools.upgrade import normalize_entities, to_minor_zero
 
 
 def _pending_step(row: dict) -> dict:
@@ -23,6 +23,7 @@ def _pending_step(row: dict) -> dict:
         "severity": row.get("severity") or "",
         "requires": requires,
         "recipe_id": row.get("recipe_id"),
+        "applicability": row.get("applicability") or "informational",
     }
 
 
@@ -40,29 +41,36 @@ def create_migration_context(
     Pass scanned_entities from Loop I codebase scan to seed the context with project-specific entities.
     Returns: context_id (use in all subsequent context tool calls), migration_status, scanned_entities.
     """
-    from_norm = to_minor_zero(from_version)
-    to_norm = to_minor_zero(to_version)
+    entities = scanned_entities or []
+    norm = normalize_entities(entities)
+    norm_from = to_minor_zero(from_version)
+    norm_to = to_minor_zero(to_version)
     try:
         ctx = context_queries.create_or_get_context(
             project_id=project_id,
-            from_version=from_norm,
-            to_version=to_norm,
+            from_version=norm_from,
+            to_version=norm_to,
             framework=framework,
-            scanned_entities=scanned_entities or [],
+            scanned_entities=entities,
+            scanned_classes=norm["scanned_classes"],
+            scanned_class_simple=norm["scanned_class_simple"],
+            scanned_deps_ga=norm["scanned_deps_ga"],
+            scanned_dep_artifacts=norm["scanned_dep_artifacts"],
+            scanned_props=norm["scanned_props"],
         )
     except VersionNotInGraphError as exc:
-        context_queries.delete_zombie_context(
-            project_id=project_id,
-            from_version=from_norm,
-            to_version=to_norm,
+        if not exc.available:
+            context_queries.delete_zombie_context(
+                project_id=project_id,
+                from_version=norm_from,
+                to_version=norm_to,
+            )
+        hint = (
+            f"Version '{exc.version}' not in graph. Available: {', '.join(exc.available)}"
+            if exc.available
+            else f"Version '{exc.version}' not found in graph."
         )
-        hint = ", ".join(exc.available_versions) if exc.available_versions else "none found"
-        return {
-            "status": "error",
-            "error_code": "version_not_in_graph",
-            "missing_version": exc.missing_version,
-            "hint": f"Available versions in graph: {hint}",
-        }
+        return {"status": "error", "error_code": "version_not_in_graph", "hint": hint}
     return {
         "status": "ok",
         "context_id": ctx["context_id"],
@@ -118,6 +126,7 @@ def update_step_status(
     """Record the outcome of a migration step: 'completed', 'skipped', or 'failed'.
 
     Auto-closes the context when no pending steps remain after this call.
+    The 'reason' parameter is accepted but not persisted in the current release.
     Returns: step_id, outcome, context_auto_closed, context_status, completed_count, skipped_count.
     """
     result = context_queries.record_step_outcome(
@@ -131,7 +140,7 @@ def update_step_status(
             "status": "error",
             "error_code": "step_not_on_path",
             "step_id": step_id,
-            "hint": f"Step {step_id} is not part of migration path for context {context_id}",
+            "hint": f"Step '{step_id}' is not on the migration path for context '{context_id}'.",
         }
     pending = context_queries.get_pending_steps(context_id=context_id)
     context_auto_closed = False
@@ -170,18 +179,20 @@ def get_steps_for_scope_tier(
         scope=scope,
         min_severity=severity_threshold,
     )
+    entities = sorted({row["entity_name"] for row in rows if row.get("entity_name")})
     hits = [
         {
+            "entity_name": row.get("entity_name") or "",
+            "entity_type": row.get("entity_type") or "",
             "step_id": row.get("step_id") or "",
             "rule_id": row.get("rule_id") or "",
             "summary": row.get("summary") or "",
             "scope": row.get("scope"),
-            "severity": row.get("severity") or None,
+            "severity": row.get("severity") or "",
         }
         for row in rows
     ]
     rule_ids = {row.get("rule_id") for row in rows if row.get("rule_id")}
-    entities: list[str] = []
     return {
         "status": "ok",
         "context_id": context_id,

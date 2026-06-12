@@ -7,10 +7,13 @@ from migration_oracle.mcp.graph.queries._severity import SEVERITY_RANK, severity
 
 
 class VersionNotInGraphError(Exception):
-    def __init__(self, missing_version: str, available_versions: list[str]) -> None:
-        self.missing_version = missing_version
-        self.available_versions = available_versions
-        super().__init__(f"Version {missing_version!r} not found in graph")
+    """Raised when a requested version is not present in the graph."""
+
+    def __init__(self, version: str, available: list[str] | None = None) -> None:
+        self.version = version
+        self.available = available or []
+        hint = f" Available: {self.available}" if self.available else ""
+        super().__init__(f"Version '{version}' not found in graph.{hint}")
 
 _CREATE_OR_GET_CONTEXT = """
 MERGE (ctx:MigrationContext {
@@ -29,9 +32,19 @@ ON CREATE SET
   ctx.createdAt = datetime(),
   ctx.completedAt = null,
   ctx.notes = '',
-  ctx._was_created = true
+  ctx._was_created = true,
+  ctx.scannedClasses       = $scanned_classes,
+  ctx.scannedClassSimple   = $scanned_class_simple,
+  ctx.scannedDepsGa        = $scanned_deps_ga,
+  ctx.scannedDepArtifacts  = $scanned_dep_artifacts,
+  ctx.scannedProps         = $scanned_props
 ON MATCH SET
-  ctx._was_created = false
+  ctx._was_created = false,
+  ctx.scannedClasses       = $scanned_classes,
+  ctx.scannedClassSimple   = $scanned_class_simple,
+  ctx.scannedDepsGa        = $scanned_deps_ga,
+  ctx.scannedDepArtifacts  = $scanned_dep_artifacts,
+  ctx.scannedProps         = $scanned_props
 WITH ctx
 MATCH (vf:Version {framework: $framework, version: $from_version})
 MATCH (vt:Version {framework: $framework, version: $to_version})
@@ -65,27 +78,69 @@ WHERE NOT elementId(s) IN ctx.completedSteps
   AND NOT elementId(s) IN ctx.skippedSteps
   AND NOT elementId(s) IN coalesce(ctx.failedSteps, [])
   AND (size($effort_filter) = 0 OR s.effort IN $effort_filter)
+
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
   WHERE size($scope_filter) = 0 OR bs.scope IN $scope_filter
+WITH ctx, r, s,
+     min(CASE bs.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+           WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END) AS sev_rank,
+     head(collect(DISTINCT bs.scope))    AS scope,
+     head(collect(DISTINCT bs.severity)) AS severity
+
+WITH ctx, r, s, sev_rank, scope, severity,
+     coalesce(ctx.scannedClasses,      []) AS sc_c,
+     coalesce(ctx.scannedClassSimple,  []) AS sc_cs,
+     coalesce(ctx.scannedDepsGa,       []) AS sc_dga,
+     coalesce(ctx.scannedDepArtifacts, []) AS sc_da,
+     coalesce(ctx.scannedProps,        []) AS sc_p,
+     (size(coalesce(ctx.scannedClasses, [])) > 0
+       OR size(coalesce(ctx.scannedClassSimple, [])) > 0
+       OR size(coalesce(ctx.scannedDepsGa, [])) > 0
+       OR size(coalesce(ctx.scannedDepArtifacts, [])) > 0
+       OR size(coalesce(ctx.scannedProps, [])) > 0) AS has_filter
+
+OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filter, e,
+     CASE
+       WHEN e IS NULL THEN false
+       WHEN e:Class THEN
+            e.name IN sc_c
+         OR last(split(e.name, '.')) IN sc_cs
+       WHEN e:ApplicationProperty THEN e.name IN sc_p
+       WHEN e:Dependency THEN
+            (size(split(e.name, ':')) >= 2
+               AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN sc_dga)
+         OR last(split(e.name, ':')) IN sc_da
+       ELSE false
+     END AS entity_match
+
+WITH r, s, sev_rank, scope, severity, has_filter,
+     count(DISTINCT e)                             AS affected_count,
+     sum(CASE WHEN entity_match THEN 1 ELSE 0 END) AS match_count
+
+WITH r, s, sev_rank, scope, severity,
+     CASE WHEN affected_count = 0 THEN 'informational'
+          WHEN NOT has_filter     THEN 'universal'
+          WHEN match_count > 0    THEN 'matched'
+          WHEN sev_rank <= 1      THEN 'uncertain'
+          ELSE                         'excluded' END AS applicability
+WHERE applicability <> 'excluded'
+
 OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
-  WHERE ab.auto = true AND ab.missingRequiredParams = []
+  WHERE ab.auto = true AND coalesce(ab.missingRequiredParams, []) = []
 OPTIONAL MATCH (s)-[:REQUIRES]->(prereq:MigrationStep)
 RETURN elementId(s) AS step_id,
-       s.stepType AS step_type,
-       elementId(r) AS rule_id,
-       s.summary AS summary,
+       s.stepType    AS step_type,
+       elementId(r)  AS rule_id,
+       s.summary     AS summary,
        s.instruction AS instruction,
        s.verificationHint AS verification_hint,
-       s.effort AS effort,
+       s.effort      AS effort,
        s.automatable AS automatable,
-       bs.scope AS scope,
-       bs.severity AS severity,
-       rec.recipeId AS recipe_id,
-       s.stepIndex AS _step_index,
-       CASE bs.severity
-         WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-         WHEN 'medium'   THEN 2 ELSE 3
-       END AS _severity_rank,
+       scope, severity, applicability,
+       rec.recipeId  AS recipe_id,
+       s.stepIndex   AS _step_index,
+       sev_rank      AS _severity_rank,
        collect(DISTINCT elementId(prereq)) AS requires
 ORDER BY _severity_rank ASC, _step_index ASC
 """
@@ -104,28 +159,6 @@ RETURN elementId(ctx) AS context_id,
        ctx.status AS migration_status
 """
 
-_VALIDATE_STEP_ON_PATH = """
-MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
-MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
-MATCH (v:Version)
-WHERE v.sortableVersion > from_v.sortableVersion
-  AND v.sortableVersion <= to_v.sortableVersion
-MATCH (v)-[:INCLUDES_RULE]->(:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
-WHERE elementId(s) = $step_id
-RETURN count(s) > 0 AS on_path
-"""
-
-_MERGE_STEP_OUTCOME_REL = """
-MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-MATCH (s:MigrationStep) WHERE elementId(s) = $step_id
-MERGE (ctx)-[rel:STEP_OUTCOME]->(s)
-SET rel.status    = $status,
-    rel.reason    = $reason,
-    rel.updatedAt = datetime()
-RETURN elementId(rel) AS rel_id
-"""
-
 _AUTO_CLOSE_WRITE = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
 SET ctx.status = 'complete', ctx.completedAt = datetime()
@@ -141,25 +174,16 @@ WHERE v.sortableVersion > from_v.sortableVersion
   AND v.sortableVersion <= to_v.sortableVersion
 MATCH (v)-[:INCLUDES_RULE]->(r:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
-WITH ctx, v, r, s, bs
-WHERE bs IS NULL OR bs.scope = $scope
-RETURN DISTINCT elementId(s) AS step_id,
+WHERE bs.scope = $scope
+OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WHERE e.name IN ctx.scannedEntities
+RETURN DISTINCT e.name AS entity_name,
+       labels(e)[0] AS entity_type,
+       elementId(s) AS step_id,
        elementId(r) AS rule_id,
        s.summary AS summary,
        bs.scope AS scope,
        bs.severity AS severity
-"""
-
-_DELETE_ZOMBIE_CONTEXT = """
-MATCH (ctx:MigrationContext {projectId: $project_id, fromVersion: $from_version, toVersion: $to_version})
-WHERE NOT (ctx)-[:UPGRADES_FROM]->()
-DELETE ctx
-"""
-
-_GET_AVAILABLE_VERSIONS = """
-MATCH (v:Version {framework: $framework})
-RETURN v.version AS version
-ORDER BY v.sortableVersion
 """
 
 _CLOSE_CONTEXT = """
@@ -176,22 +200,6 @@ RETURN elementId(ctx) AS context_id,
 """
 
 
-def _get_available_versions(framework: str) -> list[str]:
-    with read_session() as session:
-        rows = session.run(_GET_AVAILABLE_VERSIONS, framework=framework)
-        return [row["version"] for row in rows]
-
-
-def delete_zombie_context(*, project_id: str, from_version: str, to_version: str) -> None:
-    with write_session() as session:
-        session.run(
-            _DELETE_ZOMBIE_CONTEXT,
-            project_id=project_id,
-            from_version=from_version,
-            to_version=to_version,
-        )
-
-
 def create_or_get_context(
     *,
     project_id: str,
@@ -199,6 +207,11 @@ def create_or_get_context(
     to_version: str,
     framework: str,
     scanned_entities: list[str],
+    scanned_classes: list[str] | None = None,
+    scanned_class_simple: list[str] | None = None,
+    scanned_deps_ga: list[str] | None = None,
+    scanned_dep_artifacts: list[str] | None = None,
+    scanned_props: list[str] | None = None,
 ) -> dict:
     with write_session() as session:
         record = session.run(
@@ -208,10 +221,14 @@ def create_or_get_context(
             to_version=to_version,
             framework=framework,
             scanned_entities=scanned_entities,
+            scanned_classes=scanned_classes or [],
+            scanned_class_simple=scanned_class_simple or [],
+            scanned_deps_ga=scanned_deps_ga or [],
+            scanned_dep_artifacts=scanned_dep_artifacts or [],
+            scanned_props=scanned_props or [],
         ).single()
     if record is None:
-        available = _get_available_versions(framework)
-        raise VersionNotInGraphError(from_version, available)
+        raise RuntimeError("Failed to create or load MigrationContext")
     return dict(record)
 
 
@@ -242,15 +259,6 @@ def record_step_outcome(
     outcome: str,
     reason: str = "",
 ) -> dict:
-    with read_session() as session:
-        path_record = session.run(
-            _VALIDATE_STEP_ON_PATH,
-            context_id=context_id,
-            step_id=step_id,
-        ).single()
-    if path_record is None or not path_record["on_path"]:
-        return {"on_path": False}
-
     with write_session() as session:
         record = session.run(
             _RECORD_STEP_OUTCOME,
@@ -258,13 +266,6 @@ def record_step_outcome(
             step_id=step_id,
             outcome=outcome,
         ).single()
-        session.run(
-            _MERGE_STEP_OUTCOME_REL,
-            context_id=context_id,
-            step_id=step_id,
-            status=outcome,
-            reason=reason or None,
-        )
     if record is None:
         raise ValueError(f"Context not found: {context_id}")
     return dict(record)
@@ -296,12 +297,32 @@ def get_steps_for_scope_tier(
     return [
         row
         for row in rows
-        if row.get("step_id")
-        and (
-            row.get("severity") is None
-            or severity_meets_threshold(row.get("severity"), min_severity)
-        )
+        if row.get("entity_name")
+        and severity_meets_threshold(row.get("severity"), min_severity)
     ]
+
+
+def delete_zombie_context(
+    *,
+    project_id: str,
+    from_version: str,
+    to_version: str,
+) -> None:
+    """Delete a MigrationContext node that was created with an invalid version."""
+    with write_session() as session:
+        session.run(
+            """
+            MATCH (ctx:MigrationContext {
+              projectId: $project_id,
+              fromVersion: $from_version,
+              toVersion: $to_version
+            })
+            DELETE ctx
+            """,
+            project_id=project_id,
+            from_version=from_version,
+            to_version=to_version,
+        )
 
 
 def close_migration_context(

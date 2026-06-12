@@ -102,11 +102,12 @@ def _build_hits(
 ) -> list[dict]:
     ids = [node_id for node_id, _ in fused]
     if openrewrite:
-        nodes = search_queries.hydrate_openrewrite_recipes(
-            element_ids=ids,
-            only_composite=only_composite,
-            require_no_params=require_no_params,
-        )
+        kwargs: dict = {"element_ids": ids}
+        if only_composite is not None:
+            kwargs["only_composite"] = only_composite
+        if require_no_params:
+            kwargs["require_no_params"] = require_no_params
+        nodes = search_queries.hydrate_openrewrite_recipes(**kwargs)
     else:
         nodes = search_queries.hydrate_nodes(
             element_ids=ids,
@@ -135,7 +136,6 @@ def _build_hits(
                 {
                     "node_id": node_id,
                     "node_type": node.get("node_type") or "",
-                    "title": node.get("title") or (node.get("statement") or "")[:80],
                     "statement": node.get("statement") or "",
                     "score": score,
                     "source_url": node.get("source_url") or "",
@@ -196,8 +196,7 @@ async def search_openrewrite_recipes(
     """Search OpenRewrite recipe descriptions using hybrid BM25 + vector ranking (RRF).
 
     Returns up to max_results recipe hits with statement and score.
-    Note: only_composite and require_no_params filters are accepted but not yet applied —
-    all matching recipes are returned regardless of those values (deferred to a future release).
+    Filters only_composite and require_no_params are applied at the Cypher layer.
     """
     bm25_hits, vector_hits = await _parallel_retrieval(
         query=query,
