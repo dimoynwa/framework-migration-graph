@@ -14,7 +14,7 @@ def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dic
     (e.g. 'org.springframework.boot.env.EnvironmentPostProcessor', not 'EnvironmentPostProcessor').
     Short or partial names will return status='not_found'.
 
-    Returns: deprecated_in, removed_in, replaced_by (direct successor only), and related rules.
+    Returns: entity_name, entity_type, deprecated_in, removed_in, replaced_by (direct successor only), and related rules.
     For the full replacement chain across multiple versions use entity_evolution instead.
     Returns status='not_found' when the entity is not in the graph.
     """
@@ -46,7 +46,7 @@ def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dic
     ]
     return {
         "status": "ok",
-        "entity_name": record.get("original_entity") or entity_name,
+        "entity_name": record.get("entity_name") or entity_name,
         "entity_type": record.get("entity_type") or "",
         "deprecated_in": record.get("deprecated_in"),
         "removed_in": record.get("removed_in"),

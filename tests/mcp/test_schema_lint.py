@@ -60,6 +60,7 @@ ALLOWED_FIRST_WORDS: frozenset[str] = frozenset(
         "calculate",
         "load",
         "save",
+        "store",
         "run",
         "scan",
         "push",
@@ -98,10 +99,10 @@ async def test_all_tools_have_descriptions():
 
 @pytest.mark.asyncio
 async def test_tool_count():
-    """Exactly 22 tools must be registered."""
+    """Exactly 23 tools must be registered."""
     tools = await mcp.list_tools()
-    assert len(tools) == 22, (
-        f"Expected 22 tools, got {len(tools)}: {[t.name for t in tools]}"
+    assert len(tools) == 23, (
+        f"Expected 23 tools, got {len(tools)}: {[t.name for t in tools]}"
     )
 
 

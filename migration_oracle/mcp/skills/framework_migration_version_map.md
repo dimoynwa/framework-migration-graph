@@ -1,7 +1,10 @@
 # Version Map
 
+**Last Updated**: 2026-06-13
+**Upstream schedules**: [Spring Boot](https://spring.io/projects/spring-boot) · [Angular](https://angular.io/guide/releases)
+
 Quick reference for converting version strings to sortable integers.
-Formula: `MAJOR * 10000 + MINOR * 100 + PATCH`
+Formula: `MAJOR * 1_000_000 + MINOR * 1_000 + PATCH`
 
 ---
 
@@ -9,25 +12,25 @@ Formula: `MAJOR * 10000 + MINOR * 100 + PATCH`
 
 | Version | Sortable | Status      | Min Java |
 | ------- | -------- | ----------- | -------- |
-| 2.5.0   | 20500    | EOL         | 8        |
-| 2.5.14  | 20514    | EOL         | 8        |
-| 2.6.0   | 20600    | EOL         | 8        |
-| 2.6.15  | 20615    | EOL         | 8        |
-| 2.7.0   | 20700    | EOL         | 8        |
-| 2.7.18  | 20718    | EOL         | 8        |
-| 3.0.0   | 30000    | EOL         | 17       |
-| 3.0.13  | 30013    | EOL         | 17       |
-| 3.1.0   | 30100    | EOL         | 17       |
-| 3.1.12  | 30112    | EOL         | 17       |
-| 3.2.0   | 30200    | Maintenance | 17       |
-| 3.2.4   | 30204    | Maintenance | 17       |
-| 3.3.0   | 30300    | Active      | 17       |
-| 3.3.4   | 30304    | Active      | 17       |
-| 3.4.0   | 30400    | Active      | 17       |
-| 3.4.2   | 30402    | Active      | 17       |
-| 4.0.0   | 40000    | Active      | 21       |
-| 4.0.2   | 40002    | Active      | 21       |
-| 4.1.0   | 40100    | Active      | 21       |
+| 2.5.0   | 2005000  | EOL         | 8        |
+| 2.5.14  | 2005014  | EOL         | 8        |
+| 2.6.0   | 2006000  | EOL         | 8        |
+| 2.6.15  | 2006015  | EOL         | 8        |
+| 2.7.0   | 2007000  | EOL         | 8        |
+| 2.7.18  | 2007018  | EOL         | 8        |
+| 3.0.0   | 3000000  | EOL         | 17       |
+| 3.0.13  | 3000013  | EOL         | 17       |
+| 3.1.0   | 3001000  | EOL         | 17       |
+| 3.1.12  | 3001012  | EOL         | 17       |
+| 3.2.0   | 3002000  | Maintenance | 17       |
+| 3.2.4   | 3002004  | Maintenance | 17       |
+| 3.3.0   | 3003000  | Active      | 17       |
+| 3.3.4   | 3003004  | Active      | 17       |
+| 3.4.0   | 3004000  | Active      | 17       |
+| 3.4.2   | 3004002  | Active      | 17       |
+| 4.0.0   | 4000000  | Active      | 21       |
+| 4.0.2   | 4000002  | Active      | 21       |
+| 4.1.0   | 4001000  | Active      | 21       |
 
 
 **Important version boundary:** 
@@ -44,24 +47,22 @@ Formula: `MAJOR * 10000 + MINOR * 100 + PATCH`
 
 ## Angular
 
-| Version | Sortable | Status | Min Node |
-| ------- | -------- | ------ | -------- |
-| 14.0.0  | 140000   | EOL    | 14.15    |
-| 14.3.0  | 140300   | EOL    | 14.15    |
-| 15.0.0  | 150000   | EOL    | 14.20    |
-| 15.2.0  | 150200   | EOL    | 14.20    |
-| 16.0.0  | 160000   | EOL    | 16.14    |
-| 16.2.0  | 160200   | EOL    | 16.14    |
-| 17.0.0  | 170000   | Active | 18.13    |
-| 17.3.0  | 170300   | Active | 18.13    |
-| 18.0.0  | 180000   | Active | 18.19    |
-| 18.2.0  | 180200   | Active | 18.19    |
-| 19.0.0  | 190000   | Active | 20.x     |
-| 20.0.0  | 200000   | Active | 20.x     |
-| 21.0.0  | 210000   | Active | 20.x     |
-| 22.0.0  | 220000   | Active | 20.x     |
-
-**Important version boundary:** 15 → 16 
+| Version | Sortable  | Status | Min Node |
+| ------- | --------- | ------ | -------- |
+| 14.0.0  | 14000000  | EOL    | 14.15    |
+| 14.3.0  | 14003000  | EOL    | 14.15    |
+| 15.0.0  | 15000000  | EOL    | 14.20    |
+| 15.2.0  | 15002000  | EOL    | 14.20    |
+| 16.0.0  | 16000000  | EOL    | 16.14    |
+| 16.2.0  | 16002000  | EOL    | 16.14    |
+| 17.0.0  | 17000000  | Active | 18.13    |
+| 17.3.0  | 17003000  | Active | 18.13    |
+| 18.0.0  | 18000000  | Active | 18.19    |
+| 18.2.0  | 18002000  | Active | 18.19    |
+| 19.0.0  | 19000000  | Active | 20.x     |
+| 20.0.0  | 20000000  | Active | 20.x     |
+| 21.0.0  | 21000000  | Active | 20.x     |
+| 22.0.0  | 22000000  | Active | 20.x     |
 
 Important version boundaries:
 

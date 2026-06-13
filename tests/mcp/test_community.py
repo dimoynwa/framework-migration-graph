@@ -56,7 +56,8 @@ def test_submit_insight_duplicate_detected():
             spring_boot_version="3.4.0",
         )
     assert result["status"] == "duplicate"
-    assert result["insight_id"] == "existing-id"
+    assert result["insight_id"] is None
+    assert result["duplicate_of"] == "existing-id"
 
 
 def test_vote_insight_increment():
@@ -98,8 +99,8 @@ def test_submit_insight_version_not_found():
         )
     assert result == {
         "status": "error",
-        "insight_id": "",
-        "duplicate_of": "",
+        "insight_id": None,
+        "duplicate_of": None,
         "message": "Version not found: Spring Boot 9.9",
     }
 

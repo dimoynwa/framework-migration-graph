@@ -43,7 +43,10 @@ This skill replaces the pre-redesign five-phase harness with four re-entrant run
 | 4 | `test` | all | `analyze_upgrade_path`. Results are deferred and handled last in loop III. |
 | — | Paysafe deps | — | `resolve_paysafe_dependency_by_service_name` for every `com.paysafe` dependency. Run concurrently with tier 1 — these are independent. |
 
-**Skip guard:** Before any tool call, check `ctx.queriedEntities[entity_name]`. If the entity was queried in a prior session, its result is cached on context — do not re-issue the tool call unless `--force-refresh` is set.
+**Skip guard:** Before any tool call in Loop II, check `ctx.queriedEntities[entity_name]`.
+- If the key is present, the entity was queried in a prior session and its result is cached — skip the tool call and read the cached result from `ctx.queriedEntities[entity_name]`.
+- If the user has instructed you to re-query a specific entity (e.g. "re-query org.example.Foo"), set a local `force_refresh` flag for that entity and bypass the skip guard for it. `force_refresh` is a per-entity flag in the agent loop — it is **not** a parameter on any MCP tool.
+- After each successful entity query, call `update_queried_entity(context_id, entity_name, result_summary)` to persist the result. Do not call this concurrently for the same context — calls must be sequential.
 
 ## Loop III — Execution
 
@@ -106,7 +109,7 @@ This skill replaces the pre-redesign five-phase harness with four re-entrant run
 | `effort='moderate'` | Manual | Emit step card. Wait for user. |
 | `effort='architectural'` | Design gate | Pause. Emit design decision. Wait. Then manual. |
 | Prerequisites not complete | Blocked | Re-queue. Surface dependency. |
-| Auto apply fails build | Rollback | Roll back. Mark failed. Search community insights. Escalate to manual. |
+| Auto apply fails build | Rollback | Load `skill://framework-migration/rollback`. Follow the revert procedure. Call `update_step_status(outcome="failed", reason="build failed: [error]")`. |
 
 ### Feedback loop decisions
 
@@ -117,3 +120,19 @@ This skill replaces the pre-redesign five-phase harness with four re-entrant run
 | Steps in `ctx.skippedSteps` with `effort ≠ 'test'` | Emit backlog item with traceability to original Jira keys |
 | All non-skipped steps done | `close_migration_context(final_status="complete")` |
 | Skipped steps remain | `close_migration_context(final_status="partial")` |
+
+---
+
+### Loop IV — STATELESS FALLBACK
+
+**Trigger:** No `context_id` is available (context creation failed or was not attempted).
+
+**Behaviour in stateless mode:**
+
+- `ctx.skippedSteps[]` backlog is unavailable — skip reading it.
+- Print a migration step summary from agent memory (rules and steps identified during Loop II).
+- Call `submit_migration_insight` for any novel findings, without a `context_id`.
+- Emit a stateless-mode session summary to the user:
+  - List the migration rules identified.
+  - Note which steps could be automated and which require manual effort.
+  - Advise the user to create a `MigrationContext` for a stateful run with full resume support.

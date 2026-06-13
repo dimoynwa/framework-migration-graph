@@ -261,7 +261,7 @@ def test_patch_version_full_chain(mock_create, mock_get_steps):
     steps_result = get_steps_for_scope_tier(
         context_id=context_id,
         scope="API",
-        severity_threshold="mandatory",
+        severity_threshold="medium",
     )
 
     assert len(steps_result["hits"]) > 0
