@@ -112,11 +112,11 @@ def hydrate_openrewrite_recipes(
         return []
     filters = "WHERE elementId(r) IN $ids"
     if only_composite is True:
-        filters += " AND coalesce(r.isComposite, false) = true"
+        filters += " AND coalesce(r.composite, false) = true"
     elif only_composite is False:
-        filters += " AND coalesce(r.isComposite, false) = false"
+        filters += " AND coalesce(r.composite, false) = false"
     if require_no_params:
-        filters += " AND size(coalesce(r.requiredParams, [])) = 0"
+        filters += " AND NOT EXISTS { MATCH (r)-[:HAS_PARAM]->(p:RecipeParam) WHERE p.required = true }"
     cypher = f"""
     MATCH (r:OpenRewriteRecipe) {filters}
     RETURN elementId(r) AS node_id,
@@ -126,7 +126,7 @@ def hydrate_openrewrite_recipes(
            r.artifactId AS artifact_id,
            r.groupId AS group_id,
            r.artifactVersion AS artifact_version,
-           coalesce(r.isComposite, false) AS is_composite,
+           coalesce(r.composite, false) AS is_composite,
            coalesce(r.tags, []) AS tags
     """
     with read_session() as session:

@@ -30,7 +30,7 @@ OPTIONAL MATCH (removedByV:Version {framework: $framework})-[:REMOVES]->(e)
 
 RETURN
   labels(e)[0] AS entity_type,
-  e.name AS original_entity,
+  e.name AS entity_name,
   replacement.name AS replaced_by,
   coalesce(depV.version, introV.version) AS deprecated_in,
   coalesce(remV.version, removedByV.version) AS removed_in,
@@ -76,7 +76,7 @@ def resolve_deprecation(*, entity_name: str, framework: str) -> dict | None:
             entity_name=entity_name,
             framework=framework,
         ).single()
-    if record is None or record.get("original_entity") is None:
+    if record is None or record.get("entity_name") is None:
         return None
     return dict(record)
 

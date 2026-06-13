@@ -197,6 +197,9 @@ async def search_openrewrite_recipes(
 
     Returns up to max_results recipe hits with statement and score.
     Filters only_composite and require_no_params are applied at the Cypher layer.
+    - only_composite: filters on the graph property r.composite (boolean), not r.isComposite.
+    - require_no_params: excludes recipes that have (r)-[:HAS_PARAM]->(p:RecipeParam {required: true}).
+      Required parameters are modelled as RecipeParam nodes, not as an array property.
     """
     bm25_hits, vector_hits = await _parallel_retrieval(
         query=query,

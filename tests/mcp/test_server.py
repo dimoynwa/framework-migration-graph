@@ -14,7 +14,7 @@ from migration_oracle.mcp.instance import mcp
 @pytest.mark.asyncio
 async def test_tool_count():
     tools = await mcp.list_tools()
-    assert len(tools) == 22
+    assert len(tools) == 23
 
 
 @pytest.mark.asyncio
@@ -26,9 +26,10 @@ async def test_skill_resources_registered():
         "skill://framework-migration/scanning",
         "skill://framework-migration/plan-format",
         "skill://framework-migration/version-map",
+        "skill://framework-migration/rollback",
     }
     assert expected.issubset(uris)
-    assert len([r for r in resources if str(r.uri) in expected]) == 4
+    assert len([r for r in resources if str(r.uri) in expected]) == 5
 
 
 def test_startup_sequence_order():

@@ -126,7 +126,8 @@ def update_step_status(
     """Record the outcome of a migration step: 'completed', 'skipped', or 'failed'.
 
     Auto-closes the context when no pending steps remain after this call.
-    The 'reason' parameter is accepted but not persisted in the current release.
+    Writes a STEP_OUTCOME relationship (ctx)-[:STEP_OUTCOME {status, reason, updatedAt}]->(step)
+    in addition to the legacy completedSteps/skippedSteps/failedSteps arrays.
     Returns: step_id, outcome, context_auto_closed, context_status, completed_count, skipped_count.
     """
     result = context_queries.record_step_outcome(
@@ -161,6 +162,9 @@ def update_step_status(
     }
 
 
+_VALID_THRESHOLDS = {"low", "medium", "high", "critical"}
+
+
 @mcp.tool()
 def get_steps_for_scope_tier(
     context_id: str,
@@ -170,10 +174,18 @@ def get_steps_for_scope_tier(
     """Return steps for a specific scope tier at or above a severity threshold.
 
     Valid scope values: 'api-surface', 'runtime', 'config', 'build', 'test'.
-    Valid severity_threshold values: 'low', 'medium', 'high', 'critical'.
+    Valid severity_threshold values: 'low', 'medium', 'high', 'critical' (critical > high > medium > low).
+    Returns only steps whose severity is at or above the threshold.
+    Unknown severity_threshold values are rejected with error_code='invalid_severity_threshold'.
     Returns: entities list (unique entity names with hits), hits list (entity+step pairs), rule_count.
     Use in Loop II to query one tier at a time before calling analyze_upgrade_path for that tier.
     """
+    if severity_threshold not in _VALID_THRESHOLDS:
+        return {
+            "status": "error",
+            "error_code": "invalid_severity_threshold",
+            "hint": f"severity_threshold must be one of: {', '.join(sorted(_VALID_THRESHOLDS))}",
+        }
     rows = context_queries.get_steps_for_scope_tier(
         context_id=context_id,
         scope=scope,
@@ -206,6 +218,41 @@ def get_steps_for_scope_tier(
 
 
 @mcp.tool()
+def update_queried_entity(
+    context_id: str,
+    entity_name: str,
+    result_summary: str,
+) -> dict:
+    """Store the result summary for a queried entity in the context's queriedEntities cache.
+
+    Call after each successful entity query in Loop II so resumed sessions can skip
+    already-queried entities. result_summary is truncated to 500 characters.
+    Returns: status, context_id, entity_name, cached_count (total entries after upsert).
+    On context not found: status='error', error_code='context_not_found'.
+    """
+    result = context_queries.update_queried_entity(
+        context_id=context_id,
+        entity_name=entity_name,
+        result_summary=result_summary,
+    )
+    if result is None:
+        return {
+            "status": "error",
+            "error_code": "context_not_found",
+            "hint": f"Context '{context_id}' not found",
+        }
+    return {
+        "status": "ok",
+        "context_id": context_id,
+        "entity_name": entity_name,
+        "cached_count": result["cached_count"],
+    }
+
+
+_VALID_FINAL_STATUSES = {"complete", "partial", "abandoned"}
+
+
+@mcp.tool()
 def close_migration_context(
     context_id: str,
     final_status: str,
@@ -213,11 +260,18 @@ def close_migration_context(
 ) -> dict:
     """Set completedAt, migration_status, and notes on a context. Call at the end of every session.
 
-    final_status: 'complete' (all steps done) or 'partial' (steps were skipped or deferred).
+    final_status: 'complete' (all steps done), 'partial' (steps were skipped or deferred),
+    or 'abandoned' (session cancelled or deferred). Any other value is rejected.
     Note: update_step_status auto-closes the context when all steps complete — call this tool
     explicitly only when ending a session with skipped steps or adding notes.
     Returns: context_id, migration_status, completed_steps, skipped_steps, completed_at, notes.
     """
+    if final_status not in _VALID_FINAL_STATUSES:
+        return {
+            "tool_status": "error",
+            "error_code": "invalid_final_status",
+            "hint": "final_status must be one of: abandoned, complete, partial",
+        }
     result = context_queries.close_migration_context(
         context_id=context_id,
         final_status=final_status,

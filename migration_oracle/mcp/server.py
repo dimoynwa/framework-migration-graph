@@ -44,6 +44,12 @@ def skill_framework_migration_version_map() -> str:
     return _read_skill("framework_migration_version_map.md")
 
 
+@mcp.resource("skill://framework-migration/rollback")
+def skill_framework_migration_rollback() -> str:
+    """Build-failure rollback procedure for the migration harness."""
+    return _read_skill("framework_migration_rollback.md")
+
+
 @mcp.prompt()
 def start_migration(
     framework: str,

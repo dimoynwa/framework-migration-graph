@@ -206,6 +206,10 @@ def analyze_upgrade_path(
     Returns: rules list (statement, steps, scopes, recipes), lifecycle_alerts list.
     Each rule contains steps: [] and scopes: [] when no MigrationStep/BreakingScope nodes
     exist in the graph (pre-redesign data) — this is expected, not an error.
+
+    When include_recipes=True, each rule includes a recipes list. Recipes are per step
+    (traversal: REQUIRES_STEP → AUTOMATED_BY). Each recipe entry includes step_id identifying
+    the MigrationStep that has the AUTOMATED_BY edge.
     """
     norm = normalize_entities(user_entities or [])
     has_filter = _has_entity_filter(norm)

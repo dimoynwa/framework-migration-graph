@@ -30,9 +30,16 @@ def submit_migration_insight(
 ) -> dict:
     """Submit a developer-contributed migration insight. Writes a MigrationRule node with ruleType='community_insight'.
 
-    Near-duplicate detection runs before write; returns status='duplicate' if a
-    similar insight already exists (cosine similarity threshold). Not idempotent —
-    call once per unique finding.
+    Near-duplicate detection runs a three-pass pipeline (exact → vector → BM25+cosine) with a
+    0.92 cosine similarity threshold before write. Returns status='duplicate' if a similar insight
+    already exists — no new node is created.
+
+    Return field semantics across all three status paths:
+    - status='ok':        insight_id=<new element ID>,  duplicate_of=None
+    - status='duplicate': insight_id=None,              duplicate_of=<existing element ID>
+    - status='error':     insight_id=None,              duplicate_of=None
+
+    Not idempotent — call once per unique finding.
 
     Note: the parameter 'spring_boot_version' holds the framework version string
     regardless of the 'framework' value (e.g. '3.2' for Spring Boot, '30' for WildFly).
@@ -44,7 +51,7 @@ def submit_migration_insight(
     except Exception:
         pass
     try:
-        insight_id, is_duplicate = community_queries.submit_insight(
+        new_id, is_duplicate = community_queries.submit_insight(
             statement=statement,
             framework=framework,
             version=_normalise_version(spring_boot_version),
@@ -57,18 +64,18 @@ def submit_migration_insight(
             embedding=embedding,
         )
     except ValueError as e:
-        return {"status": "error", "insight_id": "", "duplicate_of": "", "message": str(e)}
+        return {"status": "error", "insight_id": None, "duplicate_of": None, "message": str(e)}
     if is_duplicate:
         return {
             "status": "duplicate",
-            "insight_id": insight_id,
-            "duplicate_of": insight_id,
+            "insight_id": None,
+            "duplicate_of": new_id,
             "message": "Near-duplicate insight already exists",
         }
     return {
         "status": "ok",
-        "insight_id": insight_id,
-        "duplicate_of": "",
+        "insight_id": new_id,
+        "duplicate_of": None,
         "message": "Insight submitted",
     }
 

@@ -153,6 +153,12 @@ SET ctx.completedSteps = CASE $outcome WHEN 'completed'
     THEN ctx.skippedSteps + [$step_id] ELSE ctx.skippedSteps END,
     ctx.failedSteps = CASE $outcome WHEN 'failed'
     THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END
+WITH ctx
+MATCH (step:MigrationStep) WHERE elementId(step) = $step_id
+MERGE (ctx)-[so:STEP_OUTCOME]->(step)
+SET so.status    = $outcome,
+    so.reason    = $reason,
+    so.updatedAt = datetime()
 RETURN elementId(ctx) AS context_id,
        size(ctx.completedSteps) AS completed_count,
        size(ctx.skippedSteps) AS skipped_count,
@@ -265,6 +271,7 @@ def record_step_outcome(
             context_id=context_id,
             step_id=step_id,
             outcome=outcome,
+            reason=reason,
         ).single()
     if record is None:
         raise ValueError(f"Context not found: {context_id}")
@@ -323,6 +330,51 @@ def delete_zombie_context(
             from_version=from_version,
             to_version=to_version,
         )
+
+
+_GET_QUERIED_ENTITIES = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $id
+RETURN ctx.queriedEntities AS qe
+"""
+
+_SET_QUERIED_ENTITIES = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $id
+SET ctx.queriedEntities = $updated_json
+RETURN 1
+"""
+
+
+def update_queried_entity(
+    *,
+    context_id: str,
+    entity_name: str,
+    result_summary: str,
+) -> dict | None:
+    """Read-modify-write queriedEntities on a MigrationContext.
+
+    Returns None if context not found, else {"cached_count": <len after upsert>}.
+    Sequential calls required — no concurrent writes.
+    """
+    import json
+
+    with read_session() as session:
+        record = session.run(_GET_QUERIED_ENTITIES, id=context_id).single()
+    if record is None:
+        return None
+
+    raw = record.get("qe") or "{}"
+    try:
+        current: dict = json.loads(raw)
+    except (ValueError, TypeError):
+        current = {}
+
+    current[entity_name] = result_summary[:500]
+    updated_json = json.dumps(current)
+
+    with write_session() as session:
+        session.run(_SET_QUERIED_ENTITIES, id=context_id, updated_json=updated_json).single()
+
+    return {"cached_count": len(current)}
 
 
 def close_migration_context(

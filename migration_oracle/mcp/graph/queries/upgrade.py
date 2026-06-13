@@ -55,7 +55,7 @@ WITH v, rule, sev_rank, scopes, affected_entities, affected_count, match_count,
      END AS applicability
 
 OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->(s:MigrationStep)
-OPTIONAL MATCH (rule)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
+OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 
 WITH v, rule, scopes, affected_entities, applicability, match_count, sev_rank, affected_count,
      collect(DISTINCT CASE WHEN s IS NULL THEN null ELSE {
@@ -71,6 +71,7 @@ WITH v, rule, scopes, affected_entities, applicability, match_count, sev_rank, a
      collect(DISTINCT CASE WHEN rec IS NULL THEN null ELSE {
        recipe_id: rec.recipeId,
        display_name: rec.displayName,
+       step_id: elementId(s),
        auto: ab.auto,
        missing_required_params: coalesce(ab.missingRequiredParams, [])
      } END) AS recipes_raw
