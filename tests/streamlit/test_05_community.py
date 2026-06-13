@@ -73,7 +73,7 @@ def test_submit_insight_success():
             at.text_input[0].set_value("3.2")
             at.text_input[1].set_value("MyClass")
             at.text_input[2].set_value("http://example.com")
-            at.get("form")[0].submit()
+            at.button[-1].click()
             at.run()
     assert any("Insight submitted" in s.value for s in at.success)
 
@@ -89,6 +89,7 @@ def test_submit_insight_duplicate():
             at.text_input[0].set_value("3.2")
             at.text_input[1].set_value("MyClass")
             at.text_input[2].set_value("http://example.com")
-            at.get("form")[0].submit()
+            at.button[-1].click()
             at.run()
-    assert any("Duplicate detected" in e.value for e in at.error)
+    # Page uses st.warning (not st.error) for the duplicate case
+    assert any("duplicate" in w.value.lower() for w in at.warning)

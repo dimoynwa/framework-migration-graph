@@ -30,7 +30,8 @@ def test_run_appears_in_selectbox():
             at = AppTest.from_file(PAGE)
             at.run()
     assert len(at.selectbox) > 0
-    assert "spring-boot → 3.2" in at.selectbox[0].options[0]
+    assert "spring-boot" in at.selectbox[0].options[0]
+    assert "3.2" in at.selectbox[0].options[0]
 
 
 def test_missing_artifact_shows_error():

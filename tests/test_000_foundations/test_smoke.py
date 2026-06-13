@@ -4,6 +4,7 @@ import importlib
 import os
 
 import pytest
+from neo4j.exceptions import ClientError
 
 import migration_oracle.config as config
 import migration_oracle.graph.driver as driver_mod
@@ -37,5 +38,9 @@ def test_ensure_indexes_on_live_neo4j(monkeypatch: pytest.MonkeyPatch) -> None:
         allowed_missing = {"migration_rule_url"}
         unexpected = missing - allowed_missing
         assert not unexpected, f"Missing constraints: {unexpected}"
+    except ClientError as exc:
+        if "Security" in getattr(exc, "code", "") or "auth" in str(exc).lower():
+            pytest.skip(f"Neo4j authentication error (rate-limit or wrong credentials): {exc}")
+        raise
     finally:
         driver_mod.close_driver()

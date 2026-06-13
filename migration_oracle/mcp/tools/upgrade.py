@@ -74,9 +74,10 @@ def normalize_entities(entities: list[str]) -> dict:
     """Classify a flat list of entity strings into 5 typed buckets.
 
     Buckets:
-    - scanned_classes: FQCNs — have a dot AND last segment starts uppercase
-    - scanned_class_simple: simple class names — no dot, starts uppercase.
-      Also includes last segment of each FQCN.
+    - scanned_classes: FQCNs — have a dot AND last segment starts uppercase.
+      Matched by exact name only.
+    - scanned_class_simple: simple class/annotation names — no dot, starts uppercase.
+      Built ONLY from genuinely dotless tokens; never derived from FQCN tails.
     - scanned_deps_ga: groupId:artifactId — contains colon, first part has dots.
       Strips any third segment (version).
     - scanned_dep_artifacts: bare artifact ID — no colon, no dot, hyphenated-lowercase
@@ -89,38 +90,22 @@ def normalize_entities(entities: list[str]) -> dict:
     dep_artifacts: list[str] = []
     props: list[str] = []
 
-    for entity in entities:
-        if not entity or entity == "*":
+    for e in entities:
+        if not e:
             continue
-        entity = entity.strip()
-        if not entity:
-            continue
-
-        if ":" in entity:
-            # Dependency coordinate: groupId:artifactId[:version]
-            parts = entity.split(":")
-            first = parts[0]
-            if "." in first and len(parts) >= 2:
-                ga = parts[0] + ":" + parts[1]
-                deps_ga.append(ga)
-                dep_artifacts.append(parts[1])
-        elif "." in entity:
-            segments = entity.split(".")
-            last_seg = segments[-1]
-            if last_seg and last_seg[0].isupper():
-                # FQCN: dot-separated with uppercase last segment
-                fqcns.append(entity)
-                simple_names.append(last_seg)
-            elif all(seg == seg.lower() for seg in segments if seg):
-                # Dotted property key: all segments lowercase
-                props.append(entity)
-            # else: ambiguous, skip
-        else:
-            # No dot, no colon
-            if entity and entity[0].isupper():
-                simple_names.append(entity)
-            elif entity and (entity[0].islower() or entity[0] == "-"):
-                dep_artifacts.append(entity)
+        if ':' in e:                                   # group:artifact[:version]
+            g, a = e.split(':')[:2]
+            deps_ga.append(f'{g}:{a}')
+            dep_artifacts.append(a)                    # second segment of GA coord
+        elif '.' in e:
+            if e.rsplit('.', 1)[-1][:1].isupper():     # last segment uppercase -> FQCN
+                fqcns.append(e)                        # exact-match only; no simple derivation
+            else:                                      # all-lowercase dotted -> property key
+                props.append(e)
+        elif e[:1].isupper():                          # bare uppercase -> annotation / simple class
+            simple_names.append(e)
+        else:                                          # bare lowercase/hyphenated -> artifact ID
+            dep_artifacts.append(e)
 
     return {
         "scanned_classes": list(dict.fromkeys(fqcns)),
@@ -129,7 +114,6 @@ def normalize_entities(entities: list[str]) -> dict:
         "scanned_dep_artifacts": list(dict.fromkeys(dep_artifacts)),
         "scanned_props": list(dict.fromkeys(props)),
     }
-
 
 def _has_entity_filter(norm: dict) -> bool:
     return any(norm[k] for k in norm)

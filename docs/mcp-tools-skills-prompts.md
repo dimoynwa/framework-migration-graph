@@ -61,7 +61,7 @@ RETURN count(v) > 0 AS found
 
 #### `analyze_upgrade_path`
 
-Return all migration rules and lifecycle alerts for a framework version range. Optionally filters by user-scanned entities (substring match), scope, severity, and entity classification.
+Return all migration rules and lifecycle alerts for a framework version range. Optionally filters by user-scanned entities (per-kind exact matching across 5 buckets), scope, severity, and entity classification. Rules with no matching entities are classified as `excluded` unless they are high/critical (safety net: `uncertain`) or have no entity nodes (`informational`).
 
 **Parameters**
 
@@ -70,7 +70,7 @@ Return all migration rules and lifecycle alerts for a framework version range. O
 | `framework` | string | yes | — | Framework name |
 | `current_version` | string | yes | — | Migration source version |
 | `target_version` | string | yes | — | Migration target version |
-| `user_entities` | list[string] | no | `[]` | Java class names, Spring property keys, or Maven artifact IDs to filter rules |
+| `user_entities` | list[string] | no | `[]` | Codebase entity strings (FQCNs, simple names, `group:artifact` coords, artifact IDs, property keys). Internally split into 5 typed buckets via `normalize_entities()` before querying. |
 | `format` | string | no | `"json"` | `"json"` or `"markdown"` |
 | `classification` | list[string] | no | `[]` | Filter by `entityClassification`: `"actionable"`, `"incomplete"`, `"informational"` |
 | `include_recipes` | boolean | no | `false` | Include linked OpenRewrite recipes per step |
@@ -91,6 +91,7 @@ Return all migration rules and lifecycle alerts for a framework version range. O
 | `rules` | list | Migration rules; each has `statement`, `rule_type`, `steps`, `scopes`, `recipes`, `matched_entities`, `applicability` |
 | `lifecycle_alerts` | list | Phase-level alerts; each has `message`, `category`, `phase` |
 | `format` | string | Output format used |
+| `diagnostics` | object \| null | Present when `user_entities` is non-empty: `scanned_total`, `rules_included`, `rules_excluded_by_entity_filter`, `rules_via_safety_net`, `rules_capped_at` |
 
 **Cypher**
 
@@ -98,91 +99,103 @@ Return all migration rules and lifecycle alerts for a framework version range. O
 MATCH (v:Version {framework: $framework})
 WHERE v.sortableVersion > $current_version_sortable
   AND v.sortableVersion <= $target_version_sortable
+MATCH (v)-[:INCLUDES_RULE]->(rule:MigrationRule)
+WHERE size($classification) = 0
+   OR rule.entityClassification IS NULL
+   OR rule.entityClassification IN $classification
 
-OPTIONAL MATCH (e_lc)-[rel:DEPRECATED_IN|REMOVED_IN|INTRODUCED_IN]->(v)
-WHERE size($user_entities) = 0
-   OR ANY(u IN $user_entities WHERE toLower(e_lc.name) CONTAINS toLower(u))
+OPTIONAL MATCH (rule)-[:HAS_SCOPE]->(bs:BreakingScope)
+WITH v, rule,
+     min(CASE bs.severity
+           WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+           WHEN 'medium'   THEN 2 WHEN 'low'  THEN 3 ELSE 4
+         END) AS sev_rank,
+     collect(DISTINCT {scope: bs.scope, severity: bs.severity}) AS scopes
 
-WITH v, collect(DISTINCT {
-    event_type: type(rel),
-    entity_type: labels(e_lc)[0],
-    entity_name: e_lc.name
-}) AS raw_lifecycle_events
+OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WITH v, rule, sev_rank, scopes, e,
+     CASE
+       WHEN e IS NULL THEN false
+       WHEN e:Class THEN
+            e.name IN $scanned_classes
+         OR last(split(e.name, '.')) IN $scanned_class_simple
+       WHEN e:ApplicationProperty THEN
+            e.name IN $scanned_props
+       WHEN e:Dependency THEN
+            (size(split(e.name, ':')) >= 2
+               AND (split(e.name, ':')[0] + ':' + split(e.name, ':')[1]) IN $scanned_deps_ga)
+         OR last(split(e.name, ':')) IN $scanned_dep_artifacts
+       ELSE false
+     END AS entity_match
 
-OPTIONAL MATCH (v)-[:INCLUDES_RULE]->(rule:MigrationRule)
-OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ruleEntity)
+WITH v, rule, sev_rank, scopes,
+     [x IN collect(DISTINCT CASE WHEN e IS NOT NULL THEN e.name ELSE null END) WHERE x IS NOT NULL] AS affected_entities,
+     count(DISTINCT e)                                            AS affected_count,
+     sum(CASE WHEN entity_match THEN 1 ELSE 0 END)               AS match_count
 
-WITH v, raw_lifecycle_events, rule,
-     collect(DISTINCT ruleEntity.name) AS affected_entities
-
-WHERE rule IS NULL
-   OR (
-       (size($user_entities) = 0
-          OR size(affected_entities) = 0
-          OR ANY(e IN affected_entities
-                   WHERE ANY(u IN $user_entities
-                              WHERE toLower(e) CONTAINS toLower(u))))
-       AND
-       (size($classification) = 0
-          OR rule.entityClassification IS NULL
-          OR rule.entityClassification IN $classification)
-     )
+WITH v, rule, sev_rank, scopes, affected_entities, affected_count, match_count,
+     CASE
+       WHEN affected_count = 0     THEN 'informational'
+       WHEN NOT $has_entity_filter THEN 'universal'
+       WHEN match_count > 0        THEN 'matched'
+       WHEN sev_rank <= 1          THEN 'uncertain'
+       ELSE                             'excluded'
+     END AS applicability
 
 OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->(s:MigrationStep)
-OPTIONAL MATCH (rule)-[:HAS_SCOPE]->(bs:BreakingScope)
 OPTIONAL MATCH (rule)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 
-WITH v, raw_lifecycle_events, rule, affected_entities,
-     collect(DISTINCT {
-         step_id: elementId(s),
-         step_type: s.stepType,
-         summary: s.summary,
-         instruction: s.instruction,
-         effort: s.effort,
-         automatable: s.automatable,
-         verification_hint: s.verificationHint,
-         cli_operation: s.cliOperation
-     }) AS steps,
-     collect(DISTINCT {
-         scope: bs.scope,
-         severity: bs.severity
-     }) AS scopes,
-     collect(DISTINCT {
-         recipe_id: rec.recipeId,
-         display_name: rec.displayName,
-         auto: ab.auto,
-         missing_required_params: coalesce(ab.missingRequiredParams, [])
-     }) AS recipes
+WITH v, rule, scopes, affected_entities, applicability, match_count, sev_rank, affected_count,
+     collect(DISTINCT CASE WHEN s IS NULL THEN null ELSE {
+       step_id: elementId(s),
+       step_type: s.stepType,
+       summary: s.summary,
+       instruction: s.instruction,
+       effort: s.effort,
+       automatable: s.automatable,
+       verification_hint: s.verificationHint,
+       cli_operation: s.cliOperation
+     } END) AS steps_raw,
+     collect(DISTINCT CASE WHEN rec IS NULL THEN null ELSE {
+       recipe_id: rec.recipeId,
+       display_name: rec.displayName,
+       auto: ab.auto,
+       missing_required_params: coalesce(ab.missingRequiredParams, [])
+     } END) AS recipes_raw
 
-WITH v, raw_lifecycle_events, collect(DISTINCT {
-    rule_id: elementId(rule),
-    rule_type: labels(rule)[0],
-    title: rule.title,
-    statement: rule.statement,
-    action_step: rule.actionStep,
-    source_url: rule.sourceUrl,
-    reason: coalesce(rule.statement, rule.reason),
-    solution: rule.solution,
-    change_type: rule.changeType,
-    reason_type: rule.reasonType,
+WITH v, collect(DISTINCT {
+    rule_id:              elementId(rule),
+    rule_type:            labels(rule)[0],
+    title:                rule.title,
+    statement:            rule.statement,
+    action_step:          rule.actionStep,
+    source_url:           rule.sourceUrl,
+    reason:               coalesce(rule.statement, rule.reason),
+    solution:             rule.solution,
+    change_type:          rule.changeType,
+    reason_type:          rule.reasonType,
     entity_classification: rule.entityClassification,
-    affected_entities: affected_entities,
-    steps: [x IN steps WHERE x.step_id IS NOT NULL],
-    scopes: [x IN scopes WHERE x.scope IS NOT NULL],
-    recipes: [x IN recipes WHERE x.recipe_id IS NOT NULL]
+    affected_entities:    affected_entities,
+    applicability:        applicability,
+    match_count:          match_count,
+    universally_applicable: (affected_count = 0),
+    severity:             CASE sev_rank WHEN 0 THEN 'critical' WHEN 1 THEN 'high'
+                                        WHEN 2 THEN 'medium'  WHEN 3 THEN 'low' ELSE null END,
+    steps:    [x IN steps_raw   WHERE x IS NOT NULL],
+    scopes:   [x IN scopes      WHERE x.scope IS NOT NULL],
+    recipes:  [x IN recipes_raw WHERE x IS NOT NULL AND x.recipe_id IS NOT NULL]
 }) AS raw_rules
 
 OPTIONAL MATCH (v)-[:HAS_LIFECYCLE_ALERT]->(la:LifecycleAlert)
 
-WITH v, raw_lifecycle_events, raw_rules,
-     collect(DISTINCT {message: la.message, category: la.category, phase: la.phase}) AS raw_phase_alerts_all
+WITH v, raw_rules,
+     collect(DISTINCT {message: la.message, category: la.category, phase: la.phase}) AS raw_alerts
 
 RETURN
-    v.version AS release_version,
-    v.sortableVersion AS release_sortable,
+    v.version          AS release_version,
+    v.sortableVersion  AS release_sortable,
     [x IN raw_rules WHERE x.statement IS NOT NULL] AS rules,
-    [x IN raw_lifecycle_events WHERE x.event_type IS NOT NULL] AS lifecycle_events,
-    [x IN raw_phase_alerts_all WHERE x.message IS NOT NULL] AS raw_phase_alerts
+    [x IN raw_alerts  WHERE x.message  IS NOT NULL] AS raw_phase_alerts
 ORDER BY v.sortableVersion ASC
 ```
 
@@ -213,6 +226,7 @@ Produce a two-track migration plan: **auto** (scriptable via OpenRewrite) and **
 | `auto_track` | list | Steps with `automatable=true`, effort `"mechanical"`, and a linked recipe |
 | `manual_track` | list | All other steps; each has `applicability` and `matched_entities` |
 | `fallback_to_rule_cards` | boolean | True when no `MigrationStep` nodes exist |
+| `diagnostics` | object \| null | Present when `user_entities` is non-empty: same shape as `analyze_upgrade_path` diagnostics |
 
 **Cypher**
 
@@ -220,47 +234,65 @@ Produce a two-track migration plan: **auto** (scriptable via OpenRewrite) and **
 MATCH (v:Version {framework: $framework})
 WHERE v.sortableVersion > $current_version_sortable
   AND v.sortableVersion <= $target_version_sortable
-
 MATCH (v)-[:INCLUDES_RULE]->(rule:MigrationRule)
 WHERE size($classification) = 0
    OR rule.entityClassification IS NULL
    OR rule.entityClassification IN $classification
 
-OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ruleEntity)
-WITH v, rule, collect(DISTINCT ruleEntity.name) AS affected_entities
-WHERE size($user_entities) = 0
-   OR size(affected_entities) = 0
-   OR ANY(e IN affected_entities
-            WHERE ANY(u IN $user_entities
-                       WHERE toLower(e) CONTAINS toLower(u)))
+OPTIONAL MATCH (rule)-[:HAS_SCOPE]->(bs:BreakingScope)
+WITH v, rule,
+     min(CASE bs.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+           WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END) AS sev_rank,
+     head(collect(DISTINCT bs.scope))    AS scope,
+     head(collect(DISTINCT bs.severity)) AS severity
+
+OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WITH v, rule, sev_rank, scope, severity, e,
+     CASE
+       WHEN e IS NULL THEN false
+       WHEN e:Class THEN
+            e.name IN $scanned_classes
+         OR last(split(e.name, '.')) IN $scanned_class_simple
+       WHEN e:ApplicationProperty THEN e.name IN $scanned_props
+       WHEN e:Dependency THEN
+            (size(split(e.name, ':')) >= 2
+               AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN $scanned_deps_ga)
+         OR last(split(e.name, ':')) IN $scanned_dep_artifacts
+       ELSE false
+     END AS entity_match
+
+WITH v, rule, sev_rank, scope, severity,
+     [x IN collect(DISTINCT CASE WHEN e IS NOT NULL THEN e.name ELSE null END) WHERE x IS NOT NULL] AS affected_entities,
+     count(DISTINCT e) AS affected_count,
+     sum(CASE WHEN entity_match THEN 1 ELSE 0 END) AS match_count
+
+WITH v, rule, sev_rank, scope, severity, affected_entities, affected_count, match_count,
+     CASE WHEN affected_count = 0     THEN 'informational'
+          WHEN NOT $has_entity_filter THEN 'universal'
+          WHEN match_count > 0        THEN 'matched'
+          WHEN sev_rank <= 1          THEN 'uncertain'
+          ELSE                             'excluded' END AS applicability
+WHERE applicability <> 'excluded'
 
 OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->(s:MigrationStep)
-OPTIONAL MATCH (rule)-[:HAS_SCOPE]->(bs:BreakingScope)
-OPTIONAL MATCH (s)-[ab_s:AUTOMATED_BY]->(rec_s:OpenRewriteRecipe)
-OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(ae)
-
-WITH v, rule, affected_entities, s, bs, ab_s, rec_s,
-     elementId(rule) AS rule_id,
-     elementId(s) AS step_id,
-     collect(DISTINCT ae.name) AS all_affected_entities
+OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 
 RETURN
-    rule_id,
-    step_id,
-    rule.statement AS statement,
-    rule.actionStep AS action_step,
-    s.summary AS summary,
-    s.instruction AS instruction,
-    s.effort AS effort,
-    s.automatable AS automatable,
-    s.verificationHint AS verification_hint,
-    bs.scope AS scope,
-    bs.severity AS severity,
-    rec_s.recipeId AS recipe_id,
-    ab_s.auto AS auto,
-    coalesce(ab_s.missingRequiredParams, []) AS missing_required_params,
-    v.version AS version,
-    all_affected_entities
+    elementId(rule)                         AS rule_id,
+    elementId(s)                            AS step_id,
+    rule.statement                          AS statement,
+    rule.actionStep                         AS action_step,
+    s.summary                               AS summary,
+    s.instruction                           AS instruction,
+    s.effort                                AS effort,
+    s.automatable                           AS automatable,
+    s.verificationHint                      AS verification_hint,
+    scope, severity, applicability, match_count, affected_entities,
+    rec.recipeId                            AS recipe_id,
+    ab.auto                                 AS auto,
+    coalesce(ab.missingRequiredParams, [])  AS missing_required_params,
+    v.version                               AS version,
+    s.stepIndex                             AS step_index
 ORDER BY v.sortableVersion ASC, s.stepIndex ASC
 ```
 
@@ -303,6 +335,8 @@ Create or resume a `MigrationContext` for a `(project_id, from_version, to_versi
 | `notes` | string | — |
 | `created` | boolean | True if newly created, false if resumed |
 
+> **Note:** `failed_steps` is tracked internally in the graph node but is not returned in the tool response.
+
 **Cypher**
 
 ```cypher
@@ -322,9 +356,19 @@ ON CREATE SET
   ctx.createdAt = datetime(),
   ctx.completedAt = null,
   ctx.notes = '',
-  ctx._was_created = true
+  ctx._was_created = true,
+  ctx.scannedClasses      = $scanned_classes,
+  ctx.scannedClassSimple  = $scanned_class_simple,
+  ctx.scannedDepsGa       = $scanned_deps_ga,
+  ctx.scannedDepArtifacts = $scanned_dep_artifacts,
+  ctx.scannedProps        = $scanned_props
 ON MATCH SET
-  ctx._was_created = false
+  ctx._was_created = false,
+  ctx.scannedClasses      = $scanned_classes,
+  ctx.scannedClassSimple  = $scanned_class_simple,
+  ctx.scannedDepsGa       = $scanned_deps_ga,
+  ctx.scannedDepArtifacts = $scanned_dep_artifacts,
+  ctx.scannedProps        = $scanned_props
 WITH ctx
 MATCH (vf:Version {framework: $framework, version: $from_version})
 MATCH (vt:Version {framework: $framework, version: $to_version})
@@ -366,8 +410,10 @@ Return the remaining step queue for a context, ordered by scope severity then to
 |---|---|---|
 | `status` | string | `"ok"` |
 | `context_id` | string | — |
-| `pending_steps` | list | Each step has `step_id`, `step_type`, `rule_id`, `summary`, `instruction`, `verification_hint`, `effort`, `automatable`, `scope`, `severity`, `recipe_id`, `requires` |
+| `pending_steps` | list | Each step: `step_id`, `step_type`, `rule_id`, `summary`, `instruction`, `verification_hint`, `effort`, `automatable`, `scope`, `severity`, `recipe_id`, `requires`, `applicability` |
 | `total_pending` | integer | — |
+
+Each item in `pending_steps` carries an `applicability` field: `"matched"`, `"uncertain"`, `"informational"`, or `"universal"`. Excluded rules are filtered out and never appear in the list.
 
 **Cypher**
 
@@ -383,29 +429,69 @@ WHERE NOT elementId(s) IN ctx.completedSteps
   AND NOT elementId(s) IN ctx.skippedSteps
   AND NOT elementId(s) IN coalesce(ctx.failedSteps, [])
   AND (size($effort_filter) = 0 OR s.effort IN $effort_filter)
+
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
   WHERE size($scope_filter) = 0 OR bs.scope IN $scope_filter
+WITH ctx, r, s,
+     min(CASE bs.severity WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+           WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END) AS sev_rank,
+     head(collect(DISTINCT bs.scope))    AS scope,
+     head(collect(DISTINCT bs.severity)) AS severity
+
+WITH ctx, r, s, sev_rank, scope, severity,
+     coalesce(ctx.scannedClasses,      []) AS sc_c,
+     coalesce(ctx.scannedClassSimple,  []) AS sc_cs,
+     coalesce(ctx.scannedDepsGa,       []) AS sc_dga,
+     coalesce(ctx.scannedDepArtifacts, []) AS sc_da,
+     coalesce(ctx.scannedProps,        []) AS sc_p,
+     (size(coalesce(ctx.scannedClasses, [])) > 0
+       OR size(coalesce(ctx.scannedClassSimple, [])) > 0
+       OR size(coalesce(ctx.scannedDepsGa, [])) > 0
+       OR size(coalesce(ctx.scannedDepArtifacts, [])) > 0
+       OR size(coalesce(ctx.scannedProps, [])) > 0) AS has_filter
+
+OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filter, e,
+     CASE
+       WHEN e IS NULL THEN false
+       WHEN e:Class THEN
+            e.name IN sc_c
+         OR last(split(e.name, '.')) IN sc_cs
+       WHEN e:ApplicationProperty THEN e.name IN sc_p
+       WHEN e:Dependency THEN
+            (size(split(e.name, ':')) >= 2
+               AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN sc_dga)
+         OR last(split(e.name, ':')) IN sc_da
+       ELSE false
+     END AS entity_match
+
+WITH r, s, sev_rank, scope, severity, has_filter,
+     count(DISTINCT e)                             AS affected_count,
+     sum(CASE WHEN entity_match THEN 1 ELSE 0 END) AS match_count
+
+WITH r, s, sev_rank, scope, severity,
+     CASE WHEN affected_count = 0 THEN 'informational'
+          WHEN NOT has_filter     THEN 'universal'
+          WHEN match_count > 0    THEN 'matched'
+          WHEN sev_rank <= 1      THEN 'uncertain'
+          ELSE                         'excluded' END AS applicability
+WHERE applicability <> 'excluded'
+
 OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
-  WHERE ab.auto = true AND ab.missingRequiredParams = []
+  WHERE ab.auto = true AND coalesce(ab.missingRequiredParams, []) = []
 OPTIONAL MATCH (s)-[:REQUIRES]->(prereq:MigrationStep)
 RETURN elementId(s) AS step_id,
-       s.stepType AS step_type,
-       elementId(r) AS rule_id,
-       s.summary AS summary,
+       s.stepType    AS step_type,
+       elementId(r)  AS rule_id,
+       s.summary     AS summary,
        s.instruction AS instruction,
        s.verificationHint AS verification_hint,
-       s.effort AS effort,
+       s.effort      AS effort,
        s.automatable AS automatable,
-       bs.scope AS scope,
-       bs.severity AS severity,
-       rec.recipeId AS recipe_id,
-       s.stepIndex AS _step_index,
-       CASE bs.severity
-         WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-         WHEN 'medium'   THEN 2 ELSE 3
-       END AS _severity_rank,
+       scope, severity, applicability,
+       rec.recipeId  AS recipe_id,
        collect(DISTINCT elementId(prereq)) AS requires
-ORDER BY _severity_rank ASC, _step_index ASC
+ORDER BY sev_rank ASC, s.stepIndex ASC
 ```
 
 ---
@@ -421,7 +507,7 @@ Record the outcome of a migration step. Auto-closes the context when no pending 
 | `context_id` | string | yes | — | Context element ID |
 | `step_id` | string | yes | — | Step element ID |
 | `outcome` | string | yes | — | `"completed"`, `"skipped"`, or `"failed"` |
-| `reason` | string | no | `null` | Human-readable rationale |
+| `reason` | string | no | `""` | Human-readable rationale (accepted but not persisted in the current release) |
 
 **Returns**
 
@@ -435,20 +521,6 @@ Record the outcome of a migration step. Auto-closes the context when no pending 
 | `context_status` | string | Current migration status |
 | `completed_count` | integer | — |
 | `skipped_count` | integer | — |
-
-**Cypher — validate step is on path**
-
-```cypher
-MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
-MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
-MATCH (v:Version)
-WHERE v.sortableVersion > from_v.sortableVersion
-  AND v.sortableVersion <= to_v.sortableVersion
-MATCH (v)-[:INCLUDES_RULE]->(:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
-WHERE elementId(s) = $step_id
-RETURN count(s) > 0 AS on_path
-```
 
 **Cypher — update context arrays**
 
@@ -464,18 +536,6 @@ RETURN elementId(ctx) AS context_id,
        size(ctx.completedSteps) AS completed_count,
        size(ctx.skippedSteps) AS skipped_count,
        ctx.status AS migration_status
-```
-
-**Cypher — write STEP_OUTCOME relationship**
-
-```cypher
-MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-MATCH (s:MigrationStep) WHERE elementId(s) = $step_id
-MERGE (ctx)-[rel:STEP_OUTCOME]->(s)
-SET rel.status    = $status,
-    rel.reason    = $reason,
-    rel.updatedAt = datetime()
-RETURN elementId(rel) AS rel_id
 ```
 
 **Cypher — auto-close context**
@@ -510,7 +570,7 @@ Return all steps for a specific scope tier at or above a severity threshold with
 | `severity_threshold` | string | — |
 | `entities` | list[string] | Unique affected entity names |
 | `rule_count` | integer | — |
-| `hits` | list | Steps: `step_id`, `rule_id`, `summary`, `scope`, `severity` |
+| `hits` | list | Steps: `entity_name`, `entity_type`, `step_id`, `rule_id`, `summary`, `scope`, `severity` |
 | `total` | integer | — |
 
 **Cypher**
@@ -524,9 +584,12 @@ WHERE v.sortableVersion > from_v.sortableVersion
   AND v.sortableVersion <= to_v.sortableVersion
 MATCH (v)-[:INCLUDES_RULE]->(r:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep)
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
-WITH ctx, v, r, s, bs
-WHERE bs IS NULL OR bs.scope = $scope
-RETURN DISTINCT elementId(s) AS step_id,
+WHERE bs.scope = $scope
+OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
+WHERE e.name IN ctx.scannedEntities
+RETURN DISTINCT e.name AS entity_name,
+       labels(e)[0] AS entity_type,
+       elementId(s) AS step_id,
        elementId(r) AS rule_id,
        s.summary AS summary,
        bs.scope AS scope,
@@ -655,16 +718,14 @@ RETURN elementId(n) AS node_id,
 
 Search `OpenRewriteRecipe` nodes using hybrid BM25 + vector RRF ranking.
 
-> **Note:** `only_composite` and `require_no_params` filter parameters are accepted but not yet enforced — all matching recipes are returned regardless of those values.
-
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `query` | string | yes | — | Free-text search query |
 | `max_results` | integer | no | `5` | Maximum hits |
-| `only_composite` | boolean | no | `null` | Reserved — not yet applied |
-| `require_no_params` | boolean | no | `false` | Reserved — not yet applied |
+| `only_composite` | boolean | no | `null` | Filter to composite recipes only when `true` |
+| `require_no_params` | boolean | no | `false` | Exclude recipes with required parameters when `true` |
 | `rrf_k` | integer | no | `60` | RRF constant |
 | `top_k_per_index` | integer | no | `50` | Candidates per index |
 | `min_vector_similarity` | float | no | `0.30` | Minimum cosine similarity |
@@ -696,10 +757,8 @@ LIMIT $top_k
 
 ```cypher
 MATCH (r:OpenRewriteRecipe) WHERE elementId(r) IN $ids
-  AND (NOT $only_composite OR r.composite = true)
-  AND (NOT $require_no_params OR NOT EXISTS {
-    MATCH (r)-[:HAS_PARAM]->(p:RecipeParam) WHERE p.required = true
-  })
+  AND ($only_composite IS NULL OR coalesce(r.isComposite, false) = $only_composite)
+  AND (NOT $require_no_params OR size(coalesce(r.requiredParams, [])) = 0)
 RETURN elementId(r) AS node_id,
        r.recipeId AS recipe_id,
        r.displayName AS display_name,
@@ -723,6 +782,8 @@ Submit a developer-contributed migration insight. Runs near-duplicate detection 
 
 > Not idempotent — call once per unique finding.
 
+> **Note:** The parameter name `spring_boot_version` carries the framework version string for any framework — e.g. `"3.2"` for Spring Boot, `"30"` for WildFly. The name is historical.
+
 **Parameters**
 
 | Name | Type | Required | Default | Description |
@@ -742,8 +803,8 @@ Submit a developer-contributed migration insight. Runs near-duplicate detection 
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"`, `"duplicate"`, or `"error"` |
-| `insight_id` | string | Element ID of written rule |
-| `duplicate_of` | string \| null | Element ID of existing duplicate |
+| `insight_id` | string | Element ID of written rule (or the existing duplicate) |
+| `duplicate_of` | string | Element ID of existing duplicate, or `""` when not a duplicate |
 | `message` | string | Status message |
 
 **Cypher**
@@ -820,7 +881,7 @@ Query community insight rules by version range, entity name, and verified status
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"` |
-| `insights` | list | Each: `insight_id`, `statement`, `solution`, `source_url`, `submitted_by`, `created_at`, `confidence`, `votes`, `verified`, `version` |
+| `insights` | list | Each: `insight_id`, `statement`, `solution`, `source_url`, `submitted_by`, `created_at`, `confidence`, `votes`, `verified`, `version` (no `affected_entities` — query the graph directly for entity links) |
 | `total` | integer | — |
 
 **Cypher**
@@ -941,7 +1002,7 @@ Return deprecation metadata and direct replacement for a single fully-qualified 
 | `deprecated_in` | string \| null | Version string |
 | `removed_in` | string \| null | Version string |
 | `replaced_by` | string \| null | Direct replacement entity name |
-| `rules` | list | Related rules: `statement`, `rule_type`, `action_step`, `reason` |
+| `rules` | list | Related rules: `rule_id`, `statement`, `rule_type`, `action_step`, `reason`, `source_url`, `change_type`, `entity_classification`, `steps`, `scopes`, `recipes` |
 
 **Cypher**
 
@@ -1222,7 +1283,19 @@ Start a new four-loop migration session for a project.
 | `target_version` | string | Version migrating TO (e.g. `"3.2"`) |
 | `project_id` | string | Unique project identifier; used to create or resume a `MigrationContext` |
 
-**Behaviour:** Produces a prompt that instructs the agent to load `skill://framework-migration/main` and run all four loops from the beginning — Loop I (context + scan), Loop II (scope-gated graph query), Loop III (step execution), Loop IV (insight feedback).
+**Prompt text (actual):**
+
+```
+Load skill://framework-migration/main.
+
+Migrate project '{project_id}' from {framework} {current_version} to {framework} {target_version}.
+
+Run the four-loop migration harness:
+- Loop I: scan the codebase, call create_migration_context
+- Loop II: query the graph in scope-gated tiers (api-surface → runtime → config/build → test)
+- Loop III: execute each pending step (auto or manual; ask me to confirm manual steps)
+- Loop IV: submit new insights via submit_migration_insight, then call close_migration_context
+```
 
 ---
 
@@ -1236,7 +1309,17 @@ Resume a four-loop session from an existing `MigrationContext`.
 |---|---|---|
 | `context_id` | string | Element ID returned by `create_migration_context` or `get_pending_steps` in a previous session |
 
-**Behaviour:** Produces a prompt that instructs the agent to load `skill://framework-migration/main`, call `get_pending_steps(context_id=...)` to retrieve remaining work, then continue from Loop III.
+**Prompt text (actual):**
+
+```
+Load skill://framework-migration/main.
+
+Resume migration context '{context_id}'.
+
+Call get_pending_steps(context_id='{context_id}') to see what remains.
+Continue from Loop III: execute each pending step, then run Loop IV
+(submit insights, close context).
+```
 
 ---
 
@@ -1246,7 +1329,20 @@ Zero-parameter fallback for clients that do not support parameterised prompts. P
 
 **Parameters** — none
 
-**Behaviour:** Produces the same four-loop harness prompt with placeholder tokens `[framework]`, `[current_version]`, `[target_version]`, and `[your-project-id]` for the user to fill in manually.
+**Prompt text (actual):**
+
+```
+Load skill://framework-migration/main.
+
+I want to migrate this project from [framework] [current_version] to [target_version].
+Project ID: [your-project-id]
+
+Run the four-loop migration harness:
+- Loop I: scan the codebase, create or resume a migration context
+- Loop II: query the graph in scope-gated tiers (api-surface → runtime → config/build → test)
+- Loop III: execute each pending step (auto or manual)
+- Loop IV: submit any new insights, close the context
+```
 
 ---
 
