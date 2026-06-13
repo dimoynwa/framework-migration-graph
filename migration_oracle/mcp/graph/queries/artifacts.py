@@ -8,6 +8,7 @@ _LIST_PIPELINE_RUNS = """
 MATCH (v:Version) WHERE v.rawMdPath IS NOT NULL
 RETURN v.framework AS framework,
        v.version AS version,
+       v.fromVersion AS from_version,
        v.rawMdPath AS raw_md_path,
        v.filteredMdPath AS filtered_md_path,
        v.entitiesJsonPath AS entities_json_path

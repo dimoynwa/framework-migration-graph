@@ -72,7 +72,7 @@ def hydrate_nodes(
         return []
     cypher = """
     MATCH (n) WHERE elementId(n) IN $ids
-    OPTIONAL MATCH (n)-[:INCLUDES_RULE|DISCOVERED_IN]-(v:Version)
+    OPTIONAL MATCH (n)-[:INCLUDES_RULE]-(v:Version)
     WHERE $framework IS NULL OR v.framework = $framework
     WITH n, collect(DISTINCT v.version) AS versions
     WHERE ($framework IS NULL OR size(versions) > 0)
@@ -102,11 +102,23 @@ def hydrate_nodes(
         ]
 
 
-def hydrate_openrewrite_recipes(*, element_ids: list[str]) -> list[dict]:
+def hydrate_openrewrite_recipes(
+    *,
+    element_ids: list[str],
+    only_composite: bool | None = None,
+    require_no_params: bool = False,
+) -> list[dict]:
     if not element_ids:
         return []
-    cypher = """
-    MATCH (r:OpenRewriteRecipe) WHERE elementId(r) IN $ids
+    filters = "WHERE elementId(r) IN $ids"
+    if only_composite is True:
+        filters += " AND coalesce(r.isComposite, false) = true"
+    elif only_composite is False:
+        filters += " AND coalesce(r.isComposite, false) = false"
+    if require_no_params:
+        filters += " AND size(coalesce(r.requiredParams, [])) = 0"
+    cypher = f"""
+    MATCH (r:OpenRewriteRecipe) {filters}
     RETURN elementId(r) AS node_id,
            r.recipeId AS recipe_id,
            r.displayName AS display_name,

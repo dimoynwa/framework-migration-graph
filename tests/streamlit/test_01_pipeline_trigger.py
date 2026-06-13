@@ -21,7 +21,7 @@ def test_blank_versions_show_warning():
     at.run()
     at.text_input[0].set_value("")
     at.text_input[1].set_value("")
-    at.get("form")[0].submit()
+    at.button[0].click()
     at.run()
     assert len(at.warning) > 0
 
@@ -37,7 +37,7 @@ def test_happy_path_exit_zero():
         at.run()
         at.text_input[0].set_value("2.7.x")
         at.text_input[1].set_value("3.2")
-        at.get("form")[0].submit()
+        at.button[0].click()
         at.run()
     assert len(at.success) > 0
 
@@ -53,7 +53,7 @@ def test_streaming_output_accumulates():
         at.run()
         at.text_input[0].set_value("2.7.x")
         at.text_input[1].set_value("3.2")
-        at.get("form")[0].submit()
+        at.button[0].click()
         at.run()
     assert len(at.success) > 0
 
@@ -69,7 +69,7 @@ def test_non_zero_exit_shows_error():
         at.run()
         at.text_input[0].set_value("2.7.x")
         at.text_input[1].set_value("3.2")
-        at.get("form")[0].submit()
+        at.button[0].click()
         at.run()
     assert len(at.error) > 0
     assert "Exit 1" in at.error[0].value

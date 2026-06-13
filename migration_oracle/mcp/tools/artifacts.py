@@ -2,10 +2,26 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from migration_oracle.mcp.graph.queries import artifacts as artifact_queries
 from migration_oracle.mcp.instance import mcp
+
+_FROM_VERSION_RE = re.compile(
+    r"[\\/]?[\w.-]+-to-(\d+\.\d+\.\d+)-changes(?:_filtered)?\.md$",
+    re.IGNORECASE,
+)
+_SPLIT_RE = re.compile(r"-to-(\d+\.\d+\.\d+)-changes", re.IGNORECASE)
+
+
+def _parse_from_version(raw_md_path: str | None) -> str:
+    if not raw_md_path:
+        return ""
+    m = re.search(r"(\d+\.\d+\.\d+)-to-\d+\.\d+\.\d+-changes(?:_filtered)?\.md", raw_md_path)
+    if m:
+        return m.group(1)
+    return ""
 
 ARTIFACT_TYPE_MAP = {
     "raw_md": "rawMdPath",
@@ -26,7 +42,7 @@ def list_pipeline_runs() -> dict:
     records = [
         {
             "framework": row.get("framework") or "",
-            "from_version": "",
+            "from_version": row.get("from_version") or _parse_from_version(row.get("raw_md_path")),
             "to_version": row.get("version") or "",
             "raw_md_path": row.get("raw_md_path") or "",
             "filtered_md_path": row.get("filtered_md_path"),

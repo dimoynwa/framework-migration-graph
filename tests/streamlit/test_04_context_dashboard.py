@@ -71,7 +71,10 @@ def test_mark_complete_updates_session_state():
     at.session_state["context_completed_count"] = 0
     at.session_state["context_skipped_count"] = 0
 
-    with patch("migration_oracle.mcp.tools.context.get_pending_steps", side_effect=[pending_response, pending_response, empty_pending]):
+    # call sequence: (1) first at.run after clear_on_nav rerun, (2) initial execution
+    # on button click run, (3) rerun after button sets completing_key — must still see
+    # the step so the completing_key branch fires, (4) final rerun after update shows empty
+    with patch("migration_oracle.mcp.tools.context.get_pending_steps", side_effect=[pending_response, pending_response, pending_response, empty_pending]):
         with patch("migration_oracle.mcp.tools.context.update_step_status", return_value=update_response):
             at.run()
             at.button[0].click()

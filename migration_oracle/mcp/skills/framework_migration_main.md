@@ -15,6 +15,18 @@ This skill replaces the pre-redesign five-phase harness with four re-entrant run
 5. Load `skill://framework-migration/version-map`. Surface any toolchain pre-conditions (Java version requirement, Node version requirement, etc.) before proceeding.
 6. Call `create_migration_context` with the scanned entity list.
 
+### Loop I — STATELESS FALLBACK
+
+**Trigger**: `create_migration_context` returns an error on both the initial attempt and one retry.
+
+**Instructions**:
+1. Log the failure to the user: "Context creation failed; continuing in stateless mode."
+2. Continue with `analyze_upgrade_path` and `build_recipe_plan` using the scanned entities from the codebase scan.
+3. Skip all tools that require a `context_id` (get_pending_steps, update_step_status, get_steps_for_scope_tier, close_migration_context).
+4. Track step state in agent context only (in-memory, not persisted).
+5. For every high-confidence finding (build passes), call `submit_migration_insight` without a `context_id`.
+6. At session end, emit a summary noting that the session ran in stateless mode and no graph state was persisted.
+
 **Gate:** Never call any graph query tool before this loop completes.
 
 ## Loop II — Scope-gated query

@@ -27,7 +27,7 @@ def test_no_results_shows_info():
     assert any("No rules found for this query" in i.value for i in at.info)
 
 
-def test_happy_path_renders_expander():
+def test_happy_path_renders_results():
     hit = {
         "statement": "Some long rule statement that is over 80 characters total to test truncation",
         "rule_type": "breaking-change",
@@ -44,7 +44,9 @@ def test_happy_path_renders_expander():
         at.text_input[0].set_value("removed API")
         at.button[0].click()
         at.run()
-    assert len(at.expander) > 0
+    # Results are rendered as st.markdown with custom HTML, not st.expander
+    assert not at.exception
+    assert any("results-header" in m.value for m in at.markdown)
 
 
 def test_all_framework_passes_none():

@@ -8,6 +8,8 @@ from itertools import product
 from migration_oracle.graph.driver import get_driver, write_session
 from migration_oracle.graph.indexes import ensure_indexes
 from migration_oracle.graph.queries import pipeline as pipeline_queries
+from migration_oracle.pipeline.seeds.deprecated_classes import SPRING_BOOT_3X_DEPRECATED
+from migration_oracle.pipeline.seeds.lifecycle_alerts import SPRING_BOOT_4X_ALERTS
 from migration_oracle.models.entities import (
     AffectedEntity,
     EntityKind,
@@ -95,6 +97,7 @@ def populate_graph(
     batch: MigrationEntitiesBatch,
     framework_display: str,
     to_version: str,
+    from_version: str = "",
     raw_md_path: str,
     filtered_md_path: str,
     entities_json_path: str,
@@ -138,10 +141,30 @@ def populate_graph(
     pipeline_queries.upsert_version_artifact_paths(
         framework=framework_display,
         version=to_version,
+        from_version=from_version,
         raw_md_path=raw_md_path,
         filtered_md_path=filtered_md_path,
         entities_json_path=entities_json_path,
     )
+
+    # T011/US2 FR-012: post-populate validation gate
+    import logging
+    _log = logging.getLogger(__name__)
+    try:
+        from migration_oracle.graph.driver import read_session as _rs
+        with _rs() as _s:
+            row = _s.run(
+                "MATCH (r:OpenRewriteRecipe) RETURN count(r) AS total, "
+                "count(r.description) AS has_desc, count(r.displayName) AS has_name"
+            ).single()
+        if row and (row["total"] != row["has_desc"] or row["total"] != row["has_name"]):
+            _log.warning(
+                "OpenRewriteRecipe description/displayName backfill incomplete: "
+                "total=%s has_desc=%s has_name=%s",
+                row["total"], row["has_desc"], row["has_name"],
+            )
+    except Exception:
+        pass
 
     return PopulationResult(
         rules_written=rules_written,
@@ -174,7 +197,8 @@ def _write_entity(
           rule.reasonType = $reason_type,
           rule.entityClassification = $classification,
           rule.subsystem = $subsystem,
-          rule.sourceUrl = $source_url
+          rule.sourceUrl = $source_url,
+          rule.framework = $framework
         ON MATCH SET
           rule.statement = $reason,
           rule.title = $title,
@@ -184,7 +208,8 @@ def _write_entity(
           rule.reasonType = $reason_type,
           rule.entityClassification = $classification,
           rule.subsystem = $subsystem,
-          rule.sourceUrl = $source_url
+          rule.sourceUrl = $source_url,
+          rule.framework = coalesce(rule.framework, $framework)
         MERGE (v)-[:INCLUDES_RULE]->(rule)
         RETURN elementId(rule) AS rule_id
         """,
@@ -214,6 +239,20 @@ def _write_entity(
             rule_id=rule_id,
             scope=scope.scope.value,
             severity=scope.severity.value,
+        )
+
+    # T024/US5 FR-017: ensure every rule has at least a default BreakingScope
+    if not entity.scopes:
+        session.run(
+            """
+            MATCH (rule:MigrationRule) WHERE elementId(rule) = $rule_id
+            WHERE NOT (rule)-[:HAS_SCOPE]->(:BreakingScope)
+            MERGE (bs:BreakingScope {scope: $scope, severity: $severity})
+            MERGE (rule)-[:HAS_SCOPE]->(bs)
+            """,
+            rule_id=rule_id,
+            scope="general",
+            severity="low",
         )
 
     for step in entity.steps:
@@ -307,18 +346,23 @@ def _write_step(
               ab.auto = false,
               ab.confidence = 0.0,
               ab.method = 'deterministic',
-              ab.missingRequiredParams = []
+              ab.missingRequiredParams = [],
+              e.description = $step_summary,
+              e.displayName = $step_summary
             ON MATCH SET
               ab.auto = CASE WHEN e.verifiedBy IS NULL THEN false ELSE ab.auto END,
               ab.confidence = CASE WHEN e.verifiedBy IS NULL THEN 0.0 ELSE ab.confidence END,
               ab.method = CASE WHEN e.verifiedBy IS NULL THEN 'deterministic' ELSE ab.method END,
               ab.missingRequiredParams = CASE
                 WHEN e.verifiedBy IS NULL THEN [] ELSE ab.missingRequiredParams
-              END
+              END,
+              e.description = coalesce(e.description, $step_summary),
+              e.displayName = coalesce(e.displayName, $step_summary)
             """,
             rule_id=rule_id,
             step_index=step.index,
             stub_id=f"stub:{rule_id}:{step.index}",
+            step_summary=step.summary or "",
         )
 
     if step.step_type in (StepType.REMOVE, StepType.REPLACE, StepType.RENAME):
@@ -408,6 +452,57 @@ def _write_affected_entity(
             version=to_version,
             name=affected.name,
         )
+
+
+def seed_deprecated_classes() -> None:
+    """Idempotently seed well-known Spring Boot 3.x deprecated Class nodes (T019/US4 FR-013-014)."""
+    with write_session() as session:
+        for dc in SPRING_BOOT_3X_DEPRECATED:
+            session.run(
+                """
+                MERGE (c:Class {name: $name})
+                ON CREATE SET c.framework = $framework
+                ON MATCH SET  c.framework = coalesce(c.framework, $framework)
+                WITH c
+                MERGE (v:Version {framework: $framework, version: $deprecated_in})
+                ON CREATE SET v.sortableVersion = $sortable_version
+                MERGE (c)-[:DEPRECATED_IN]->(v)
+                MERGE (v)-[:DEPRECATES]->(c)
+                """,
+                name=dc.name,
+                framework=dc.framework,
+                deprecated_in=dc.deprecated_in,
+                sortable_version=sortable_version(dc.deprecated_in),
+            )
+            if dc.replacement:
+                session.run(
+                    """
+                    MERGE (old:Class {name: $old_name})
+                    MERGE (new:Class {name: $new_name})
+                    MERGE (old)-[:REPLACED_BY]->(new)
+                    """,
+                    old_name=dc.name,
+                    new_name=dc.replacement,
+                )
+
+
+def seed_lifecycle_alerts() -> None:
+    """Idempotently seed Spring Boot 4.x lifecycle alert nodes (T034/US8 FR-023-024)."""
+    with write_session() as session:
+        for alert in SPRING_BOOT_4X_ALERTS:
+            session.run(
+                """
+                MATCH (v:Version {framework: $framework, version: $version})
+                MERGE (v)-[:HAS_LIFECYCLE_ALERT]->(a:LifecycleAlert {message: $message})
+                ON CREATE SET a.category = $category, a.phase = $phase
+                ON MATCH SET  a.category = $category, a.phase = $phase
+                """,
+                framework=alert.framework,
+                version=alert.version,
+                message=alert.message,
+                category=alert.category,
+                phase=alert.phase,
+            )
 
 
 populate = populate_graph

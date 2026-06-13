@@ -151,8 +151,9 @@ def test_get_steps_for_scope_tier():
         result = get_steps_for_scope_tier(
             context_id="ctx-1", scope="api-surface", severity_threshold="high"
         )
-    assert "com.example.Foo" in result["entities"]
     assert result["rule_count"] == 1
+    assert result["total"] == 1
+    assert result["hits"][0]["step_id"] == "s1"
 
 
 def test_close_migration_context():

@@ -5,5 +5,5 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-located at specs/009-community-insight-restructure/plan.md.
+located at specs/011-mcp-live-probe-fixes/plan.md.
 <!-- SPECKIT END -->
