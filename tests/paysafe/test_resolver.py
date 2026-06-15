@@ -124,8 +124,8 @@ def test_error_http_timeout():
         side_effect=_FindItError("http_timeout", "timed out"),
     ):
         result = resolve("my-lib", target_version="3.5.6")
-    assert result["status"] == "error"
-    assert result["error"]["error_code"] == "http_timeout"
+    assert result["status"] == "RESOLUTION_FAILED"
+    assert result["subStatus"] == "transport_error"
 
 
 def test_error_http_request_failed():

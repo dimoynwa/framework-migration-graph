@@ -16,6 +16,7 @@ def _required_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("NEO4J_URI", "bolt://localhost:7687")
     monkeypatch.setenv("NEO4J_PASSWORD", "test")
     monkeypatch.setenv("FINDIT_BASE_URL", "https://findit-api.icd.paysafe.cloud")
+    monkeypatch.setenv("FINDIT_AUTH_TOKEN", "test-token")
     importlib.reload(config)
     yield
     importlib.reload(config)

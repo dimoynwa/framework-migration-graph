@@ -18,7 +18,7 @@ def resolve_paysafe_dependency_by_service_name(
 ) -> dict:
     """Resolve a com.paysafe.* dependency via FindIt and GitLab. Returns repo, tags, and migration guidance.
 
-    Requires FINDIT_AUTH_TOKEN and GITLAB_API_KEY environment variables. Returns an error dict if either is missing.
+    Requires FINDIT_AUTH_TOKEN and GITLAB_API_KEY environment variables. Returns a RESOLUTION_FAILED dict with subStatus='auth_error' if FINDIT_AUTH_TOKEN is absent.
     Pass target_version to filter returned tags to those compatible with that framework version.
     The tool delegates entirely to the Paysafe resolver — check resolver logs for root-cause errors.
     """

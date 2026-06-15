@@ -2,9 +2,189 @@
 
 from __future__ import annotations
 
-from migration_oracle.graph.driver import read_session
+from typing import Literal
+
+from migration_oracle.graph.driver import read_session, write_session
 from migration_oracle.mcp.graph.queries._severity import filter_by_scope_and_severity
-from migration_oracle.models.graph import sortable_version
+from migration_oracle.models.graph import (
+    VersionResolutionFailure,
+    VersionResolutionResult,
+    sortable_version,
+)
+
+# ---------------------------------------------------------------------------
+# resolve_version — canonical version resolution (T004)
+# ---------------------------------------------------------------------------
+
+_RESOLVE_EXACT = """
+MATCH (v:Version {framework: $framework, version: $version})
+RETURN elementId(v) AS node_id, v.version AS resolved_version, v.sortableVersion AS sortable
+LIMIT 1
+"""
+
+_RESOLVE_FLOOR = """
+MATCH (v:Version {framework: $framework})
+WHERE v.sortableVersion <= $sortable
+RETURN elementId(v) AS node_id, v.version AS resolved_version, v.sortableVersion AS sortable
+ORDER BY v.sortableVersion DESC
+LIMIT 1
+"""
+
+_RESOLVE_CEIL = """
+MATCH (v:Version {framework: $framework})
+WHERE v.sortableVersion >= $sortable
+RETURN elementId(v) AS node_id, v.version AS resolved_version, v.sortableVersion AS sortable
+ORDER BY v.sortableVersion ASC
+LIMIT 1
+"""
+
+_RESOLVE_CEIL_FALLBACK = """
+MATCH (v:Version {framework: $framework})
+RETURN elementId(v) AS node_id, v.version AS resolved_version, v.sortableVersion AS sortable
+ORDER BY v.sortableVersion DESC
+LIMIT 1
+"""
+
+_LIST_CANDIDATES = """
+MATCH (v:Version {framework: $framework})
+RETURN v.version AS version
+ORDER BY v.sortableVersion DESC
+LIMIT 10
+"""
+
+_STUB_MERGE = """
+MERGE (v:Version {framework: $framework, version: $version})
+ON CREATE SET
+  v.sortableVersion = $sortable,
+  v.status          = "stub",
+  v.createdAt       = datetime()
+RETURN elementId(v) AS node_id, v.version AS resolved_version, v.sortableVersion AS sortable
+"""
+
+
+def resolve_version(
+    framework: str,
+    version: str,
+    mode: Literal["exact", "floor", "ceil"],
+    *,
+    allow_stub_create: bool = False,
+) -> VersionResolutionResult | VersionResolutionFailure:
+    """Resolve (framework, version) to a graph Version node.
+
+    Modes:
+      exact — must match exactly; returns NO_CANDIDATE if absent.
+      floor — highest node with sortableVersion <= requested (lower-bound/current).
+      ceil  — lowest node with sortableVersion >= requested (upper-bound/target).
+              Falls back to highest known node + aheadOfCatalogue=True when nothing qualifies.
+
+    Patch preservation: the caller-supplied patch segment is NEVER truncated.
+    allow_stub_create: when True, a STUB Version node is created if no ceil candidate exists.
+    """
+    sv = sortable_version(version)
+
+    if mode == "exact":
+        with read_session() as session:
+            row = session.run(_RESOLVE_EXACT, framework=framework, version=version).single()
+        if row is None:
+            with read_session() as session:
+                candidates = [r["version"] for r in session.run(_LIST_CANDIDATES, framework=framework)]
+            return VersionResolutionFailure(
+                status="NO_CANDIDATE",
+                framework=framework,
+                requestedVersion=version,
+                candidatesConsidered=candidates,
+            )
+        return VersionResolutionResult(
+            resolvedVersion=row["resolved_version"],
+            resolvedSortable=row["sortable"],
+            nodeId=row["node_id"],
+            requestedVersion=version,
+            rounded=row["resolved_version"] != version,
+            aheadOfCatalogue=False,
+            stubCreated=False,
+            direction=mode,
+        )
+
+    if mode == "floor":
+        with read_session() as session:
+            row = session.run(_RESOLVE_FLOOR, framework=framework, sortable=sv).single()
+        if row is None:
+            with read_session() as session:
+                candidates = [r["version"] for r in session.run(_LIST_CANDIDATES, framework=framework)]
+            return VersionResolutionFailure(
+                status="NO_CANDIDATE",
+                framework=framework,
+                requestedVersion=version,
+                candidatesConsidered=candidates,
+            )
+        return VersionResolutionResult(
+            resolvedVersion=row["resolved_version"],
+            resolvedSortable=row["sortable"],
+            nodeId=row["node_id"],
+            requestedVersion=version,
+            rounded=row["resolved_version"] != version,
+            aheadOfCatalogue=False,
+            stubCreated=False,
+            direction=mode,
+        )
+
+    # mode == "ceil"
+    with read_session() as session:
+        row = session.run(_RESOLVE_CEIL, framework=framework, sortable=sv).single()
+
+    if row is not None:
+        return VersionResolutionResult(
+            resolvedVersion=row["resolved_version"],
+            resolvedSortable=row["sortable"],
+            nodeId=row["node_id"],
+            requestedVersion=version,
+            rounded=row["resolved_version"] != version,
+            aheadOfCatalogue=False,
+            stubCreated=False,
+            direction=mode,
+        )
+
+    # No node >= sv — use highest available node (ahead-of-catalogue)
+    with read_session() as session:
+        fallback = session.run(_RESOLVE_CEIL_FALLBACK, framework=framework).single()
+
+    if fallback is None:
+        if allow_stub_create:
+            with write_session() as session:
+                stub = session.run(_STUB_MERGE, framework=framework, version=version, sortable=sv).single()
+            return VersionResolutionResult(
+                resolvedVersion=stub["resolved_version"],
+                resolvedSortable=stub["sortable"],
+                nodeId=stub["node_id"],
+                requestedVersion=version,
+                rounded=False,
+                aheadOfCatalogue=False,
+                stubCreated=True,
+                direction=mode,
+            )
+        with read_session() as session:
+            candidates = [r["version"] for r in session.run(_LIST_CANDIDATES, framework=framework)]
+        return VersionResolutionFailure(
+            status="NO_CANDIDATE",
+            framework=framework,
+            requestedVersion=version,
+            candidatesConsidered=candidates,
+        )
+
+    if allow_stub_create:
+        # Stub requested but we have a fallback — return the fallback with aheadOfCatalogue
+        pass  # falls through to aheadOfCatalogue return
+
+    return VersionResolutionResult(
+        resolvedVersion=fallback["resolved_version"],
+        resolvedSortable=fallback["sortable"],
+        nodeId=fallback["node_id"],
+        requestedVersion=version,
+        rounded=True,
+        aheadOfCatalogue=True,
+        stubCreated=False,
+        direction=mode,
+    )
 
 
 _ANALYZE_UPGRADE_PATH = """

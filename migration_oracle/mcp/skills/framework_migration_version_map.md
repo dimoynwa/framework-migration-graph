@@ -30,6 +30,7 @@ Formula: `MAJOR * 1_000_000 + MINOR * 1_000 + PATCH`
 | 3.4.2   | 3004002  | Active      | 17       |
 | 4.0.0   | 4000000  | Active      | 21       |
 | 4.0.2   | 4000002  | Active      | 21       |
+| 4.0.6   | 4000006  | Active      | 21       |
 | 4.1.0   | 4001000  | Active      | 21       |
 
 
@@ -42,6 +43,36 @@ Formula: `MAJOR * 1_000_000 + MINOR * 1_000 + PATCH`
 **Recommended incremental path for large jumps:**
 - 2.5.x → 2.7.x → 3.0.x → 3.2.x (current latest maintenance)
 - Never skip more than one major version in a single migration pass.
+
+**Toolchain gate note:** Java version requirements apply at the **minor-line** level, not per patch.
+Do not re-check the Java version on each patch upgrade within a minor line (e.g. 3.4.1 → 3.4.2).
+Check only when the minor changes (3.4.x → 3.5.x) or the major changes (3.x → 4.x).
+
+---
+
+## Spring Cloud
+
+Spring Cloud uses **calendar versioning** (`YYYY.MINOR.PATCH`). The `sortableVersion` formula
+`MAJOR × 1_000_000 + MINOR × 1_000 + PATCH` applies directly to the calendar components.
+
+Examples: `2025.1.0` → `2025 × 1_000_000 + 1 × 1_000 + 0 = 2_025_001_000`; `2024.0.3` → `2_024_000_003`.
+
+| Train | Calendar version | Compatible Boot | Import mode |
+|---|---|---|---|
+| Hoxton | 2020.0.x | 2.3.x | spring-cloud-starter-parent |
+| 2021.x Jubilee | 2021.0.x | 2.4–2.5 | spring-cloud-starter-parent |
+| 2022.x Kilburn | 2022.0.x | 2.7–3.0 | spring-cloud-starter-parent |
+| 2023.x Leyton | 2023.0.x | 3.1–3.2 | spring-cloud-starter-parent |
+| 2024.x Moorgate | 2024.0.x | 3.3–3.4 | spring-cloud-starter-parent |
+| 2025.1.x Oakwood | 2025.1.x | 4.0.x | BOM-only (`spring-cloud-dependencies`); `spring-cloud-starter-parent` removed |
+
+**Spring Cloud detection signal**: check `scannedDepsGa` for entries starting with `org.springframework.cloud:`
+OR `scannedClasses` for entries starting with `org.springframework.cloud.`. Do NOT use the
+`UPGRADES_FROM` relationship — it always points to a Boot Version node.
+
+**Boot 3.x → 4.x co-migration**: When migrating Boot 3 → 4 with Spring Cloud present, also migrate
+to the Oakwood train (2025.1.x). Oakwood removes `spring-cloud-starter-parent` — switch to
+the `spring-cloud-dependencies` BOM-only import in your `dependencyManagement` section.
 
 ---
 

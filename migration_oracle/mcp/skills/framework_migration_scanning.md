@@ -10,6 +10,228 @@ fuzzy — every rule below exists to align the scan output with the stored form.
 
 ---
 
+## Extractor Selection and `extractorPath` (T044, FR-E01, FR-E03)
+
+The scan result always includes an `extractorPath` field:
+
+| Value | Meaning |
+|---|---|
+| `"python"` | Python canonical extractor ran (primary path) |
+| `"grep-gnu"` | GNU grep fast path used (Python unavailable) |
+| `"grep-bsd"` | BSD grep fast path used (Python unavailable, macOS) |
+
+**Primary extractor**: Python canonical (uses `pathlib.rglob`, `re`, `xml.etree.ElementTree`, `json`). Available on Python 3.8+. Run after Loop I Step 0 preflight confirms Python 3 is present.
+
+**Optional fast path**: `grep -E` patterns documented below each section. Use only when Python is absent. BSD (macOS) and GNU (Linux) use identical `-E` flag — do **not** use `-P` (PCRE), which is GNU-only and absent on macOS.
+
+---
+
+## Python-Canonical Extractor (FR-E01, T041)
+
+The canonical extractor is a single Python module. It runs all entity-type passes and returns a structured scan result:
+
+```python
+"""framework_scanner.py — canonical entity extractor for the migration harness."""
+from __future__ import annotations
+
+import json
+import re
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+from typing import NamedTuple
+
+ALLOW_LIST = re.compile(
+    r'^('
+    r'org\.springframework|jakarta\.|javax\.|org\.hibernate|io\.micrometer'
+    r'|io\.projectreactor|org\.thymeleaf|com\.fasterxml\.jackson|tools\.jackson'
+    r'|org\.springdoc|com\.querydsl|org\.flywaydb|org\.liquibase'
+    r'|org\.apache\.tomcat|org\.eclipse\.jetty|io\.undertow'
+    r')'
+)
+
+IMPORT_RE = re.compile(r'^import\s+(?:static\s+)?([\w.]+)', re.MULTILINE)
+ANNOTATION_RE = re.compile(r'@([A-Za-z][\w.]*)')
+NOISE_ANNOTATIONS = frozenset([
+    'Override', 'Deprecated', 'SuppressWarnings', 'FunctionalInterface',
+    'SafeVarargs', 'Data', 'Builder', 'Getter', 'Setter', 'ToString',
+    'EqualsAndHashCode', 'NoArgsConstructor', 'AllArgsConstructor',
+    'RequiredArgsConstructor', 'Slf4j', 'Value', 'NonNull', 'Nullable',
+])
+PROP_KEY_RE = re.compile(r'^([\w][\w.-]+)\s*=', re.MULTILINE)
+MAVEN_NS = '{http://maven.apache.org/POM/4.0.0}'
+MAVEN_KEEP = re.compile(
+    r'^(org\.springframework|jakarta\.|javax\.|org\.hibernate|io\.micrometer'
+    r'|io\.projectreactor|com\.fasterxml\.jackson|org\.springdoc|com\.querydsl'
+    r'|org\.flywaydb|org\.liquibase|org\.apache\.tomcat|org\.eclipse\.jetty'
+    r'|io\.undertow)\.'
+)
+GRADLE_DEP_RE = re.compile(r'["\']([a-zA-Z][\w.-]+:[a-zA-Z][\w.-]+):[^\s"\']+["\']')
+
+
+class ScanResult(NamedTuple):
+    entities: list[str]
+    test_entities: list[str]
+    extractor_path: str  # always "python"
+
+
+def _scan_java_imports(root: Path, scope: str = 'main') -> set[str]:
+    """Collect FQCNs from Java/Kotlin import lines under src/{scope}."""
+    result: set[str] = set()
+    base = root / 'src' / scope
+    for ext in ('*.java', '*.kt'):
+        for f in base.rglob(ext):
+            try:
+                text = f.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                continue
+            for m in IMPORT_RE.finditer(text):
+                fqcn = m.group(1)
+                if ALLOW_LIST.match(fqcn):
+                    result.add(fqcn)
+    return result
+
+
+def _scan_annotations(root: Path) -> set[str]:
+    """Collect annotation simple names (no @) from src/main."""
+    result: set[str] = set()
+    for ext in ('*.java', '*.kt'):
+        for f in (root / 'src' / 'main').rglob(ext):
+            try:
+                text = f.read_text(encoding='utf-8', errors='replace')
+            except OSError:
+                continue
+            for m in ANNOTATION_RE.finditer(text):
+                raw = m.group(1)
+                simple = raw.rsplit('.', 1)[-1]
+                if (
+                    re.match(r'^[A-Z][A-Za-z0-9]+$', simple)
+                    and simple not in NOISE_ANNOTATIONS
+                ):
+                    result.add(simple)
+    return result
+
+
+def _scan_properties(root: Path) -> set[str]:
+    """Collect dotted property keys from .properties and .yml/.yaml files."""
+    result: set[str] = set()
+    for f in (root / 'src' / 'main' / 'resources').rglob('*.properties'):
+        try:
+            text = f.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        for m in PROP_KEY_RE.finditer(text):
+            result.add(m.group(1))
+
+    # YAML — PyYAML canonical path; degrade path below
+    try:
+        import yaml as _yaml  # type: ignore[import]
+        def _flatten(d: dict, prefix: str = '') -> None:
+            for k, v in (d or {}).items():
+                key = f'{prefix}.{k}' if prefix else str(k)
+                if isinstance(v, dict):
+                    _flatten(v, key)
+                else:
+                    result.add(key)
+        for f in (root / 'src' / 'main' / 'resources').rglob('*.y*ml'):
+            try:
+                data = _yaml.safe_load(f.read_text(encoding='utf-8', errors='replace'))
+                if isinstance(data, dict):
+                    _flatten(data)
+            except Exception:
+                pass
+    except ImportError:
+        # PyYAML absent — YAML property extraction skipped; .properties files parsed only
+        pass  # see FR-E02 degrade section below
+
+    return result
+
+
+def _scan_maven(root: Path) -> set[str]:
+    """Collect groupId:artifactId from pom.xml files."""
+    result: set[str] = set()
+    for pom in root.rglob('pom.xml'):
+        if '/target/' in str(pom) or '\\target\\' in str(pom):
+            continue
+        try:
+            tree = ET.parse(str(pom)).getroot()
+            for dep in tree.iter(MAVEN_NS + 'dependency'):
+                g = dep.find(MAVEN_NS + 'groupId')
+                a = dep.find(MAVEN_NS + 'artifactId')
+                if g is not None and a is not None:
+                    gav = f'{g.text.strip()}:{a.text.strip()}'
+                    if MAVEN_KEEP.match(gav):
+                        result.add(gav)
+        except Exception:
+            pass
+    return result
+
+
+def _scan_gradle(root: Path) -> set[str]:
+    """Collect groupId:artifactId from build.gradle(.kts) files."""
+    result: set[str] = set()
+    for f in root.rglob('build.gradle*'):
+        if '/.gradle/' in str(f) or '\\.gradle\\' in str(f):
+            continue
+        try:
+            text = f.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        for m in GRADLE_DEP_RE.finditer(text):
+            gav = m.group(1)
+            if MAVEN_KEEP.match(gav):
+                result.add(gav)
+    return result
+
+
+def scan(project_root: str) -> ScanResult:
+    root = Path(project_root)
+    main_imports = _scan_java_imports(root, 'main')
+    test_imports = _scan_java_imports(root, 'test')
+    annotations = _scan_annotations(root)
+    properties = _scan_properties(root)
+    maven_deps = _scan_maven(root)
+    gradle_deps = _scan_gradle(root)
+
+    entities = sorted(main_imports | annotations | properties | maven_deps | gradle_deps)
+    test_entities = sorted(test_imports)
+    return ScanResult(entities=entities, test_entities=test_entities, extractor_path='python')
+
+
+if __name__ == '__main__':
+    project_root = sys.argv[1] if len(sys.argv) > 1 else '.'
+    result = scan(project_root)
+    print(json.dumps({
+        'entities': result.entities,
+        'testEntities': result.test_entities,
+        'extractorPath': result.extractor_path,
+        'count': len(result.entities),
+    }, indent=2))
+```
+
+---
+
+## PyYAML Degrade Path (FR-E02, T042)
+
+The canonical extractor uses `yaml.safe_load` for `.yml`/`.yaml` property extraction. If PyYAML is absent:
+
+```python
+try:
+    import yaml
+    # ... full YAML flatten as in _scan_properties above
+except ImportError:
+    # PyYAML absent — YAML property extraction skipped; .properties files parsed only
+    pass
+```
+
+- Java class/dependency extraction is **unaffected** — it uses `re` + `pathlib` only.
+- `.properties` files are still parsed via `re.match`.
+- Log: `"PyYAML absent — YAML property extraction skipped; .properties files parsed only"`.
+- `extractorPath` remains `"python"` — the degrade affects only one entity type, not the overall extractor choice.
+- The agent checks PyYAML availability in Loop I Step 0 preflight and surfaces the warning before scanning starts.
+
+---
+
 ## Relevance Filtering — read this first
 
 The graph only contains entities **owned by a tracked framework** (Spring Boot, Angular,
@@ -37,7 +259,20 @@ allow-list per framework is defined inline and reused by the prioritization step
 
 ---
 
-## Entity Format Quick Reference
+## Entity Format Quick Reference and Scan Result Shape
+
+The scan result returned by the Python canonical extractor (`scan()`) always has the shape:
+```json
+{
+  "entities": ["org.springframework..."],
+  "testEntities": ["org.junit..."],
+  "extractorPath": "python",
+  "count": 42
+}
+```
+`extractorPath` is `"python"`, `"grep-gnu"`, or `"grep-bsd"`. Always present.
+
+### Entity Format Reference
 
 | Entity type | Graph expects | Bash produces |
 |---|---|---|
@@ -54,7 +289,9 @@ allow-list per framework is defined inline and reused by the prioritization step
 
 ---
 
-## Spring Boot (Java / Kotlin)
+## Spring Boot (Java / Kotlin) — Optional grep Fast Path
+
+> **Use the Python canonical extractor above as the primary path.** These `grep` patterns are the **optional fast path** — use them only when Python 3 is absent (rare). Both GNU and BSD (macOS) support `-E`; do NOT use `-P` (PCRE) as it is GNU-only.
 
 **Allow-list prefixes** (reused by every Spring extractor below). Core set plus managed libs
 that carry real migration rules. `javax.` is kept deliberately — it is required for the
@@ -167,7 +404,7 @@ for root, _, files in os.walk('$PROJECT_ROOT/src/main/resources'):
 
 ---
 
-## Spring Boot — Dependencies
+## Spring Boot — Dependencies (Optional grep Fast Path)
 
 **Dependency allow-list** (`groupId:artifactId`, version dropped). Mirrors the import
 allow-list; note Jackson's groupId is `com.fasterxml.jackson.*`, which the previous `io.`-only
@@ -214,7 +451,7 @@ grep -rh --include="build.gradle" --include="build.gradle.kts" \
 
 ---
 
-## Angular (TypeScript)
+## Angular (TypeScript) — Optional grep/node Fast Path
 
 **Allow-list packages.** `@angular/` and `@ngrx/` alone are too narrow — they drop three
 package families that carry real migration rules: `rxjs` (major bumps with breaking
@@ -275,7 +512,7 @@ grep -rh --include="*.ts" \
 
 ---
 
-## WildFly / JBoss (Java + server XML)
+## WildFly / JBoss (Java + server XML) — Python-canonical for XML, optional grep for Java imports
 
 WildFly and JBoss EAP are Jakarta EE application servers. JBoss EAP is the downstream
 commercial build of WildFly; the **scanning patterns are identical** — only the version

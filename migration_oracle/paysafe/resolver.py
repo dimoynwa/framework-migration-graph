@@ -57,6 +57,35 @@ def _build_error(
     }
 
 
+def _build_resolution_failed(
+    sub_status: str,
+    failure_reason: str,
+    service_name: str,
+    remediation_steps: list[str] | None = None,
+) -> dict:
+    """Build a typed RESOLUTION_FAILED envelope for auth/transport failures."""
+    if sub_status == "auth_error":
+        steps = remediation_steps or [
+            "Set FINDIT_AUTH_TOKEN env var: export FINDIT_AUTH_TOKEN=<token>",
+            "Set GITLAB_API_KEY env var: export GITLAB_API_KEY=<token>",
+        ]
+    else:
+        steps = remediation_steps or [
+            "Check VPN connection",
+            "Verify FINDIT_BASE_URL is reachable: curl -s $FINDIT_BASE_URL/health",
+        ]
+    return {
+        "status": "RESOLUTION_FAILED",
+        "subStatus": sub_status,
+        "failureReason": _scrub(failure_reason),
+        "remediationSteps": steps,
+        "unresolvedDependencies": [service_name],
+        "fallbackInstructions": (
+            "Run gradle dependencies --configuration runtimeClasspath and inspect output manually"
+        ),
+    }
+
+
 def _build_result(**kwargs) -> dict:
     allowed = RESOLVER_RESULT_REQUIRED_KEYS | {"name_resolution"}
     extra = set(kwargs) - allowed
@@ -119,6 +148,14 @@ def resolve(
                 details={"input_name": service_name},
             )
 
+        # Step 2b: check auth token availability
+        if not os.environ.get("FINDIT_AUTH_TOKEN", ""):
+            return _build_resolution_failed(
+                "auth_error",
+                "FINDIT_AUTH_TOKEN environment variable is not set or empty.",
+                service_name,
+            )
+
         # Step 3: FindIt lookup (time-bounded to avoid hanging on unresponsive backend)
         _fi_executor = ThreadPoolExecutor(max_workers=1)
         try:
@@ -127,12 +164,10 @@ def resolve(
                 findit_record = _fi_future.result(timeout=_FINDIT_TIMEOUT_SECONDS)
             except FuturesTimeout:
                 _fi_executor.shutdown(wait=False)
-                return _build_error(
-                    "findit_timeout",
+                return _build_resolution_failed(
+                    "transport_error",
                     f"FindIt did not respond within {_FINDIT_TIMEOUT_SECONDS}s for {service_name!r}.",
-                    recoverable=True,
-                    actionable_hint="Retry the request or check network connectivity to FindIt.",
-                    details={"service_name": service_name, "timeout_seconds": _FINDIT_TIMEOUT_SECONDS},
+                    service_name,
                 )
             _fi_executor.shutdown(wait=False)
         except _FindItError as exc:
@@ -145,14 +180,19 @@ def resolve(
                     details=exc.details,
                 )
             if exc.error_code == "http_timeout":
-                return _build_error(
-                    exc.error_code,
+                return _build_resolution_failed(
+                    "transport_error",
                     exc.message or "FindIt request timed out.",
-                    recoverable=True,
-                    actionable_hint="Retry the request or check network connectivity to FindIt.",
-                    details=exc.details,
+                    service_name,
                 )
             if exc.error_code == "http_request_failed":
+                status_code = exc.details.get("status_code", 0)
+                if status_code in (401, 403):
+                    return _build_resolution_failed(
+                        "auth_error",
+                        exc.message or f"FindIt returned HTTP {status_code} — authentication failed.",
+                        service_name,
+                    )
                 return _build_error(
                     exc.error_code,
                     exc.message or "FindIt request failed.",

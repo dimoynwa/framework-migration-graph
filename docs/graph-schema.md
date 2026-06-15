@@ -298,6 +298,14 @@ Represents a user's active or historical migration session. Tracks progress acro
 | `completedSteps` | list[string] | no | Element IDs of completed `MigrationStep` nodes (legacy — prefer `STEP_OUTCOME`) |
 | `skippedSteps` | list[string] | no | Element IDs of skipped steps (legacy — prefer `STEP_OUTCOME`) |
 | `failedSteps` | list[string] | no | Element IDs of failed steps (legacy — prefer `STEP_OUTCOME`) |
+| `deferredSteps` | list[string] | no (new) | Element IDs of deferred MigrationStep nodes (bridge-applied); set to `[]` on CREATE |
+| `updatedAt` | datetime | no (new) | Last-modified timestamp; set on every state-changing write (create, match, STEP_OUTCOME, close) |
+| `queriedEntities` | string (JSON) | no (new) | Map of entity_name → result_summary; skip guard for Loop II |
+| `scannedClasses` | list[string] | no (new) | Typed bucket: FQCNs extracted from import scan |
+| `scannedClassSimple` | list[string] | no (new) | Typed bucket: simple class/annotation names (no dot, starts uppercase) |
+| `scannedDepsGa` | list[string] | no (new) | Typed bucket: groupId:artifactId coordinates |
+| `scannedDepArtifacts` | list[string] | no (new) | Typed bucket: bare artifact IDs |
+| `scannedProps` | list[string] | no (new) | Typed bucket: dotted property keys |
 | `createdAt` | datetime | yes | Session creation timestamp |
 | `completedAt` | datetime | no | Session completion timestamp |
 | `notes` | string | no | Free-form notes |
@@ -480,15 +488,31 @@ Links a migration session to its target `Version` node. No properties.
 
 ### STEP_OUTCOME
 ```
-(MigrationContext)-[:STEP_OUTCOME {status, reason, updatedAt}]->(MigrationStep)
+(MigrationContext)-[:STEP_OUTCOME {status, reason, updatedAt, resolvedVia, bridgeResolvedAt}]->(MigrationStep)
 ```
 | Property | Type | Description |
 |---|---|---|
-| `status` | string | One of: `"completed"`, `"skipped"`, `"failed"` |
-| `reason` | string | Human-readable rationale (nullable) |
+| `status` | string | One of: `"completed"`, `"skipped"`, `"failed"`, `"deferred"` (additive — do not remove existing values) |
+| `reason` | string | Human-readable rationale or JSON-encoded bridge reason (nullable) |
 | `updatedAt` | datetime | Timestamp of last update |
+| `resolvedVia` | string | Set to `"bridge"` when a deferred step is auto-resolved via requiredChange completion (nullable) |
+| `bridgeResolvedAt` | datetime | Timestamp when the bridge was resolved (nullable; set by auto-resolve in `update_step_status`) |
 
 Merged on `(context, step)` pair — repeated calls update the existing relationship rather than creating a duplicate.
+
+---
+
+### BRIDGED_BY
+```
+(MigrationRule)-[:BRIDGED_BY {removalCondition, bridgeReason, applicableRuleTypes}]->(Dependency)
+```
+| Property | Type | Description |
+|---|---|---|
+| `removalCondition` | string | Human-readable condition under which the bridge is removed |
+| `bridgeReason` | string | Explanation of why this bridge exists |
+| `applicableRuleTypes` | list[string] | ruleType values for which this bridge applies; e.g. `["breaking", "mandatory_migration"]` |
+
+Cardinality: 0..N per rule. A rule with no `BRIDGED_BY` edges does not accept `deferred` outcomes (FR-C11).
 
 ---
 

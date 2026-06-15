@@ -3,17 +3,10 @@
 from __future__ import annotations
 
 from migration_oracle.mcp.graph.queries import community as community_queries
+from migration_oracle.mcp.graph.queries.upgrade import resolve_version
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.mcp.tools.search import get_embedding_model
-from migration_oracle.models.graph import sortable_version
-
-
-def _normalise_version(v: str) -> str:
-    """Pad 'major' → 'major.0.0' and 'major.minor' → 'major.minor.0'."""
-    parts = v.split(".")
-    while len(parts) < 3:
-        parts.append("0")
-    return ".".join(parts[:3])
+from migration_oracle.models.graph import VersionResolutionFailure, sortable_version
 
 
 @mcp.tool()
@@ -44,6 +37,22 @@ def submit_migration_insight(
     Note: the parameter 'spring_boot_version' holds the framework version string
     regardless of the 'framework' value (e.g. '3.2' for Spring Boot, '30' for WildFly).
     """
+    resolution = resolve_version(framework, spring_boot_version, mode="floor")
+    if isinstance(resolution, VersionResolutionFailure):
+        return {
+            "status": "error",
+            "error_code": "version_not_in_graph",
+            "insight_id": None,
+            "duplicate_of": None,
+            "message": (
+                f"Version {spring_boot_version!r} not found in graph for framework {framework!r}. "
+                f"Candidates considered: {', '.join(resolution.candidatesConsidered) or 'none'}"
+            ),
+            "candidates_considered": resolution.candidatesConsidered,
+        }
+
+    resolved_version = resolution.resolvedVersion
+
     embedding: list[float] | None = None
     try:
         _vec = get_embedding_model().encode(statement)
@@ -54,7 +63,7 @@ def submit_migration_insight(
         new_id, is_duplicate = community_queries.submit_insight(
             statement=statement,
             framework=framework,
-            version=_normalise_version(spring_boot_version),
+            version=resolved_version,
             solution=solution,
             affected_properties=affected_properties,
             affected_classes=affected_classes,

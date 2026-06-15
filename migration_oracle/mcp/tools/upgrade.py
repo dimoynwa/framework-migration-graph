@@ -10,10 +10,13 @@ from typing import NamedTuple
 
 import requests
 
+from typing import Literal
+
 from migration_oracle.graph.driver import read_session
 from migration_oracle.mcp.graph.queries import upgrade as upgrade_queries
-from migration_oracle.mcp.graph.queries.upgrade import _CHECK_VERSION_IN_GRAPH
+from migration_oracle.mcp.graph.queries.upgrade import _CHECK_VERSION_IN_GRAPH, resolve_version
 from migration_oracle.mcp.instance import mcp
+from migration_oracle.models.graph import VersionResolutionFailure
 
 
 def _to_minor_zero(version: str) -> str:
@@ -214,10 +217,15 @@ def analyze_upgrade_path(
     norm = normalize_entities(user_entities or [])
     has_filter = _has_entity_filter(norm)
 
+    resolved_from = resolve_version(framework, current_version, mode="floor")
+    resolved_to = resolve_version(framework, target_version, mode="ceil")
+    from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+    to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
+
     rows = upgrade_queries.analyze_upgrade_path(
         framework=framework,
-        current_version=_to_minor_zero(current_version),
-        target_version=_to_minor_zero(target_version),
+        current_version=from_ver,
+        target_version=to_ver,
         scanned_classes=norm["scanned_classes"],
         scanned_class_simple=norm["scanned_class_simple"],
         scanned_deps_ga=norm["scanned_deps_ga"],
@@ -292,10 +300,15 @@ def build_recipe_plan(
     norm = normalize_entities(user_entities or [])
     has_filter = _has_entity_filter(norm)
 
+    resolved_from = resolve_version(framework, current_version, mode="floor")
+    resolved_to = resolve_version(framework, target_version, mode="ceil")
+    from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+    to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
+
     plan = upgrade_queries.build_recipe_plan(
         framework=framework,
-        current_version=_to_minor_zero(current_version),
-        target_version=_to_minor_zero(target_version),
+        current_version=from_ver,
+        target_version=to_ver,
         scanned_classes=norm["scanned_classes"],
         scanned_class_simple=norm["scanned_class_simple"],
         scanned_deps_ga=norm["scanned_deps_ga"],
@@ -333,17 +346,23 @@ def build_recipe_plan(
 
 
 @mcp.tool()
-def check_version_availability(framework: str, version: str) -> dict:
+def check_version_availability(
+    framework: str,
+    version: str,
+    direction: Literal["floor", "ceil"] = "floor",
+) -> dict:
     """Check whether a framework version exists in the graph and on Maven Central.
 
-    Returns: status, exists_in_graph, ga_available, latest_patch, hint.
+    direction='floor' (default): resolve to the highest graph node <= requested version.
+    direction='ceil': resolve to the lowest graph node >= requested version (for target checks).
+
+    Returns: status, exists_in_graph, nodeId, resolved_version, rounded, ahead_of_catalogue,
+             ga_available, latest_patch, hint.
     On Maven Central probe failure, returns status='ok' with ga_available=False and a hint.
     """
     cf = canonical_framework(framework)
     if isinstance(cf, dict):
         return cf
-
-    normalised = _to_minor_zero(version)
 
     coords = _MAVEN_COORDS.get(cf.slug)
     if coords is None:
@@ -356,18 +375,32 @@ def check_version_availability(framework: str, version: str) -> dict:
             "hint": f"Unknown framework; supported: {', '.join(sorted(_MAVEN_COORDS))}",
         }
 
+    resolution = resolve_version(cf.display, version, mode=direction)
+    if isinstance(resolution, VersionResolutionFailure):
+        return {
+            "status": "ok",
+            "exists_in_graph": False,
+            "nodeId": None,
+            "resolved_version": None,
+            "rounded": False,
+            "ahead_of_catalogue": False,
+            "ga_available": False,
+            "latest_patch": None,
+            "hint": (
+                f"Version {version!r} has no matching node in the graph "
+                f"(direction={direction}). Candidates considered: "
+                f"{', '.join(resolution.candidatesConsidered) or 'none (framework unknown)'}"
+            ),
+            "candidates_considered": resolution.candidatesConsidered,
+        }
+
+    exists_in_graph = True
+    resolved_v = resolution.resolvedVersion
+    node_id = resolution.nodeId
+
     group_id, artifact_id = coords
-
-    with read_session() as session:
-        record = session.run(
-            _CHECK_VERSION_IN_GRAPH,
-            framework=cf.display,
-            version=normalised,
-        ).single()
-    exists_in_graph: bool = bool(record["found"]) if record else False
-
     _maven_base = "https://search.maven.org/solrsearch/select"
-    cache_key = (group_id, artifact_id, normalised)
+    cache_key = (group_id, artifact_id, resolved_v)
     cached = _MAVEN_CACHE.get(cache_key)
     if cached and time.time() < cached[2]:
         ga_available: bool = cached[0]
@@ -376,7 +409,7 @@ def check_version_availability(framework: str, version: str) -> dict:
         try:
             def _fetch_ga() -> bool:
                 r = requests.get(
-                    f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}+AND+v:{normalised}&rows=1&wt=json",
+                    f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}+AND+v:{resolved_v}&rows=1&wt=json",
                     timeout=3,
                 )
                 r.raise_for_status()
@@ -404,18 +437,30 @@ def check_version_availability(framework: str, version: str) -> dict:
             return {
                 "status": "ok",
                 "exists_in_graph": exists_in_graph,
+                "nodeId": node_id,
+                "resolved_version": resolved_v,
+                "rounded": resolution.rounded,
+                "ahead_of_catalogue": resolution.aheadOfCatalogue,
                 "ga_available": False,
                 "latest_patch": None,
                 "hint": "Maven Central unavailable — could not verify GA status",
             }
 
-    hint = f"Version {normalised} {'is' if ga_available else 'is not'} available on Maven Central."
+    hint = f"Version {resolved_v} {'is' if ga_available else 'is not'} available on Maven Central."
     if latest_patch:
         hint += f" Latest patch: {latest_patch}."
+    if resolution.rounded:
+        hint += f" Requested {version!r} resolved to {resolved_v!r} (direction={direction})."
+    if resolution.aheadOfCatalogue:
+        hint += f" Version {version!r} is ahead of the highest catalogued version ({resolved_v})."
 
     return {
         "status": "ok",
         "exists_in_graph": exists_in_graph,
+        "nodeId": node_id,
+        "resolved_version": resolved_v,
+        "rounded": resolution.rounded,
+        "ahead_of_catalogue": resolution.aheadOfCatalogue,
         "ga_available": ga_available,
         "latest_patch": latest_patch,
         "hint": hint,

@@ -1,0 +1,48 @@
+# Eval Lane B — Stateless-fallback Loop IV (FR-D06 / ISSUE-013)
+# Agent-in-the-loop eval scenario — NOT a pytest test
+#
+# Validates: Loop IV completes in stateless-fallback mode when
+# create_migration_context fails.
+#
+# Spec anchor: T050, FR-D06, SC-008
+
+name: eval_stateless_fallback_loop_iv
+
+description: |
+  Verify that when create_migration_context returns an error on both initial
+  attempt and one retry, Loop IV continues in stateless-fallback mode,
+  surfaces the step backlog to the engineer, and does NOT propagate an exception.
+
+fixture:
+  type: error_injection
+  target: create_migration_context
+  behavior: always_return_error
+  error: {status: "error", error_code: "version_not_in_graph", hint: "injected test error"}
+
+entry_point:
+  harness: Loop IV
+  trigger: start Loop IV without a stored context (stateless-fallback path)
+
+execution:
+  - Attempt create_migration_context (returns injected error)
+  - Retry once (returns injected error again)
+  - Enter stateless-fallback mode
+  - Run analyze_upgrade_path and build_recipe_plan with scanned entities
+  - Surface step backlog to engineer
+
+assertions:
+  - name: no_exception_propagated
+    description: no uncaught exception thrown at any point
+    check: exception_raised == false
+
+  - name: stateless_mode_logged
+    description: "Context creation failed; continuing in stateless mode." logged to user
+    check: "Context creation failed" in agent_log
+
+  - name: backlog_surfaced
+    description: step backlog is surfaced to the engineer
+    check: backlog_items_count > 0
+
+  - name: context_tools_skipped
+    description: get_pending_steps / update_step_status / close_migration_context not called
+    check: context_tools_not_called == true

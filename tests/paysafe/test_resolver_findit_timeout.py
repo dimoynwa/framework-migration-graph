@@ -6,6 +6,13 @@ import time
 from concurrent.futures import TimeoutError as FuturesTimeout
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _set_findit_token(monkeypatch):
+    monkeypatch.setenv("FINDIT_AUTH_TOKEN", "test-token")
+
 
 @patch("migration_oracle.paysafe.resolver.findit.lookup")
 def test_timeout_returns_structured_findit_timeout_error(mock_lookup):
@@ -21,9 +28,9 @@ def test_timeout_returns_structured_findit_timeout_error(mock_lookup):
     result = resolve("paysafe-wallet-switch")
     elapsed = time.monotonic() - start
 
-    assert result["status"] == "error"
-    assert result["error"]["error_code"] == "findit_timeout"
-    assert result["error"]["recoverable"] is True
+    assert result["status"] == "RESOLUTION_FAILED"
+    assert result["subStatus"] == "transport_error"
+    # result["error"]["recoverable"] removed — RESOLUTION_FAILED has no error sub-object
     assert elapsed < 15, f"Resolver hung for {elapsed:.1f}s — timeout not applied"
 
 

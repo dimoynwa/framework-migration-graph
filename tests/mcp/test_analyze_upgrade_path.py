@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+# Fake version row returned by resolve_version's graph query so tests need no DB.
+_VER_ROW = {"node_id": "fake-id-0", "resolved_version": "3.5.0", "sortable": 3005000}
+
 
 def _make_rule(
     rule_id: str = "r1",
@@ -48,9 +51,9 @@ def _make_rows(rules: list[dict]) -> list[dict]:
 def test_title_projected(mock_session_ctx):
     """analyze_upgrade_path returns rules with a non-null title field."""
     rows = _make_rows([_make_rule(title="Migrate RestTemplate")])
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -69,9 +72,9 @@ def test_title_projected(mock_session_ctx):
 def test_reason_from_statement(mock_session_ctx):
     """reason in the rule dict is sourced from rule.statement."""
     rows = _make_rows([_make_rule(statement="Use RestClient instead", reason=None)])
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -95,9 +98,9 @@ def test_reason_fallback_when_both_null(mock_session_ctx):
         "lifecycle_events": [],
         "raw_phase_alerts": [],
     }
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter([row])
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter([row])
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -115,9 +118,9 @@ def test_severity_extracted_from_scopes(mock_session_ctx):
     """severity is extracted from the first non-null scope entry in the scopes list."""
     rule = _make_rule(scopes=[{"scope": "api-surface", "severity": "high"}])
     rows = _make_rows([rule])
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -135,9 +138,9 @@ def test_severity_null_for_scopeless(mock_session_ctx):
     """severity is null when the rule has no scopes."""
     rule = _make_rule(scopes=[])
     rows = _make_rows([rule])
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -160,9 +163,9 @@ def test_all_three_fields_non_null(mock_session_ctx):
         change_type="breaking",
     )
     rows = _make_rows([rule])
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 

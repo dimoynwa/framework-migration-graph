@@ -3,9 +3,13 @@
 Generated: 2026-06-12  
 Scope: All project files (`framework_migration_main.md`, `framework_migration_version_map.md`, `framework_migration_scanning.md`, `framework_migration_plan_format.md`, `graph-schema.md`, `mcp-tools-skills-prompts.md`)
  
+> **STATUS: RESOLVED** — All 14 distinct issues implemented under feature `012-oracle-contract-fixes` (2026-06-14). ISSUE-011 was consolidated into ISSUE-008. Per-issue resolution is annotated inline below and summarized in the table at the end. Verification via the evaluation harness (lanes A–C) is the next step and is tracked separately.
+ 
 ---
  
 ## ISSUE-001 · CRITICAL · `sortableVersion` formula mismatch
+ 
+> ✅ **RESOLVED** — FR-001/FR-002 · T006–T008 — formula corrected to `MAJOR*1_000_000 + MINOR*1_000 + PATCH`; all Sortable cells recomputed; the (correct) graph-schema copy left untouched.
  
 **Files:** `framework_migration_version_map.md`, `graph-schema.md`
  
@@ -29,6 +33,8 @@ Update `framework_migration_version_map.md` to use `MAJOR * 1_000_000 + MINOR * 
  
 ## ISSUE-002 · HIGH · `queriedEntities` skip guard has no defined write path
  
+> ✅ **RESOLVED** — FR-014 · T023–T025 — new `update_queried_entity` tool writes the cache; Loop II skip guard documented in the main skill.
+ 
 **Files:** `framework_migration_main.md`, `mcp-tools-skills-prompts.md`
  
 **Description:**  
@@ -43,6 +49,8 @@ Add a write step to the Loop II instructions: after each successful entity query
 ---
  
 ## ISSUE-003 · HIGH · `get_steps_for_scope_tier` ignores the `severity_threshold` parameter
+ 
+> ✅ **RESOLVED** — FR-008 · T015–T016 — invalid thresholds rejected; severity filter applied Python-side via `severity_meets_threshold` (rank low=1…critical=4, at-or-above).
  
 **Files:** `mcp-tools-skills-prompts.md`
  
@@ -77,6 +85,8 @@ WHERE sev_rank <= $severity_threshold_rank
  
 ## ISSUE-004 · HIGH · `update_step_status` never writes `STEP_OUTCOME` — the recommended relationship is never populated
  
+> ✅ **RESOLVED** — FR-005/FR-006 · T010,T012,T013 — `STEP_OUTCOME` MERGE added (idempotent per (context, step)); legacy arrays retained.
+ 
 **Files:** `mcp-tools-skills-prompts.md`, `graph-schema.md`
  
 **Description:**  
@@ -102,6 +112,8 @@ Add a `MERGE (ctx)-[so:STEP_OUTCOME {status: $outcome, reason: $reason, updatedA
  
 ## ISSUE-005 · HIGH · Rollback skill referenced but not defined
  
+> ✅ **RESOLVED** — FR-016 · T030–T031 — `skill://framework-migration/rollback` created and referenced from Loop III's build-failure path.
+ 
 **Files:** `framework_migration_main.md`
  
 **Description:**  
@@ -116,6 +128,8 @@ Either create `skill://framework-migration/rollback` defining the revert procedu
 ---
  
 ## ISSUE-006 · HIGH · `analyze_upgrade_path` traverses `AUTOMATED_BY` from `MigrationRule` — schema mismatch
+ 
+> ✅ **RESOLVED** — FR-009 · T017–T018 — `AUTOMATED_BY` traversed from `MigrationStep`; `step_id` added to each recipe entry.
  
 **Files:** `mcp-tools-skills-prompts.md`, `graph-schema.md`
  
@@ -143,6 +157,8 @@ Fix the traversal to go through steps: `OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->
 ---
  
 ## ISSUE-007 · MEDIUM · `resolve_deprecation` return field name mismatch between Cypher and documented API
+ 
+> ✅ **RESOLVED** — FR-010 · T019,T022 — Cypher alias, Python caller, and Returns table all aligned to `entity_name`.
  
 **Files:** `mcp-tools-skills-prompts.md`
  
@@ -172,6 +188,8 @@ Align the Cypher alias to `e.name AS entity_name`, or update the Returns table t
  
 ## ISSUE-008 · MEDIUM · `--force-refresh` flag is undefined
  
+> ✅ **RESOLVED** — FR-015 · T025 — `--force-refresh` defined as an agent-loop concept in the main skill (not a tool parameter). Absorbs consolidated ISSUE-011.
+ 
 **Files:** `framework_migration_main.md`
  
 **Description:**  
@@ -186,6 +204,8 @@ Define `--force-refresh` concretely — as a prompt parameter, a `MigrationConte
 ---
  
 ## ISSUE-009 · MEDIUM · `search_openrewrite_recipes` filters on non-existent property `r.requiredParams`
+ 
+> ✅ **RESOLVED** — FR-011/FR-012 · T020,T022 — filters use `r.composite` and `NOT EXISTS { (r)-[:HAS_PARAM]->(:RecipeParam {required:true}) }`.
  
 **Files:** `mcp-tools-skills-prompts.md`, `graph-schema.md`
  
@@ -210,6 +230,8 @@ For `require_no_params`, replace the property check with a subquery: `AND (NOT $
  
 ## ISSUE-010 · MEDIUM · `submit_migration_insight` duplicate detection is undocumented and its Cypher uses `CREATE` not `MERGE`
  
+> ✅ **RESOLVED** — FR-013 · T021,T022 — three-pass dedup pipeline + 0.92 cosine threshold documented; `duplicate_of` returned; ok/duplicate/error shapes consistent.
+ 
 **Files:** `mcp-tools-skills-prompts.md`
  
 **Description:**  
@@ -225,11 +247,15 @@ Document the similarity threshold in the tool reference. Add the pre-Cypher dedu
  
 ## ISSUE-011 · MEDIUM · `--force-refresh` flag is undefined *(see ISSUE-008)*
  
+> ⤳ CONSOLIDATED into ISSUE-008 (`--force-refresh`); resolved with it.
+ 
 *(Consolidated above — removed as a standalone entry.)*
  
 ---
  
 ## ISSUE-012 · MEDIUM · Version tables may be stale; no staleness indicator
+ 
+> ✅ **RESOLVED** — FR-003 · T009 — `Last Updated` date and upstream schedule links (spring.io, angular.io) added.
  
 **Files:** `framework_migration_version_map.md`
  
@@ -246,6 +272,8 @@ Add a `Last Updated` field and a notice instructing agents to verify against ups
  
 ## ISSUE-013 · LOW · Loop IV has no stateless-fallback variant
  
+> ✅ **RESOLVED** — FR-017 · T032 — `Loop IV — STATELESS FALLBACK` section added to the main skill.
+ 
 **Files:** `framework_migration_main.md`
  
 **Description:**  
@@ -261,6 +289,8 @@ Add a Loop IV stateless-fallback section analogous to the Loop I one, explicitly
  
 ## ISSUE-014 · LOW · Angular boundary note duplicated with inconsistent formatting
  
+> ✅ **RESOLVED** — FR-004 · T009 — duplicate Angular boundary line and repeated bullet removed.
+ 
 **Files:** `framework_migration_version_map.md`
  
 **Description:**  
@@ -272,6 +302,8 @@ Remove the orphaned `**Important version boundary:** 15 → 16` line and the dup
 ---
  
 ## ISSUE-015 · LOW · `close_migration_context` accepts `"abandoned"` status per the schema but not per the tool
+ 
+> ✅ **RESOLVED** — FR-007 · T033–T034 — `close_migration_context` accepts `"abandoned"` with Python-side validation.
  
 **Files:** `mcp-tools-skills-prompts.md`, `graph-schema.md`
  
@@ -288,20 +320,19 @@ Add `"abandoned"` to the accepted values for `close_migration_context`'s `final_
  
 ## Summary
  
-| ID | Severity | Area | One-line description |
-|---|---|---|---|
-| ISSUE-001 | CRITICAL | version-map | `sortableVersion` formula in skill contradicts graph schema formula |
-| ISSUE-002 | HIGH | agent loop | `queriedEntities` skip guard has no write path — cache never populated |
-| ISSUE-003 | HIGH | MCP tool | `get_steps_for_scope_tier` accepts `severity_threshold` but never applies it |
-| ISSUE-004 | HIGH | MCP tool | `update_step_status` never writes `STEP_OUTCOME` — preferred relationship always empty |
-| ISSUE-005 | HIGH | agent loop | Rollback skill referenced in Loop III but does not exist |
-| ISSUE-006 | HIGH | MCP tool | `analyze_upgrade_path` traverses `AUTOMATED_BY` from `MigrationRule` — wrong traversal, recipes always null |
-| ISSUE-007 | MEDIUM | MCP tool | `resolve_deprecation` returns `original_entity` but documents it as `entity_name` |
-| ISSUE-008 | MEDIUM | agent loop | `--force-refresh` flag referenced but never defined |
-| ISSUE-009 | MEDIUM | MCP tool | `search_openrewrite_recipes` filters on non-existent properties `r.requiredParams` and `r.isComposite` |
-| ISSUE-010 | MEDIUM | MCP tool | `submit_migration_insight` dedup threshold undocumented; Cypher never returns `duplicate_of` |
-| ISSUE-011 | MEDIUM | version-map | Version status tables may be stale; no `Last Updated` date or upstream link |
-| ISSUE-012 | MEDIUM | agent loop | Loop IV has no stateless-fallback variant |
-| ISSUE-013 | LOW | version-map | Angular boundary note duplicated with inconsistent formatting |
-| ISSUE-014 | LOW | MCP tool | `close_migration_context` does not accept `"abandoned"` status despite it being a valid schema value |
- 
+| ID | Severity | Area | One-line description | Status | Fixed by |
+|---|---|---|---|---|---|
+| ISSUE-001 | CRITICAL | version-map | `sortableVersion` formula in skill contradicts graph schema formula | ✅ Resolved | FR-001/2 · T006–T008 |
+| ISSUE-002 | HIGH | agent loop | `queriedEntities` skip guard has no write path — cache never populated | ✅ Resolved | FR-014 · T023–T025 |
+| ISSUE-003 | HIGH | MCP tool | `get_steps_for_scope_tier` accepts `severity_threshold` but never applies it | ✅ Resolved | FR-008 · T015–T016 |
+| ISSUE-004 | HIGH | MCP tool | `update_step_status` never writes `STEP_OUTCOME` — preferred relationship always empty | ✅ Resolved | FR-005/6 · T010,T012,T013 |
+| ISSUE-005 | HIGH | agent loop | Rollback skill referenced in Loop III but does not exist | ✅ Resolved | FR-016 · T030–T031 |
+| ISSUE-006 | HIGH | MCP tool | `analyze_upgrade_path` traverses `AUTOMATED_BY` from `MigrationRule` — wrong traversal, recipes always null | ✅ Resolved | FR-009 · T017–T018 |
+| ISSUE-007 | MEDIUM | MCP tool | `resolve_deprecation` returns `original_entity` but documents it as `entity_name` | ✅ Resolved | FR-010 · T019,T022 |
+| ISSUE-008 | MEDIUM | agent loop | `--force-refresh` flag referenced but never defined | ✅ Resolved | FR-015 · T025 |
+| ISSUE-009 | MEDIUM | MCP tool | `search_openrewrite_recipes` filters on non-existent properties `r.requiredParams` and `r.isComposite` | ✅ Resolved | FR-011/12 · T020,T022 |
+| ISSUE-010 | MEDIUM | MCP tool | `submit_migration_insight` dedup threshold undocumented; Cypher never returns `duplicate_of` | ✅ Resolved | FR-013 · T021,T022 |
+| ISSUE-011 | MEDIUM | version-map | Version status tables may be stale; no `Last Updated` date or upstream link | ✅ Resolved | FR-003 · T009 |
+| ISSUE-012 | MEDIUM | agent loop | Loop IV has no stateless-fallback variant | ✅ Resolved | FR-017 · T032 |
+| ISSUE-013 | LOW | version-map | Angular boundary note duplicated with inconsistent formatting | ✅ Resolved | FR-004 · T009 |
+| ISSUE-014 | LOW | MCP tool | `close_migration_context` does not accept `"abandoned"` status despite it being a valid schema value | ✅ Resolved | FR-007 · T033–T034 |

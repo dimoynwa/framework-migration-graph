@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+_VER_ROW = {"node_id": "fake-id-0", "resolved_version": "3.5.0", "sortable": 3005000}
+
 
 def _make_alert(
     message: str = "Spring Security 7 changes default CSRF policy.",
@@ -48,9 +50,9 @@ def test_alerts_returned_when_include_lifecycle_true(mock_session_ctx):
     """lifecycle_alerts is non-empty when include_lifecycle=True and alerts exist."""
     alerts = [_make_alert()]
     rows = _make_rows_with_alerts(alerts)
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -70,9 +72,9 @@ def test_empty_when_include_lifecycle_false(mock_session_ctx):
     """lifecycle_alerts is empty when include_lifecycle=False."""
     alerts = [_make_alert()]
     rows = _make_rows_with_alerts(alerts)
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 
@@ -91,9 +93,9 @@ def test_alert_properties_projected(mock_session_ctx):
     """Each lifecycle alert has message, category, and phase fields."""
     alerts = [_make_alert(message="CSRF policy changed", category="security", phase="pre-migration")]
     rows = _make_rows_with_alerts(alerts)
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = (
-        lambda s: iter(rows)
-    )
+    mock_run = mock_session_ctx.return_value.__enter__.return_value.run.return_value
+    mock_run.__iter__ = lambda s: iter(rows)
+    mock_run.single.return_value = _VER_ROW
 
     from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path
 

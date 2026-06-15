@@ -7,6 +7,33 @@ from unittest.mock import MagicMock, call, patch
 import pytest
 
 from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError
+from migration_oracle.models.graph import VersionResolutionResult
+
+
+def _resolved_from(requested: str = "3.5.12") -> VersionResolutionResult:
+    return VersionResolutionResult(
+        resolvedVersion="3.5.0",
+        resolvedSortable=3005000,
+        nodeId="from-node-0",
+        requestedVersion=requested,
+        rounded=True,
+        aheadOfCatalogue=False,
+        stubCreated=False,
+        direction="floor",
+    )
+
+
+def _resolved_to() -> VersionResolutionResult:
+    return VersionResolutionResult(
+        resolvedVersion="4.1.0",
+        resolvedSortable=4001000,
+        nodeId="to-node-0",
+        requestedVersion="4.1.0",
+        rounded=False,
+        aheadOfCatalogue=False,
+        stubCreated=False,
+        direction="ceil",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -15,11 +42,13 @@ from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError
 
 @patch("migration_oracle.mcp.tools.context.context_queries.delete_zombie_context")
 @patch("migration_oracle.mcp.tools.context.context_queries.create_or_get_context")
-def test_normalises_patch_version(mock_create, mock_delete):
+@patch("migration_oracle.mcp.tools.context.resolve_version")
+def test_normalises_patch_version(mock_resolve, mock_create, mock_delete):
+    mock_resolve.side_effect = [_resolved_from("3.5.12"), _resolved_to()]
     mock_create.return_value = {
         "context_id": "ctx-1",
         "project_id": "proj",
-        "from_version": "3.5.0",
+        "from_version": "3.5.12",
         "to_version": "4.1.0",
         "framework": "spring-boot",
         "migration_status": "in-progress",
@@ -45,7 +74,7 @@ def test_normalises_patch_version(mock_create, mock_delete):
     assert result["status"] == "ok"
     mock_create.assert_called_once_with(
         project_id="proj",
-        from_version="3.5.0",
+        from_version="3.5.12",
         to_version="4.1.0",
         framework="spring-boot",
         scanned_entities=[],
@@ -54,6 +83,8 @@ def test_normalises_patch_version(mock_create, mock_delete):
         scanned_deps_ga=[],
         scanned_dep_artifacts=[],
         scanned_props=[],
+        from_node_id="from-node-0",
+        to_node_id="to-node-0",
     )
     mock_delete.assert_not_called()
 
@@ -63,7 +94,10 @@ def test_normalises_patch_version(mock_create, mock_delete):
     "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
     side_effect=VersionNotInGraphError("3.5.0", ["3.3.0", "3.4.0"]),
 )
-def test_version_not_in_graph(mock_create, mock_delete):
+@patch("migration_oracle.mcp.tools.context.resolve_version")
+def test_version_not_in_graph(mock_resolve, mock_create, mock_delete):
+    mock_resolve.side_effect = [_resolved_from("3.5.0"), _resolved_to()]
+
     from migration_oracle.mcp.tools.context import create_migration_context
 
     result = create_migration_context(
@@ -84,7 +118,10 @@ def test_version_not_in_graph(mock_create, mock_delete):
     "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
     side_effect=VersionNotInGraphError("3.5.0", []),
 )
-def test_zombie_cleanup_on_version_miss(mock_create, mock_delete):
+@patch("migration_oracle.mcp.tools.context.resolve_version")
+def test_zombie_cleanup_on_version_miss(mock_resolve, mock_create, mock_delete):
+    mock_resolve.side_effect = [_resolved_from("3.5.12"), _resolved_to()]
+
     from migration_oracle.mcp.tools.context import create_migration_context
 
     create_migration_context(
@@ -96,7 +133,7 @@ def test_zombie_cleanup_on_version_miss(mock_create, mock_delete):
 
     mock_delete.assert_called_once_with(
         project_id="proj",
-        from_version="3.5.0",
+        from_version="3.5.12",
         to_version="4.1.0",
     )
 
@@ -200,11 +237,13 @@ def test_scope_tier_returns_scopeless_steps(mock_get):
 
 @patch("migration_oracle.mcp.tools.context.context_queries.get_steps_for_scope_tier")
 @patch("migration_oracle.mcp.tools.context.context_queries.create_or_get_context")
-def test_patch_version_full_chain(mock_create, mock_get_steps):
+@patch("migration_oracle.mcp.tools.context.resolve_version")
+def test_patch_version_full_chain(mock_resolve, mock_create, mock_get_steps):
+    mock_resolve.side_effect = [_resolved_from("3.5.12"), _resolved_to()]
     mock_create.return_value = {
         "context_id": "ctx-chain",
         "project_id": "proj",
-        "from_version": "3.5.0",
+        "from_version": "3.5.12",
         "to_version": "4.1.0",
         "framework": "spring-boot",
         "migration_status": "in-progress",
@@ -247,7 +286,7 @@ def test_patch_version_full_chain(mock_create, mock_get_steps):
 
     mock_create.assert_called_once_with(
         project_id="proj",
-        from_version="3.5.0",
+        from_version="3.5.12",
         to_version="4.1.0",
         framework="spring-boot",
         scanned_entities=[],
@@ -256,6 +295,8 @@ def test_patch_version_full_chain(mock_create, mock_get_steps):
         scanned_deps_ga=[],
         scanned_dep_artifacts=[],
         scanned_props=[],
+        from_node_id="from-node-0",
+        to_node_id="to-node-0",
     )
 
     steps_result = get_steps_for_scope_tier(
