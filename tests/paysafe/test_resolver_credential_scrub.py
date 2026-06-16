@@ -52,17 +52,15 @@ def test_clean_message_unchanged():
 # US7 — Artifactory fallback
 # ---------------------------------------------------------------------------
 
-@patch("migration_oracle.paysafe.gitlab.fetch_framework_version", return_value=None)
-@patch("migration_oracle.paysafe.gitlab.detect_framework_at_head", return_value=None)
 @patch("migration_oracle.paysafe.resolver.requests.get")
 @patch("migration_oracle.paysafe.gitlab.list_tags")
-@patch("migration_oracle.paysafe.findit.lookup")
+@patch("migration_oracle.paysafe.findit.get_repo_link")
 def test_artifactory_fallback_called(
-    mock_findit, mock_list_tags, mock_requests_get, mock_detect, mock_fetch
+    mock_get_repo_link, mock_list_tags, mock_requests_get
 ):
     from migration_oracle.paysafe.gitlab import _GitError
 
-    mock_findit.return_value = {"codeRepoLink": "https://gitlab.example.com/org/my-service"}
+    mock_get_repo_link.return_value = "https://gitlab.example.com/org/my-service"
     mock_list_tags.side_effect = _GitError("git_ls_remote_failed", "git failed")
 
     art_response = MagicMock()
@@ -85,11 +83,11 @@ def test_artifactory_fallback_called(
 
 @patch("migration_oracle.paysafe.resolver.requests.get")
 @patch("migration_oracle.paysafe.gitlab.list_tags")
-@patch("migration_oracle.paysafe.findit.lookup")
-def test_no_fallback_without_env_var(mock_findit, mock_list_tags, mock_requests_get):
+@patch("migration_oracle.paysafe.findit.get_repo_link")
+def test_no_fallback_without_env_var(mock_get_repo_link, mock_list_tags, mock_requests_get):
     from migration_oracle.paysafe.gitlab import _GitError
 
-    mock_findit.return_value = {"codeRepoLink": "https://gitlab.example.com/org/my-service"}
+    mock_get_repo_link.return_value = "https://gitlab.example.com/org/my-service"
     mock_list_tags.side_effect = _GitError("git_ls_remote_failed", "git failed")
 
     from migration_oracle.paysafe.resolver import resolve

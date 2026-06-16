@@ -13,12 +13,16 @@ from migration_oracle import config
 from migration_oracle.graph.driver import get_driver
 from migration_oracle.graph.indexes import ensure_indexes
 from migration_oracle.mcp.instance import mcp
+from migration_oracle.mcp.paysafe_lifespan import paysafe_cache_lifespan
 
 logger = logging.getLogger(__name__)
 _SERVER_STARTED_AT: str = datetime.now(timezone.utc).isoformat()
 _GIT_SHA: str = os.environ.get("GIT_SHA", "")
 _GIT_BRANCH: str = os.environ.get("GIT_BRANCH", "")
 _FEATURE_TAGS: str = os.environ.get("FEATURE_TAGS", "")
+
+# Re-exported for spec wiring reference; FastMCP uses paysafe_cache_lifespan via instance.py.
+__all__ = ["paysafe_cache_lifespan", "mcp", "startup"]
 
 
 def get_server_started_at() -> str:

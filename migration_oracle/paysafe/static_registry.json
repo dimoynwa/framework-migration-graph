@@ -1,0 +1,6 @@
+{
+  "fraud-detection": "https://gitlab.paysafe.com/platform/fraud-detection",
+  "payment-service": "https://gitlab.paysafe.com/platform/payment-service",
+  "paysafe-wallet-switch": "https://gitlab.paysafe.com/paysafe-wallet/paysafe-wallet-switch",
+  "risk-engine": "https://gitlab.paysafe.com/platform/risk-engine"
+}

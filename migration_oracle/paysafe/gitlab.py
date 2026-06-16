@@ -380,6 +380,7 @@ def _parse_package_json(content: bytes) -> CompatibilityInfoObj | None:
 
 def fetch_framework_version(repo_url: str, tag: str) -> CompatibilityInfoObj | None:
     """Fetch and parse framework version from build files at a tag."""
+    # deprecated — not used by resolver v2
     for candidate in _tag_ref_candidates(tag):
         ref = f"refs/tags/{candidate}"
         info = _fetch_framework_version_at_ref(repo_url, ref)
@@ -430,6 +431,7 @@ def _head_has_file(repo_url: str, path: str) -> bool:
 
 def detect_framework_at_head(repo_url: str) -> str | None:
     """Detect framework type by probing HEAD build files."""
+    # deprecated — not used by resolver v2
     if _head_has_file(repo_url, "pom.xml"):
         return "spring-boot"
     if _head_has_file(repo_url, "build.gradle") or _head_has_file(repo_url, "build.gradle.kts"):
@@ -440,6 +442,7 @@ def detect_framework_at_head(repo_url: str) -> str | None:
 
 
 def _is_compatible(declared: str, target: str) -> bool:
+    # deprecated — not used by resolver v2
     try:
         d = Version(declared)
         t = Version(target)

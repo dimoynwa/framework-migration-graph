@@ -21,7 +21,7 @@ class TestAuthError:
         with (
             patch.dict("os.environ", {"FINDIT_AUTH_TOKEN": "some-token"}),
             patch(
-                "migration_oracle.paysafe.resolver.findit.lookup",
+                "migration_oracle.paysafe.resolver.findit.get_repo_link",
                 side_effect=_FindItError(
                     "http_request_failed",
                     "FindIt returned HTTP 401",
@@ -49,7 +49,7 @@ class TestAuthError:
         with (
             patch.dict("os.environ", {"FINDIT_AUTH_TOKEN": "some-token"}),
             patch(
-                "migration_oracle.paysafe.resolver.findit.lookup",
+                "migration_oracle.paysafe.resolver.findit.get_repo_link",
                 side_effect=_FindItError(
                     "http_request_failed",
                     "FindIt returned HTTP 403",
@@ -67,15 +67,13 @@ class TestTransportError:
     """RESOLUTION_FAILED with subStatus='transport_error'."""
 
     def test_futures_timeout_maps_to_transport_error(self, monkeypatch):
-        """FuturesTimeout from FindIt lookup maps to subStatus='transport_error'."""
-        import time
-
+        """http_timeout from FindIt lookup maps to subStatus='transport_error'."""
         monkeypatch.setenv("FINDIT_AUTH_TOKEN", "some-token")
 
-        def _hang(*args, **kwargs):
-            time.sleep(60)
-
-        with patch("migration_oracle.paysafe.resolver.findit.lookup", side_effect=_hang):
+        with patch(
+            "migration_oracle.paysafe.resolver.findit.get_repo_link",
+            side_effect=_FindItError("http_timeout", "timed out"),
+        ):
             result = resolve(_FAKE_SERVICE)
 
         assert result["status"] == "RESOLUTION_FAILED"
@@ -90,7 +88,7 @@ class TestCommonFields:
         with (
             patch.dict("os.environ", {"FINDIT_AUTH_TOKEN": "tok"}),
             patch(
-                "migration_oracle.paysafe.resolver.findit.lookup",
+                "migration_oracle.paysafe.resolver.findit.get_repo_link",
                 side_effect=_FindItError(
                     "http_request_failed",
                     "FindIt returned HTTP 401",
@@ -108,7 +106,7 @@ class TestCommonFields:
         with (
             patch.dict("os.environ", {"FINDIT_AUTH_TOKEN": "tok"}),
             patch(
-                "migration_oracle.paysafe.resolver.findit.lookup",
+                "migration_oracle.paysafe.resolver.findit.get_repo_link",
                 side_effect=_FindItError(
                     "http_request_failed",
                     "FindIt returned HTTP 401",
@@ -124,14 +122,12 @@ class TestCommonFields:
 
     def test_fallback_instructions_present_transport_error(self, monkeypatch):
         """fallbackInstructions is present for transport_error."""
-        import time
-
         monkeypatch.setenv("FINDIT_AUTH_TOKEN", "some-token")
 
-        def _hang(*args, **kwargs):
-            time.sleep(60)
-
-        with patch("migration_oracle.paysafe.resolver.findit.lookup", side_effect=_hang):
+        with patch(
+            "migration_oracle.paysafe.resolver.findit.get_repo_link",
+            side_effect=_FindItError("http_timeout", "timed out"),
+        ):
             result = resolve(_FAKE_SERVICE)
 
         assert result["status"] == "RESOLUTION_FAILED"
@@ -147,7 +143,7 @@ class TestBackwardCompat:
         with (
             patch.dict("os.environ", {"FINDIT_AUTH_TOKEN": "tok"}),
             patch(
-                "migration_oracle.paysafe.resolver.findit.lookup",
+                "migration_oracle.paysafe.resolver.findit.get_repo_link",
                 side_effect=_FindItError("service_not_found", "No service matched"),
             ),
         ):

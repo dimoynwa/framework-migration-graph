@@ -73,3 +73,8 @@ SPRING_INCLUDE_PRERELEASE: bool = _parse_bool_flag(
     _optional("SPRING_INCLUDE_PRERELEASE", "1")
 )
 MCP_STATELESS_HTTP: bool = _parse_bool_flag(_optional("MCP_STATELESS_HTTP", "false"))
+FINDIT_CACHE_STRATEGY: str = _optional("FINDIT_CACHE_STRATEGY", "none")
+# Valid values: "bulk", "paginated", "none"
+FINDIT_CACHE_LOAD_TIMEOUT_SECONDS: float = float(
+    _optional("FINDIT_CACHE_LOAD_TIMEOUT_SECONDS", "30")
+)
