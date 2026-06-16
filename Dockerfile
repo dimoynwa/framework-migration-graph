@@ -49,8 +49,9 @@ FROM python:3.11-slim AS final
 # ENV SENTENCE_TRANSFORMERS_MODEL= (empty string) into the image.
 ARG SENTENCE_TRANSFORMERS_MODEL=all-mpnet-base-v2
 
-# System: curl for health-check, procps for pgrep/pkill (fail-fast validation)
-RUN apt-get update && apt-get install -y --no-install-recommends curl procps \
+# System: curl for health-check, procps for pgrep/pkill (fail-fast validation),
+# git for Paysafe resolver tag listing (git ls-remote / git archive)
+RUN apt-get update && apt-get install -y --no-install-recommends curl procps git \
     && rm -rf /var/lib/apt/lists/*
 
 # Non-root user

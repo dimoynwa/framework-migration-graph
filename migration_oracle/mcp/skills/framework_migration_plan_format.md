@@ -149,10 +149,14 @@ Include this block verbatim at the top of the task list section:
  
 You are executing a structured migration plan. Follow these rules:
  
-1. **Work sequentially.** Complete TASK-001 fully before starting TASK-002.
-   Each task is designed to leave the codebase in a compilable state.
-2. **Verify after each task.** Run the verification command in each task block.
-   Do not proceed if verification fails — diagnose and fix first.
+1. **Work sequentially.** Apply TASK-001 through TASK-NNN in order without building
+   between tasks. Each task leaves the codebase in a transitional (not necessarily
+   compilable) state — this is expected.
+2. **Build once at the end.** After all tasks are applied, run the Final Verification
+   Checklist build command once. Fix any errors forward — do not revert tasks.
+   ⛔ **PAYSAFE CONSTRAINT:** Never modify, remove, or downgrade any dependency whose
+   groupId starts with `com.paysafe`. If a build error implicates a Paysafe library,
+   fix the consuming code to be compatible — do not touch the Paysafe dependency itself.
 3. **Do not invent solutions.** If the Before/After reference does not match
    your actual code, do not guess — output a comment `# NEEDS MANUAL REVIEW`
    and move to the next task.

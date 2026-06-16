@@ -127,3 +127,41 @@ def test_co_migration_warning_emitted_for_spring_cloud():
         assert "co_migration_warning" in result, (
             "Expected co_migration_warning when Spring Cloud dep present in 3→4 migration."
         )
+
+
+def test_pending_steps_and_recipe_plan_step_id_parity():
+    """SC-009: get_pending_steps and build_recipe_plan return equal distinct step_id sets."""
+    from migration_oracle.mcp.tools.context import create_migration_context, get_pending_steps
+    from migration_oracle.mcp.tools.upgrade import build_recipe_plan
+
+    ctx = create_migration_context(
+        project_id=PROJECT_ID,
+        from_version=FROM_VERSION,
+        to_version=TO_VERSION,
+        framework=FRAMEWORK,
+        scanned_entities=SCANNED_ENTITIES,
+    )
+    assert ctx["status"] == "ok"
+    context_id = ctx["context_id"]
+
+    pending = get_pending_steps(context_id)
+    pending_ids = {s["step_id"] for s in pending.get("pending_steps", []) if s.get("step_id")}
+
+    plan = build_recipe_plan(
+        current_version=FROM_VERSION,
+        target_version=TO_VERSION,
+        framework=FRAMEWORK,
+        user_entities=SCANNED_ENTITIES,
+        context_id=context_id,
+    )
+    plan_ids = {
+        s["step_id"]
+        for s in plan.get("manual_track", []) + plan.get("auto_track", [])
+        if s.get("step_id")
+    }
+
+    assert pending_ids == plan_ids, (
+        f"step_id mismatch: only in pending={pending_ids - plan_ids}, "
+        f"only in plan={plan_ids - pending_ids}"
+    )
+    assert len(pending_ids) > 0

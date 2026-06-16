@@ -24,6 +24,7 @@ RETURN r.embedding AS embedding
 _SUBMIT_INSIGHT = """
 MATCH (v:Version {framework: $framework, version: $version})
 CREATE (r:MigrationRule {
+  ruleId:               'community://' + $framework + '/' + $version + '/' + toString(randomUUID()),
   statement:            $statement,
   ruleType:             'community_insight',
   sourceUrl:            coalesce($evidence_url, ''),

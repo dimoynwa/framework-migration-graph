@@ -217,6 +217,13 @@ WITH v, rule, sev_rank, scopes, e,
             (size(split(e.name, ':')) >= 2
                AND (split(e.name, ':')[0] + ':' + split(e.name, ':')[1]) IN $scanned_deps_ga)
          OR last(split(e.name, ':')) IN $scanned_dep_artifacts
+         OR (
+              NOT (rule)-[:AFFECTS_CLASS]->(:Class)
+              AND size(split(e.name, ':')) >= 2
+              AND any(cls IN $scanned_classes WHERE
+                cls STARTS WITH (split(e.name, ':')[0] + '.')
+              )
+            )
        ELSE false
      END AS entity_match
 
@@ -257,7 +264,7 @@ WITH v, rule, scopes, affected_entities, applicability, match_count, sev_rank, a
      } END) AS recipes_raw
 
 WITH v, collect(DISTINCT {
-    rule_id:              elementId(rule),
+    rule_id:              coalesce(rule.ruleId, elementId(rule)),
     rule_type:            labels(rule)[0],
     title:                rule.title,
     statement:            rule.statement,
@@ -320,6 +327,20 @@ WITH v, rule, sev_rank, scope, severity, e,
             (size(split(e.name, ':')) >= 2
                AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN $scanned_deps_ga)
          OR last(split(e.name, ':')) IN $scanned_dep_artifacts
+         // Package-prefix bridge: mirrored from _GET_PENDING_STEPS (context.py L148-162)
+         OR any(cls IN $scanned_classes WHERE
+              any(ruleClass IN [(rule)-[:AFFECTS_CLASS]->(rc:Class) | rc.name] WHERE
+                cls STARTS WITH (left(ruleClass,
+                  size(ruleClass) - size(split(ruleClass, '.')[size(split(ruleClass, '.'))-1]) - 1) + '.')
+              )
+            )
+         OR (
+              NOT (rule)-[:AFFECTS_CLASS]->(:Class)
+              AND size(split(e.name, ':')) >= 2
+              AND any(cls IN $scanned_classes WHERE
+                cls STARTS WITH (split(e.name, ':')[0] + '.')
+              )
+            )
        ELSE false
      END AS entity_match
 
@@ -340,7 +361,7 @@ OPTIONAL MATCH (rule)-[:REQUIRES_STEP]->(s:MigrationStep)
 OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 
 RETURN
-    elementId(rule)                         AS rule_id,
+    coalesce(rule.ruleId, elementId(rule))  AS rule_id,
     elementId(s)                            AS step_id,
     rule.statement                          AS statement,
     rule.actionStep                         AS action_step,
@@ -450,6 +471,11 @@ def build_recipe_plan(
         "has_entity_filter": has_entity_filter,
         "classification": classes,
     }
+    _RECIPE_COUNT = "MATCH (r:OpenRewriteRecipe) RETURN count(r) AS c"
+    with read_session() as session:
+        recipe_count_row = session.run(_RECIPE_COUNT).single()
+    recipe_count = recipe_count_row["c"] if recipe_count_row else 0
+
     with read_session() as session:
         rows = [dict(row) for row in session.run(_BUILD_RECIPE_PLAN, params)]
 
@@ -458,15 +484,15 @@ def build_recipe_plan(
     has_steps = any(row.get("step_id") for row in rows)
     fallback_to_rule_cards = not has_steps
 
-    # Build entity sets for matched_entities intersection
-    all_entity_sets: list[list[str]] = [
-        scanned_classes or [],
-        scanned_class_simple or [],
-        scanned_deps_ga or [],
-        scanned_dep_artifacts or [],
-        scanned_props or [],
-    ]
-    flat_entity_set = {e.lower() for bucket in all_entity_sets for e in bucket}
+    from migration_oracle.mcp.matching import compute_matched_entities
+
+    norm = {
+        "scanned_classes": scanned_classes or [],
+        "scanned_class_simple": scanned_class_simple or [],
+        "scanned_deps_ga": scanned_deps_ga or [],
+        "scanned_dep_artifacts": scanned_dep_artifacts or [],
+        "scanned_props": scanned_props or [],
+    }
 
     excluded_count = 0
     uncertain_count = 0
@@ -487,9 +513,7 @@ def build_recipe_plan(
         if applicability == "uncertain":
             uncertain_count += 1
 
-        # Compute matched_entities for step card
-        affected = row.get("affected_entities") or []
-        matched_entities = [e for e in affected if e.lower() in flat_entity_set] if flat_entity_set else []
+        matched_entities = compute_matched_entities(row, norm)
 
         step_id = row.get("step_id")
         rule_id = row.get("rule_id")
@@ -563,4 +587,6 @@ def build_recipe_plan(
         "rules_included": total_included,
         "excluded_count": excluded_count,
         "uncertain_count": uncertain_count,
+        "recipes_loaded": recipe_count > 0,
+        "recipe_count": recipe_count,
     }

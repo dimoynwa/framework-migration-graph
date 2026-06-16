@@ -4,15 +4,15 @@ Validates:
 - Python canonical extractor produces the correct entity list from a Java fixture directory
 - allow-list filters non-matching imports
 - PyYAML absent does not abort the scan (extractorPath="python" still returned)
+- PyYAML auto-install is attempted when import fails
 - scanner output is identical on macOS-BSD and GNU-Linux paths (fixture-based, not platform-conditional)
 """
 from __future__ import annotations
 
-import sys
 import textwrap
 from pathlib import Path
 from types import ModuleType
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -52,157 +52,23 @@ def _load_scanner() -> ModuleType:
         / "skills"
     )
     skill_file = skills_dir / "framework_scanner.py"
-    if not skill_file.exists():
-        pytest.skip("framework_scanner.py not yet extracted from framework_migration_scanning.md")
     import importlib.util
+
     spec = importlib.util.spec_from_file_location("framework_scanner", skill_file)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
 
-# ---------------------------------------------------------------------------
-# Inline scanner implementation (copied from scanning.md canonical block)
-# ---------------------------------------------------------------------------
-
-def _make_scanner():
-    """Build scanner functions inline so tests do not depend on a separate file."""
-    import re
-    import xml.etree.ElementTree as ET
-
-    ALLOW_LIST = re.compile(
-        r'^('
-        r'org\.springframework|jakarta\.|javax\.|org\.hibernate|io\.micrometer'
-        r'|io\.projectreactor|org\.thymeleaf|com\.fasterxml\.jackson|tools\.jackson'
-        r'|org\.springdoc|com\.querydsl|org\.flywaydb|org\.liquibase'
-        r'|org\.apache\.tomcat|org\.eclipse\.jetty|io\.undertow'
-        r')'
-    )
-    IMPORT_RE = re.compile(r'^import\s+(?:static\s+)?([\w.]+)', re.MULTILINE)
-    ANNOTATION_RE = re.compile(r'@([A-Za-z][\w.]*)')
-    NOISE_ANNOTATIONS = frozenset([
-        'Override', 'Deprecated', 'SuppressWarnings', 'FunctionalInterface',
-        'SafeVarargs', 'Data', 'Builder', 'Getter', 'Setter', 'ToString',
-        'EqualsAndHashCode', 'NoArgsConstructor', 'AllArgsConstructor',
-        'RequiredArgsConstructor', 'Slf4j', 'Value', 'NonNull', 'Nullable',
-    ])
-    PROP_KEY_RE = re.compile(r'^([\w][\w.-]+)\s*=', re.MULTILINE)
-    MAVEN_NS = '{http://maven.apache.org/POM/4.0.0}'
-    MAVEN_KEEP = re.compile(
-        r'^(org\.springframework|jakarta\.|javax\.|org\.hibernate|io\.micrometer'
-        r'|io\.projectreactor|com\.fasterxml\.jackson|org\.springdoc|com\.querydsl'
-        r'|org\.flywaydb|org\.liquibase|org\.apache\.tomcat|org\.eclipse\.jetty'
-        r'|io\.undertow)\.'
-    )
-    GRADLE_DEP_RE = re.compile(r'["\']([a-zA-Z][\w.-]+:[a-zA-Z][\w.-]+):[^\s"\']+["\']')
-
-    def scan(project_root: str):
-        root = Path(project_root)
-
-        # Java imports
-        main_imports: set[str] = set()
-        test_imports: set[str] = set()
-        for scope, bucket in [('main', main_imports), ('test', test_imports)]:
-            base = root / 'src' / scope
-            for ext in ('*.java', '*.kt'):
-                for f in base.rglob(ext):
-                    try:
-                        text = f.read_text(encoding='utf-8', errors='replace')
-                    except OSError:
-                        continue
-                    for m in IMPORT_RE.finditer(text):
-                        fqcn = m.group(1)
-                        if ALLOW_LIST.match(fqcn):
-                            bucket.add(fqcn)
-
-        # Annotations
-        annotations: set[str] = set()
-        for ext in ('*.java', '*.kt'):
-            for f in (root / 'src' / 'main').rglob(ext):
-                try:
-                    text = f.read_text(encoding='utf-8', errors='replace')
-                except OSError:
-                    continue
-                for m in ANNOTATION_RE.finditer(text):
-                    raw = m.group(1)
-                    simple = raw.rsplit('.', 1)[-1]
-                    if (
-                        re.match(r'^[A-Z][A-Za-z0-9]+$', simple)
-                        and simple not in NOISE_ANNOTATIONS
-                    ):
-                        annotations.add(simple)
-
-        # Properties
-        properties: set[str] = set()
-        resources = root / 'src' / 'main' / 'resources'
-        for f in resources.rglob('*.properties'):
-            try:
-                text = f.read_text(encoding='utf-8', errors='replace')
-            except OSError:
-                continue
-            for m in PROP_KEY_RE.finditer(text):
-                properties.add(m.group(1))
-
-        try:
-            import yaml as _yaml
-            def _flatten(d, prefix=''):
-                for k, v in (d or {}).items():
-                    key = f'{prefix}.{k}' if prefix else str(k)
-                    if isinstance(v, dict):
-                        _flatten(v, key)
-                    else:
-                        properties.add(key)
-            for f in resources.rglob('*.y*ml'):
-                try:
-                    data = _yaml.safe_load(f.read_text(encoding='utf-8', errors='replace'))
-                    if isinstance(data, dict):
-                        _flatten(data)
-                except Exception:
-                    pass
-        except ImportError:
-            pass
-
-        # Maven deps
-        maven_deps: set[str] = set()
-        for pom in root.rglob('pom.xml'):
-            if '/target/' in str(pom) or '\\target\\' in str(pom):
-                continue
-            try:
-                tree = ET.parse(str(pom)).getroot()
-                for dep in tree.iter(MAVEN_NS + 'dependency'):
-                    g = dep.find(MAVEN_NS + 'groupId')
-                    a = dep.find(MAVEN_NS + 'artifactId')
-                    if g is not None and a is not None:
-                        gav = f'{g.text.strip()}:{a.text.strip()}'
-                        if MAVEN_KEEP.match(gav):
-                            maven_deps.add(gav)
-            except Exception:
-                pass
-
-        # Gradle deps
-        gradle_deps: set[str] = set()
-        for f in root.rglob('build.gradle*'):
-            if '/.gradle/' in str(f) or '\\.gradle\\' in str(f):
-                continue
-            try:
-                text = f.read_text(encoding='utf-8', errors='replace')
-            except OSError:
-                continue
-            for m in GRADLE_DEP_RE.finditer(text):
-                gav = m.group(1)
-                if MAVEN_KEEP.match(gav):
-                    gradle_deps.add(gav)
-
-        return {
-            'entities': sorted(main_imports | annotations | properties | maven_deps | gradle_deps),
-            'testEntities': sorted(test_imports),
-            'extractorPath': 'python',
-        }
-
-    return scan
-
-
-_scan = _make_scanner()
+def _scan(project_root: str) -> dict:
+    mod = _load_scanner()
+    result = mod.scan(project_root)
+    return {
+        "entities": result.entities,
+        "testEntities": result.test_entities,
+        "extractorPath": result.extractor_path,
+        "warnings": result.warnings,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -311,34 +177,47 @@ class TestMavenDependencyExtraction:
 
 
 class TestPyYamlDegrade:
-    def test_scan_succeeds_without_pyyaml(self, tmp_path):
-        """PyYAML absent does not abort the scan; extractorPath='python' still returned."""
+    def test_scan_succeeds_when_pyyaml_unavailable(self, tmp_path):
+        """PyYAML unavailable does not abort the scan; extractorPath='python' still returned."""
         _write_java(tmp_path, "App.java", """\
             import org.springframework.stereotype.Component;
         """)
         _write_resources(tmp_path, "application.yml", "spring:\n  datasource:\n    url: jdbc:h2\n")
 
-        # Simulate PyYAML absent by patching builtins.__import__
-        original_import = __builtins__.__import__ if hasattr(__builtins__, '__import__') else __import__
+        mod = _load_scanner()
+        with patch.object(mod, "_ensure_pyyaml", return_value=None):
+            result = mod.scan(str(tmp_path))
 
-        def _no_yaml(name, *args, **kwargs):
-            if name == 'yaml':
-                raise ImportError("No module named 'yaml'")
+        assert result.extractor_path == "python"
+        assert "org.springframework.stereotype.Component" in result.entities
+        assert any("PyYAML unavailable" in w for w in result.warnings)
+
+    def test_ensure_pyyaml_installs_when_import_fails(self):
+        mod = _load_scanner()
+        mock_yaml = MagicMock()
+        yaml_calls = 0
+        original_import = __import__
+
+        def fake_import(name, *args, **kwargs):
+            nonlocal yaml_calls
+            if name == "yaml":
+                yaml_calls += 1
+                if yaml_calls == 1:
+                    raise ImportError("No module named 'yaml'")
+                return mock_yaml
             return original_import(name, *args, **kwargs)
 
-        with patch('builtins.__import__', side_effect=_no_yaml):
-            # Re-run scanner with yaml absent
-            from unittest.mock import MagicMock
-            import importlib
-            # We test via the inline scanner which already handles ImportError gracefully
-            pass
+        with patch("subprocess.check_call") as pip_install:
+            with patch("builtins.__import__", side_effect=fake_import):
+                got = mod._ensure_pyyaml()
 
-        # The inline scanner handles ImportError internally; just verify the scan works
+        pip_install.assert_called_once()
+        assert got is mock_yaml
+
+    def test_yaml_keys_extracted_when_pyyaml_present(self, tmp_path):
+        _write_resources(tmp_path, "application.yml", "spring:\n  datasource:\n    url: jdbc:h2\n")
         result = _scan(str(tmp_path))
-        assert result['extractorPath'] == 'python'
-        assert 'org.springframework.stereotype.Component' in result['entities']
-        # YAML properties may or may not be present depending on PyYAML availability
-        # but the scan itself must not raise
+        assert "spring.datasource.url" in result["entities"]
 
     def test_properties_file_parsed_without_pyyaml(self, tmp_path):
         """Even without PyYAML, .properties keys are extracted."""

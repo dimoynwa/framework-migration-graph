@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from migration_oracle.mcp import server
 from migration_oracle.mcp.graph.queries import schema as schema_queries
 from migration_oracle.mcp.instance import mcp
 
@@ -16,6 +17,12 @@ def get_graph_schema() -> dict:
     return {
         "status": "ok",
         "schema_markdown": schema_queries.GRAPH_SCHEMA_MD,
+        "server_build": {
+            "git_sha": server._GIT_SHA,
+            "branch": server._GIT_BRANCH,
+            "feature_tags": [t.strip() for t in server._FEATURE_TAGS.split(",") if t.strip()],
+            "started_at": server.get_server_started_at(),
+        },
     }
 
 

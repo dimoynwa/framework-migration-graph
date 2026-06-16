@@ -1,13 +1,16 @@
 # Neo4j Graph Schema — Paysafe Migration Oracle
 
-This document is the authoritative reference for every node label, relationship type, property, constraint, and index in the Migration Oracle graph database. It also includes query pattern examples and the data-flow rules used during pipeline population.
+This document is the authoritative reference for every node label, relationship type, property, constraint, and index in the Migration Oracle graph database. It also includes query pattern examples, version resolution semantics, and the data-flow rules used during pipeline population.
+
+For MCP tool contracts that query this schema, see [mcp-tools-skills-prompts.md](./mcp-tools-skills-prompts.md).
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Node Labels](#node-labels)
+2. [Version Resolution](#version-resolution)
+3. [Node Labels](#node-labels)
    - [Version](#version)
    - [MigrationRule](#migrationrule)
    - [MigrationStep](#migrationstep)
@@ -45,9 +48,40 @@ This document is the authoritative reference for every node label, relationship 
 (MigrationContext)──STEP_OUTCOME───►(MigrationStep)
 ```
 
-The graph models the **knowledge** required to migrate a software project (rules, steps, affected entities, recipes) and the **state** of an ongoing migration session (context, step outcomes).
+The graph models two concerns:
+
+1. **Knowledge** — migration rules, ordered steps, affected entities, OpenRewrite recipes, lifecycle alerts, and community insights reachable from `Version` nodes.
+2. **Session state** — `MigrationContext` nodes tracking an in-progress upgrade for a `(projectId, fromVersion, toVersion)` triple, with step outcomes on `STEP_OUTCOME` relationships.
+
+Community insights are stored as `MigrationRule` nodes with `ruleType='community_insight'` (linked via `INCLUDES_RULE` — not a separate label).
 
 ---
+
+## Version Resolution
+
+All MCP tools that accept a version string use `resolve_version(framework, version, mode)` (`migration_oracle/mcp/graph/queries/upgrade.py`):
+
+| Mode | Semantics | Typical use |
+|---|---|---|
+| `exact` | Must match a graph node exactly | Rare — internal lookups |
+| `floor` | Highest `sortableVersion` ≤ requested | Current/from version (`create_migration_context`, insight submission) |
+| `ceil` | Lowest `sortableVersion` ≥ requested; falls back to highest known + `aheadOfCatalogue=true` | Target/to version |
+
+**Patch preservation:** The caller's patch segment is never truncated (e.g. `3.5.12` stays `3.5.12`, not `3.5.0`).
+
+**Stub nodes:** When `allow_stub_create=true` on context creation and the ceil target is ahead-of-catalogue, a minimal `Version` node is MERGE'd with `status: "stub"` (or `"stub-pending"`). Stub nodes lack full rule coverage until the catalogue catches up.
+
+**sortableVersion formula:**
+
+```python
+sortableVersion = major * 1_000_000 + minor * 1_000 + patch
+# Spring Boot "3.2.1"  → 3_002_001
+# Spring Cloud "2025.1.0" → 2025 * 1_000_000 + 1 * 1_000 + 0 = 2_025_001_000
+```
+
+---
+
+## Node Labels
 
 ## Node Labels
 
@@ -60,6 +94,7 @@ Represents a specific release of a framework. It is the root anchor from which a
 | `framework` | string | yes | Display-form framework name (e.g. `"Spring Boot"`, `"Angular"`, `"WildFly"`) |
 | `version` | string | yes | Semantic version string (e.g. `"3.2.0"`, `"3.2"`) |
 | `sortableVersion` | integer | yes | `major×1_000_000 + minor×1_000 + patch` — enables fast range queries |
+| `status` | string | no | Catalogue status: `"active"`, `"maintenance"`, `"eol"`, `"stub"`, `"stub-pending"` |
 | `rawMdPath` | string | no | Filesystem path to the raw extracted changelog markdown |
 | `filteredMdPath` | string | no | Filesystem path to the LLM-filtered markdown |
 | `entitiesJsonPath` | string | no | Filesystem path to the extracted entities JSON |
@@ -241,14 +276,17 @@ Represents an OpenRewrite automated refactoring recipe that can execute one or m
 | `recipeId` | string | yes | Recipe fully qualified name (e.g. `"org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_0"`) |
 | `description` | string | no | Human-readable description |
 | `displayName` | string | no | Short display name for UI |
-| `composite` | boolean | no | Whether this recipe is a composite of other recipes |
+| `composite` | boolean | no | Whether this recipe is a composite of other recipes (alias: `isComposite` in some queries) |
 | `artifactId` | string | no | Maven artifact ID of the recipe module |
 | `groupId` | string | no | Maven group ID of the recipe module |
 | `artifactVersion` | string | no | Version of the recipe module |
 | `tags` | list[string] | no | Categorisation tags |
 | `verifiedBy` | string | no | User or agent who verified this recipe works |
+| `embedding` | list[float] | no | Sentence-transformer vector (768 dims) for semantic recipe search |
 
 **Full-text index:** `openrewrite_recipe_description` on `(description, displayName)`
+
+**Vector index:** `openrewrite_recipe_vector` on `embedding`
 
 **Example:**
 ```cypher
@@ -287,26 +325,30 @@ Represents a required or optional parameter of an `OpenRewriteRecipe`.
 
 Represents a user's active or historical migration session. Tracks progress across a specific version range for a specific project.
 
+**MERGE identity:** `(projectId, fromVersion, toVersion)` — exact caller strings, not normalised versions.
+
+**Version range:** Resolved floor/ceil `Version` nodes are linked via `UPGRADES_FROM` / `UPGRADES_TO`. Pending steps are derived by traversing all `Version` nodes with `sortableVersion` in `(from.sortableVersion, to.sortableVersion]` — there is no direct `HAS_STEP` edge from context to steps.
+
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `projectId` | string | yes | Client project identifier (e.g. `"checkout-service"`) |
-| `fromVersion` | string | yes | Starting framework version (e.g. `"2.7.0"`) |
-| `toVersion` | string | yes | Target framework version (e.g. `"3.2.0"`) |
+| `fromVersion` | string | yes | Starting framework version as requested (MERGE key) |
+| `toVersion` | string | yes | Target framework version as requested (MERGE key) |
 | `framework` | string | yes | Framework name |
 | `status` | string | yes | One of: `"in-progress"`, `"blocked"`, `"complete"`, `"partial"`, `"abandoned"` |
-| `scannedEntities` | list[string] | no | Entity names discovered in the client codebase during scanning |
-| `completedSteps` | list[string] | no | Element IDs of completed `MigrationStep` nodes (legacy — prefer `STEP_OUTCOME`) |
-| `skippedSteps` | list[string] | no | Element IDs of skipped steps (legacy — prefer `STEP_OUTCOME`) |
-| `failedSteps` | list[string] | no | Element IDs of failed steps (legacy — prefer `STEP_OUTCOME`) |
-| `deferredSteps` | list[string] | no (new) | Element IDs of deferred MigrationStep nodes (bridge-applied); set to `[]` on CREATE |
-| `updatedAt` | datetime | no (new) | Last-modified timestamp; set on every state-changing write (create, match, STEP_OUTCOME, close) |
-| `queriedEntities` | string (JSON) | no (new) | Map of entity_name → result_summary; skip guard for Loop II |
-| `scannedClasses` | list[string] | no (new) | Typed bucket: FQCNs extracted from import scan |
-| `scannedClassSimple` | list[string] | no (new) | Typed bucket: simple class/annotation names (no dot, starts uppercase) |
-| `scannedDepsGa` | list[string] | no (new) | Typed bucket: groupId:artifactId coordinates |
-| `scannedDepArtifacts` | list[string] | no (new) | Typed bucket: bare artifact IDs |
-| `scannedProps` | list[string] | no (new) | Typed bucket: dotted property keys |
+| `scannedEntities` | list[string] | no | Allow-list-filtered entity names (set on CREATE only) |
+| `completedSteps` | list[string] | no | Step element IDs — legacy mirror of `STEP_OUTCOME`; still used by pending-step exclusion |
+| `skippedSteps` | list[string] | no | Step element IDs — legacy mirror |
+| `failedSteps` | list[string] | no | Step element IDs — legacy mirror |
+| `deferredSteps` | list[string] | no | Step element IDs for bridge-deferred steps |
+| `queriedEntities` | string (JSON) | no | Map of `entity_name → result_summary`; Loop II skip-guard cache |
+| `scannedClasses` | list[string] | no | Typed bucket: FQCNs from import scan |
+| `scannedClassSimple` | list[string] | no | Typed bucket: simple class/annotation names |
+| `scannedDepsGa` | list[string] | no | Typed bucket: `groupId:artifactId` coordinates |
+| `scannedDepArtifacts` | list[string] | no | Typed bucket: bare artifact IDs |
+| `scannedProps` | list[string] | no | Typed bucket: dotted property keys |
 | `createdAt` | datetime | yes | Session creation timestamp |
+| `updatedAt` | datetime | no | Last-modified timestamp (every state-changing write) |
 | `completedAt` | datetime | no | Session completion timestamp |
 | `notes` | string | no | Free-form notes |
 
@@ -552,8 +594,9 @@ Links a recipe to its parameter definitions. No properties.
 | `step_effort` | RANGE | `MigrationStep(effort)` | Filter steps by effort tier |
 | `breaking_scope_scope` | RANGE | `BreakingScope(scope)` | Scope-based rule filtering |
 | `context_project` | RANGE | `MigrationContext(projectId)` | Session lookup by project |
-| `openrewrite_recipe_description` | FULLTEXT | `OpenRewriteRecipe(description, displayName)` | Recipe search |
-| `migration_knowledge_vector_mr` | VECTOR (768d) | `MigrationRule(embedding)` | Semantic similarity search on community insights |
+| `openrewrite_recipe_description` | FULLTEXT | `OpenRewriteRecipe(description, displayName)` | Recipe keyword search |
+| `openrewrite_recipe_vector` | VECTOR (768d) | `OpenRewriteRecipe(embedding)` | Semantic recipe search |
+| `migration_knowledge_vector_mr` | VECTOR (768d) | `MigrationRule(embedding)` | Semantic similarity search on rules and community insights |
 
 ---
 
@@ -579,6 +622,18 @@ If no `BreakingScope` is linked during population, the populator MERGEs `(:Break
 ### Entity relationship cross-product
 
 When a rule has both `removed` and `replacement` entities of the same kind (Class, ApplicationProperty, or Dependency), the populator creates `REPLACED_BY` edges between every removed × replacement pair of that kind.
+
+### Entity applicability matching (MCP layer)
+
+When a codebase scan supplies entities, MCP tools split them into five typed buckets via `normalize_entities()` and match against graph nodes using exact-string rules plus package-prefix bridges (`migration_oracle/mcp/matching.py`):
+
+| Graph node | Match against |
+|---|---|
+| `Class` | FQCN in `scannedClasses` OR simple name in `scannedClassSimple` |
+| `ApplicationProperty` | Full key in `scannedProps` |
+| `Dependency` | Full `groupId:artifactId` in `scannedDepsGa` OR artifact ID in `scannedDepArtifacts` |
+
+Rules with no matching entities are `excluded` unless severity is high/critical (`uncertain` safety net) or the rule has no entity nodes (`informational`).
 
 ### sortableVersion formula
 

@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 import requests
 from packaging.version import InvalidVersion, Version
 
 _FINDIT_TIMEOUT_SECONDS = 10
+_TAG_SCAN_BUDGET_SECONDS = 45
 
 _CRED_RE = re.compile(r'https?://[^:@/\s]+:[^@\s]+@|oauth2:[^@\s]+@')
 
@@ -24,7 +26,7 @@ from migration_oracle.paysafe._types import (
     EffectiveSettings,
 )
 from migration_oracle.paysafe.findit import _FindItError
-from migration_oracle.paysafe.gitlab import _GitError
+from migration_oracle.paysafe.gitlab import _GitError, _version_token_from_tag
 
 
 def _build_effective_settings(max_tags: int) -> EffectiveSettings:
@@ -102,7 +104,7 @@ def _parse_selected_version(tag: str | None, pinned_version: str | None = None) 
         return pinned_version
     if tag is None:
         return ""
-    cleaned = tag[1:] if tag and tag[0] in ("v", "V") else tag
+    cleaned = _version_token_from_tag(tag)
     try:
         return str(Version(cleaned))
     except InvalidVersion:
@@ -114,7 +116,7 @@ def resolve(
     target_version: str | None = None,
     framework: str | None = None,
     allow_latest_overall: bool = False,  # The MCP layer sets allow_latest_overall — resolver never defaults this to True
-    max_tags: int = 100,
+    max_tags: int = 15,
     pinned_version: str | None = None,
     pinned_tag: str | None = None,
 ) -> dict:
@@ -281,75 +283,13 @@ def resolve(
                     details={"repo_url": code_repo_link},
                 )
 
-        # Step 6: scan tags
-        compatible_tags: list[tuple[str, CompatibilityInfoObj]] = []
-        unknown_tags: list[str] = []
-        overall_tags: list[str] = []
-        incompatible_found = False
-
-        for tag in tags[:max_tags]:
-            overall_tags.append(tag)
-            info = gitlab.fetch_framework_version(code_repo_link, tag)
-            if info is None:
-                unknown_tags.append(tag)
-                continue
-
-            if target_version is None:
-                continue
-
-            if gitlab._is_compatible(info.framework_version, target_version):
-                compatible_tags.append((tag, info))
-            else:
-                incompatible_found = True
-
-        # Step 7: strategy selection
+        # Step 6+7: resolve version from tags
         detected_framework = framework
+
         if target_version is None:
-            detected_framework = detected_framework or gitlab.detect_framework_at_head(
-                code_repo_link
-            )
-
-        if target_version is not None and compatible_tags:
-            best_tag, best_info = compatible_tags[0]
-            result_kwargs = dict(
-                status="ok",
-                service_name=service_name,
-                selected_tag=best_tag,
-                selected_version=_parse_selected_version(best_tag),
-                framework=detected_framework,
-                framework_version=best_info.framework_version,
-                selection_strategy="latest_compatible",
-                target_version=target_version,
-                code_repo_link=code_repo_link,
-                compatibility=best_info.to_dict(),
-                effective_settings=_build_effective_settings(max_tags),
-            )
-            if name_resolution is not None:
-                result_kwargs["name_resolution"] = name_resolution
-            return _build_result(**result_kwargs)
-
-        if target_version is not None and allow_latest_overall and overall_tags:
-            best_tag = overall_tags[0]
-            best_info = gitlab.fetch_framework_version(code_repo_link, best_tag)
-            result_kwargs = dict(
-                status="ok",
-                service_name=service_name,
-                selected_tag=best_tag,
-                selected_version=_parse_selected_version(best_tag),
-                framework=detected_framework,
-                framework_version=best_info.framework_version if best_info else None,
-                selection_strategy="latest_overall",
-                target_version=target_version,
-                code_repo_link=code_repo_link,
-                compatibility=None,
-                effective_settings=_build_effective_settings(max_tags),
-            )
-            if name_resolution is not None:
-                result_kwargs["name_resolution"] = name_resolution
-            return _build_result(**result_kwargs)
-
-        if target_version is None and overall_tags:
-            best_tag = overall_tags[0]
+            if detected_framework is None:
+                detected_framework = gitlab.detect_framework_at_head(code_repo_link)
+            best_tag = tags[0]
             best_info = gitlab.fetch_framework_version(code_repo_link, best_tag)
             if best_info is not None:
                 result_kwargs = dict(
@@ -383,35 +323,90 @@ def resolve(
                 result_kwargs["name_resolution"] = name_resolution
             return _build_result(**result_kwargs)
 
-        if target_version is not None:
-            if incompatible_found:
-                return _build_error(
-                    "no_compatible_version",
-                    f"No tag compatible with target version {target_version!r}.",
-                    recoverable=False,
-                    actionable_hint="Try a different target version or set allow_latest_overall=True.",
-                    details={
-                        "target_version": target_version,
-                        "tags_scanned": min(len(tags), max_tags),
-                    },
-                )
+        # target_version set — scan newest tags for compatibility (bounded wall time)
+        deadline = time.monotonic() + _TAG_SCAN_BUDGET_SECONDS
+        compatible_tags: list[tuple[str, CompatibilityInfoObj]] = []
+        unknown_tags: list[str] = []
+        overall_tags: list[str] = []
+        incompatible_found = False
+        first_tag_info: CompatibilityInfoObj | None = None
+
+        for tag in tags[:max_tags]:
+            if time.monotonic() > deadline:
+                break
+            overall_tags.append(tag)
+            info = gitlab.fetch_framework_version(code_repo_link, tag)
+            if tag == tags[0]:
+                first_tag_info = info
+            if info is None:
+                unknown_tags.append(tag)
+                continue
+            if gitlab._is_compatible(info.framework_version, target_version):
+                compatible_tags.append((tag, info))
+                break
+            incompatible_found = True
+
+        if compatible_tags:
+            best_tag, best_info = compatible_tags[0]
+            result_kwargs = dict(
+                status="ok",
+                service_name=service_name,
+                selected_tag=best_tag,
+                selected_version=_parse_selected_version(best_tag),
+                framework=detected_framework,
+                framework_version=best_info.framework_version,
+                selection_strategy="latest_compatible",
+                target_version=target_version,
+                code_repo_link=code_repo_link,
+                compatibility=best_info.to_dict(),
+                effective_settings=_build_effective_settings(max_tags),
+            )
+            if name_resolution is not None:
+                result_kwargs["name_resolution"] = name_resolution
+            return _build_result(**result_kwargs)
+
+        if allow_latest_overall and overall_tags:
+            best_tag = overall_tags[0]
+            best_info = first_tag_info
+            if best_info is None and best_tag != tags[0]:
+                best_info = gitlab.fetch_framework_version(code_repo_link, best_tag)
+            result_kwargs = dict(
+                status="ok",
+                service_name=service_name,
+                selected_tag=best_tag,
+                selected_version=_parse_selected_version(best_tag),
+                framework=detected_framework,
+                framework_version=best_info.framework_version if best_info else None,
+                selection_strategy="latest_overall",
+                target_version=target_version,
+                code_repo_link=code_repo_link,
+                compatibility=None,
+                effective_settings=_build_effective_settings(max_tags),
+            )
+            if name_resolution is not None:
+                result_kwargs["name_resolution"] = name_resolution
+            return _build_result(**result_kwargs)
+
+        if incompatible_found:
             return _build_error(
-                "compatibility_unknown",
-                "All scanned tags have unreadable or missing framework versions.",
+                "no_compatible_version",
+                f"No tag compatible with target version {target_version!r}.",
                 recoverable=False,
-                actionable_hint="Ensure build files declare framework versions at tag refs.",
+                actionable_hint="Try a different target version or set allow_latest_overall=True.",
                 details={
                     "target_version": target_version,
-                    "tags_scanned": min(len(tags), max_tags),
+                    "tags_scanned": len(overall_tags),
                 },
             )
-
         return _build_error(
-            "no_tags_found",
-            "No tags available for resolution.",
+            "compatibility_unknown",
+            "All scanned tags have unreadable or missing framework versions.",
             recoverable=False,
-            actionable_hint="Ensure the repository has version tags.",
-            details={"repo_url": code_repo_link},
+            actionable_hint="Ensure build files declare framework versions at tag refs.",
+            details={
+                "target_version": target_version,
+                "tags_scanned": len(overall_tags),
+            },
         )
 
     except Exception as exc:

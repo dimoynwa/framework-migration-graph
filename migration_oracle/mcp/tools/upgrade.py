@@ -14,6 +14,7 @@ from typing import Literal
 
 from migration_oracle.graph.driver import read_session
 from migration_oracle.mcp.graph.queries import upgrade as upgrade_queries
+from migration_oracle.mcp.matching import compute_matched_entities
 from migration_oracle.mcp.graph.queries.upgrade import _CHECK_VERSION_IN_GRAPH, resolve_version
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.models.graph import VersionResolutionFailure
@@ -264,6 +265,9 @@ def analyze_upgrade_path(
             lines.append(f"- {rule.get('statement', '')}")
         return {"status": "ok", "format": "markdown", "content": "\n".join(lines)}
 
+    for rule in rules:
+        rule["matched_entities"] = compute_matched_entities(rule, norm)
+
     result = {
         "status": "ok",
         "framework": framework,
@@ -288,6 +292,7 @@ def build_recipe_plan(
     classification: list[str] | None = None,
     scope_filter: list[str] | None = None,
     min_severity: str | None = None,
+    context_id: str | None = None,
 ) -> dict:
     """Produce a two-track migration plan: auto (scriptable) and manual (human review required).
 
@@ -300,10 +305,23 @@ def build_recipe_plan(
     norm = normalize_entities(user_entities or [])
     has_filter = _has_entity_filter(norm)
 
-    resolved_from = resolve_version(framework, current_version, mode="floor")
-    resolved_to = resolve_version(framework, target_version, mode="ceil")
-    from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
-    to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
+    if context_id is not None:
+        from migration_oracle.mcp.graph.queries.context import get_context_version_bounds
+        bounds = get_context_version_bounds(context_id=context_id)
+        if bounds is not None:
+            from_ver = bounds["from_version"]
+            to_ver = bounds["to_version"]
+            framework = bounds.get("framework") or framework
+        else:
+            resolved_from = resolve_version(framework, current_version, mode="floor")
+            resolved_to = resolve_version(framework, target_version, mode="ceil")
+            from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+            to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
+    else:
+        resolved_from = resolve_version(framework, current_version, mode="floor")
+        resolved_to = resolve_version(framework, target_version, mode="ceil")
+        from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+        to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
 
     plan = upgrade_queries.build_recipe_plan(
         framework=framework,
@@ -340,8 +358,15 @@ def build_recipe_plan(
         "manual_track": manual_track,
         "fallback_to_rule_cards": plan["fallback_to_rule_cards"],
     }
+    recipe_diag = {
+        "recipes_loaded": plan.get("recipes_loaded", False),
+        "recipe_count": plan.get("recipe_count", 0),
+    }
     if diagnostics is not None:
+        diagnostics.update(recipe_diag)
         result["diagnostics"] = diagnostics
+    else:
+        result["diagnostics"] = recipe_diag
     return result
 
 

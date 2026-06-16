@@ -13,9 +13,9 @@ This skill replaces the pre-redesign five-phase harness with four re-entrant run
 Before starting the codebase scan:
 
 a. Run `python3 --version` to confirm Python 3 is available. If absent, log a warning and offer the grep fast path as the only extraction option.
-b. Run `python3 -c 'import yaml'` to check PyYAML availability. Log `"PyYAML: present"` or `"PyYAML: absent"`.
+b. Check PyYAML: run `python3 -c 'import yaml'`. If that fails, install it with `python3 -m pip install --quiet pyyaml` and retry the import. Log `"PyYAML: present"` or `"PyYAML: install failed"` (the canonical extractor also attempts this install automatically during YAML scanning).
 c. Report the chosen extractor: `"Extractor: python"` (canonical) or `"grep-gnu"` / `"grep-bsd"` (fast path, if Python absent).
-d. Log: `"Preflight complete. Extractor: {path}, PyYAML: {present|absent}"`
+d. Log: `"Preflight complete. Extractor: {path}, PyYAML: {present|install failed}"`
 
 **Step 1 — Context discovery and supersede (T020)**
 
@@ -94,7 +94,7 @@ Call `create_migration_context` with the scanned entity list. If response includ
 
 **Purpose:** Apply migration steps in order, verify each one, and mark it done.
 
-**Work queue:** Call `get_pending_steps` with no filters to get the full remaining queue.
+**Work queue:** Call `get_pending_steps` with no filters to get the full remaining queue. The queue derives from `(:Version)-[:INCLUDES_RULE]->(:MigrationRule)-[:REQUIRES_STEP]->(:MigrationStep)` traversal over the context's resolved floor/ceil range (via `UPGRADES_FROM`/`UPGRADES_TO` edges). There is no `HAS_STEP` relationship. `build_recipe_plan` and `get_pending_steps` return the same set of steps when called for the same context — pass `context_id` to `build_recipe_plan` to guarantee this.
 
 **Executor-selection decision table (T026) — authoritative implementation: `migration_oracle/mcp/routing.py`**
 
@@ -115,7 +115,7 @@ The `automatable` flag is **metadata only** — it is never a routing input. Eva
 **Entity anchor**: at least one entity in the rule's affected-entity set matches the context's scanned entities (`applicability="matched"`).
 
 **Track behaviours:**
-- **OpenRewrite**: batch eligible steps into `rewrite.yml`. Apply via OpenRewrite CLI. Run build+test. On pass: `update_step_status(outcome="completed")`. On fail: rollback → `update_step_status(outcome="failed")` → continue.
+- **OpenRewrite**: batch ALL eligible steps into a single `rewrite.yml`. Apply via OpenRewrite CLI. Do not build. Call `update_step_status(outcome="applied")` for each step in the batch. Proceed to the next non-OpenRewrite step.
 - **Prompted-auto**: surface missing parameters to engineer. If provided: patch recipe params and re-evaluate at row 1. If declined: re-route to human-review.
 - **Agent-codemod**: full protocol below.
 - **Human-review**: emit step card (summary, instruction, verificationHint, jiraKeys, severity). Wait for engineer confirmation. On confirm: `update_step_status(outcome="completed")`. On skip: `update_step_status(outcome="skipped", reason=user_reason)`. On architectural: pause loop, emit design decision prompt, wait, record as context note, then route to human-review step execution.
@@ -139,18 +139,47 @@ The `automatable` flag is **metadata only** — it is never a routing input. Eva
    a. Apply the full transformation to all matched files.
    b. Track all modified files for rollback.
 
-4. BUILD-AND-TEST GATE
-   a. Run the project's build command (Maven/Gradle).
-   b. Run the test suite.
-   c. On PASS → call update_step_status(outcome="completed"). Done.
+4. MARK APPLIED
+   a. Call update_step_status(outcome="applied"). Do not build yet.
+   b. Continue immediately to the next step in the queue.
+```
 
-5. ON GATE FAILURE → ROLLBACK
-   a. Load skill://framework-migration/rollback and follow the revert procedure.
-   b. The rollback skill restores all files modified in step 3 to their exact pre-change state.
-   c. Call update_step_status(outcome="failed", reason="build failed: <error>").
-   d. Record failure reason on STEP_OUTCOME relationship.
-   e. Continue processing remaining steps in the current tier. Do NOT halt the session.
-   f. Add the failed step to the Loop IV backlog with its failure reason.
+
+**TERMINAL BUILD-AND-FIX GATE (runs once, after all steps are applied):**
+
+```
+1. RUN BUILD
+   a. Run the project's build command (Maven/Gradle) and the full test suite.
+   b. If PASS → call update_step_status(outcome="completed") for every step in "applied"
+      state. Loop III is done.
+
+2. ON FAILURE — DIAGNOSE AND FIX (do not revert)
+   a. Read the compiler/test error output.
+   b. Identify which applied step(s) are responsible.
+   c. Apply a targeted fix to the source files — do NOT revert any step.
+   d. Re-run the build.
+   e. Repeat until the build passes, cycling through errors one by one.
+   f. When the build passes, call update_step_status(outcome="completed") for all
+      "applied" steps.
+
+3. PAYSAFE LIBRARY HARD CONSTRAINT (enforced throughout steps 1–2)
+   ⛔ NEVER remove or downgrade any dependency whose groupId starts with "com.paysafe".
+   ✅ ALWAYS upgrade com.paysafe.* dependencies to the version resolved by
+      resolve_paysafe_dependency_by_service_name in Loop II. If Loop II did not resolve
+      a version for a given artifact (auth_error / transport_error), leave it at its
+      current version and emit a backlog item — do not guess a version.
+   If a build error implicates a com.paysafe.* artifact:
+      a. Verify the dep is at the Loop II resolved version. If not, upgrade it now.
+      b. Fix the consuming code to be compatible with the resolved Paysafe library version.
+         Do NOT downgrade the Paysafe dep to make old consuming code compile.
+      c. If no compatible fix exists after step b, mark the step "blocked", surface it
+
+4. ESCALATE IF STUCK
+   a. If the same error persists after 3 targeted fix attempts, call
+      search_migration_knowledge(query="<error>", framework="<FRAMEWORK>") before
+      attempting further fixes.
+   b. If still stuck after search, surface the error to the engineer and mark the
+      relevant step "blocked". Do not halt the session — continue resolving remaining errors.
 ```
 
 **Bridge/deferred section (T034) — when an engineer applies a compatibility bridge instead of the real change:**
@@ -169,7 +198,7 @@ e. When the `requiredChange` step is later completed, `update_step_status` auto-
 2. **Stateless fallback** (`eval_stateless_fallback_scenario.yaml`): trigger by injecting a `create_migration_context` error. Validate: Loop IV completes in stateless mode, no exception propagates.
 3. **Severity threshold** (`test_get_steps_for_scope_tier.py::test_high_threshold_*`): verify `get_steps_for_scope_tier` filters at both `"high"` and `"low"` thresholds with a mixed-severity fixture.
 
-**Interrupt safety:** `update_step_status` is called after every step, win or lose, before the agent moves to the next step.
+**Interrupt safety:** `update_step_status(outcome="applied")` is called after every step before moving to the next. The terminal build gate (end of Loop III) reconciles all `applied` steps to `completed` or `failed`.
 
 ## Loop IV — Feedback
 
@@ -218,7 +247,7 @@ e. When the `requiredChange` step is later completed, `update_step_status` auto-
 | `effort='moderate'` | Manual | Emit step card. Wait for user. |
 | `effort='architectural'` | Design gate | Pause. Emit design decision. Wait. Then manual. |
 | Prerequisites not complete | Blocked | Re-queue. Surface dependency. |
-| Auto apply fails build | Rollback | Load `skill://framework-migration/rollback`. Follow the revert procedure. Call `update_step_status(outcome="failed", reason="build failed: [error]")`. |
+| Auto apply fails build | Fix-forward | Do NOT revert. Diagnose the error. Apply a targeted fix. Re-run the build. If a com.paysafe.* dep is implicated, fix consuming code only — never touch the Paysafe dep. Escalate to engineer if stuck after 3 attempts. |
 
 ### Feedback loop decisions
 

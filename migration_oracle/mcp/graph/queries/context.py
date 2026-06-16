@@ -180,7 +180,7 @@ OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 OPTIONAL MATCH (s)-[:REQUIRES]->(prereq:MigrationStep)
 RETURN elementId(s) AS step_id,
        s.stepType    AS step_type,
-       elementId(r)  AS rule_id,
+       coalesce(r.ruleId, elementId(r))  AS rule_id,
        s.summary     AS summary,
        s.instruction AS instruction,
        s.verificationHint AS verification_hint,
@@ -482,6 +482,33 @@ def delete_zombie_context(
         )
 
 
+_CHECK_CONTEXT_VERSION_MATCH = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+OPTIONAL MATCH (ctx)-[:UPGRADES_FROM]->(vf)
+OPTIONAL MATCH (ctx)-[:UPGRADES_TO]->(vt)
+RETURN coalesce(elementId(vf) = $from_node_id AND elementId(vt) = $to_node_id, false) AS match
+"""
+
+
+def check_context_version_match(
+    *,
+    context_id: str,
+    from_node_id: str,
+    to_node_id: str,
+) -> bool:
+    """Return True if the context's UPGRADES_FROM/UPGRADES_TO edges point to the given node IDs."""
+    with read_session() as session:
+        record = session.run(
+            _CHECK_CONTEXT_VERSION_MATCH,
+            context_id=context_id,
+            from_node_id=from_node_id,
+            to_node_id=to_node_id,
+        ).single()
+    if record is None:
+        return False
+    return bool(record.get("match"))
+
+
 _GET_QUERIED_ENTITIES = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $id
 RETURN ctx.queriedEntities AS qe
@@ -525,6 +552,25 @@ def update_queried_entity(
         session.run(_SET_QUERIED_ENTITIES, id=context_id, updated_json=updated_json).single()
 
     return {"cached_count": len(current)}
+
+
+_GET_CONTEXT_VERSION_BOUNDS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
+MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
+RETURN from_v.version AS from_version,
+       to_v.version AS to_version,
+       ctx.framework AS framework
+"""
+
+
+def get_context_version_bounds(*, context_id: str) -> dict | None:
+    """Return the resolved from/to version strings from context's UPGRADES_FROM/UPGRADES_TO edges."""
+    with read_session() as session:
+        record = session.run(_GET_CONTEXT_VERSION_BOUNDS, context_id=context_id).single()
+    if record is None:
+        return None
+    return dict(record)
 
 
 def close_migration_context(

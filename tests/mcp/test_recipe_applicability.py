@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+
+def _configure_build_recipe_plan_mock(mock_session_ctx, rows: list[dict], *, recipe_count: int = 0) -> None:
+    """Configure read_session mock for build_recipe_plan (recipe count + plan rows)."""
+    plan_result = MagicMock()
+    plan_result.__iter__ = lambda s: iter(rows)
+    count_result = MagicMock()
+    count_result.single.return_value = {"c": recipe_count}
+    session = mock_session_ctx.return_value.__enter__.return_value
+    session.run.side_effect = [count_result, plan_result]
 
 
 def _make_row(
@@ -36,7 +46,7 @@ def _make_row(
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
 def test_applicable_steps(mock_session_ctx):
     rows = [_make_row("s1", "Fix Foo", ["com.example.Foo"], applicability="matched")]
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = lambda s: iter(rows)
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
 
     from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
 
@@ -62,7 +72,7 @@ def test_not_applicable_steps(mock_session_ctx):
     # When the mock returns an excluded row it still comes through, so we verify
     # applicability is passed through as-is and matched_entities is empty.
     rows = [_make_row("s1", "Fix Foo", ["com.example.Foo"], applicability="excluded")]
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = lambda s: iter(rows)
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
 
     from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
 
@@ -85,7 +95,7 @@ def test_not_applicable_steps(mock_session_ctx):
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
 def test_unknown_when_empty_entities(mock_session_ctx):
     rows = [_make_row("s1", "Fix Foo", ["com.example.Foo"], applicability="universal")]
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = lambda s: iter(rows)
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
 
     from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
 
@@ -105,12 +115,45 @@ def test_unknown_when_empty_entities(mock_session_ctx):
 
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
+def test_build_recipe_plan_dependency_bridge_matched_entities(mock_session_ctx):
+    """Bridged Dependency-only rule inherits matched_entities on manual_track step."""
+    rows = [
+        _make_row(
+            "s-web",
+            "Spring Web change",
+            ["org.springframework:spring-web"],
+            applicability="matched",
+        )
+    ]
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
+
+    from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
+
+    result = build_recipe_plan(
+        framework="spring-boot",
+        current_version="3.5.12",
+        target_version="4.0.6",
+        scanned_classes=["org.springframework.web.bind.annotation.RestController"],
+        scanned_class_simple=["RestController"],
+        scanned_deps_ga=[],
+        scanned_dep_artifacts=[],
+        scanned_props=[],
+        has_entity_filter=True,
+    )
+
+    step = result["manual_track"][0]
+    assert step["applicability"] == "matched"
+    assert step["matched_entities"]
+    assert "org.springframework.web.bind.annotation.RestController" in step["matched_entities"]
+
+
+@patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
 def test_dedup_first_occurrence_wins(mock_session_ctx):
     rows = [
         _make_row("s1", "First occurrence", ["com.example.Foo"]),
         _make_row("s1", "Duplicate — should be dropped", ["com.example.Bar"]),
     ]
-    mock_session_ctx.return_value.__enter__.return_value.run.return_value.__iter__ = lambda s: iter(rows)
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
 
     from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
 

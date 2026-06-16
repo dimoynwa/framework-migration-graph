@@ -317,8 +317,182 @@ A session that the developer wants to mark as abandoned (e.g. project cancelled,
 Add `"abandoned"` to the accepted values for `close_migration_context`'s `final_status` parameter.
  
 ---
- 
-## Summary
+
+# Live Probe Report — 2026-06-15
+
+Server: `http://localhost:8080/sse`
+Project scanned: `paysafe-wallet-switch` (Spring Boot 3.5.12 detected, normalised to `3.5.0 → 4.0.0`)
+Entities extracted: 43 main-scope (135 raw Java imports after allow-list filtering) · 146 test-scope (deferred)
+Tools registered: 24
+
+## Live Probe Summary
+
+| # | Tool | Category | Severity | One-line description |
+|---|---|---|---|---|
+| LP-001 | `search_migration_knowledge` | query-logic | High | All hits return empty `text` — content field missing from result projection |
+| LP-002 | `analyze_upgrade_path` | query-logic | High | Rules returned without entity name; `rule_id` is Neo4j element ID not stable key |
+| LP-003 | `search_openrewrite_recipes` | missing-data | Medium | Zero `OpenRewriteRecipe` nodes in graph — recipe data never loaded |
+| LP-004 | `get_pending_steps` vs `build_recipe_plan` | query-logic | Medium | `build_recipe_plan` yields 43 manual steps; `get_pending_steps` returns 0 on same context |
+| LP-005 | `create_migration_context` | query-logic | Low | Response omits `entityCount` and `droppedCount` — skill relies on these to report filtering |
+
+---
+
+## LP-001 — `search_migration_knowledge` hits have empty text content
+
+**Severity:** High
+**Category:** query-logic
+**Tool(s):** `search_migration_knowledge`
+
+**Error / symptom observed:**
+5 probe queries (4 entity-targeted + 1 generic "Spring Boot 4.0 breaking changes") all returned
+3 hits with varied scores — confirming hybrid RRF pipeline ran and embeddings are loaded.
+However every hit had `text=""`:
+
+```
+score=0.0313 text=
+score=0.0278 text=
+score=0.0306 text=
+```
+
+Consistent across all 15 hits (5 queries × 3 results each).
+
+**Root cause:**
+The Cypher projection retrieves node IDs and computes scores correctly (score variance confirms
+the vector index is active), but the `RETURN` clause projects a field name that does not match
+the stored property on the matched node — likely returning `n.text` when the property is
+stored as `n.statement` or `n.description`.
+
+**Likely fix:**
+In `migration_oracle/mcp/graph/queries/search.py`, confirm the actual property key:
+```cypher
+MATCH (n) WHERE n.statement IS NOT NULL RETURN n.statement LIMIT 1
+```
+Then align the projection in the `RETURN` clause.
+
+**Impact:**
+The agent receives search results with no content. The entire Loop II knowledge-search path
+(tier 3 fallback, entities with no graph hit) is silently broken. The agent proceeds as if it
+found guidance, but every result is blank.
+
+---
+
+## LP-002 — `analyze_upgrade_path` rules missing entity field; `rule_id` is a Neo4j element ID
+
+**Severity:** High
+**Category:** query-logic
+**Tool(s):** `analyze_upgrade_path`
+
+**Error / symptom observed:**
+20 rules returned for `Spring Boot 3.5.0 → 4.0.0` — correct count, no error. But `entity`
+was null on all 20 rules, and `rule_id` values are internal element IDs:
+
+```
+rule_id: 4:c474cace-f303-4271-8946-b26cf9dee8d9:1794  severity=critical  entity=null
+rule_id: 4:c474cace-f303-4271-8946-b26cf9dee8d9:1789  severity=critical  entity=null
+```
+
+**Root cause:**
+1. **Entity field absent:** The `RETURN` clause does not project the entity name (the
+   class/property/dependency that triggered the rule). The skill's Loop II skip-guard and
+   executor-selection table both require this.
+2. **`rule_id` is element ID not stable key:** Element IDs change if the graph is rebuilt.
+
+**Likely fix:**
+In the `analyze_upgrade_path` Cypher, add to `RETURN`:
+- `entity.name AS entity_name`
+- `mr.rule_id AS rule_id` (stable stored property, not `elementId(mr)`)
+
+**Impact:**
+The skip-guard cannot function (no entity name to key on). The executor-selection entity-anchor
+check cannot be evaluated. All 20 rules are anonymous — the agent cannot map rules back to
+scanned project entities.
+
+---
+
+## LP-003 — OpenRewrite recipe data not loaded
+
+**Severity:** Medium
+**Category:** missing-data
+**Tool(s):** `search_openrewrite_recipes`, `build_recipe_plan`
+
+**Error / symptom observed:**
+`MATCH (r:OpenRewriteRecipe) RETURN count(r)` via `execute_custom_cypher` → `0`.
+`build_recipe_plan` returned `auto_track=0, manual=43` — all 43 steps fall to manual.
+
+**Likely fix:**
+Run the OpenRewrite recipe ingestion pipeline against the running Neo4j instance and rebuild
+the full-text index on `OpenRewriteRecipe` nodes.
+
+**Impact:**
+The entire auto-track path in Loop III is unavailable. `build_recipe_plan` always returns
+`auto_track=0` until recipe data is loaded.
+
+---
+
+## LP-004 — `get_pending_steps` returns 0 while `build_recipe_plan` shows 43 manual steps
+
+**Severity:** Medium
+**Category:** query-logic
+**Tool(s):** `get_pending_steps`, `build_recipe_plan`
+
+**Error / symptom observed:**
+```
+OK build_recipe_plan: auto=0, manual=43, fallback=False
+OK get_pending_steps: 0 pending steps
+```
+Both calls used the same `context_id`. `create_migration_context` returned `created=False`
+(MERGE matched an existing context).
+
+**Root cause:**
+`build_recipe_plan` queries the graph for applicable rules but does not write `MigrationStep`
+nodes into the context. `get_pending_steps` reads `MigrationStep` nodes linked via `HAS_STEP`.
+Since no tool in the current flow materialises those nodes, the Loop III work queue is always
+empty after context creation. The `created=False` (reused context) may additionally mean prior
+steps are in a terminal state — the skill has no mechanism to distinguish the two cases.
+
+**Likely fix:**
+Either `build_recipe_plan` should write `MigrationStep` nodes when a `context_id` is provided,
+or a `populate_context_steps` tool should be added. `create_migration_context` should also
+return a clear `reused=true` flag (distinct from `created=false`).
+
+**Impact:**
+Loop III is a no-op. The agent receives an empty pending queue and skips execution entirely —
+the migration harness stalls silently after Loop II.
+
+---
+
+## LP-005 — `create_migration_context` response missing `entityCount` and `droppedCount`
+
+**Severity:** Low
+**Category:** query-logic
+**Tool(s):** `create_migration_context`
+
+**Error / symptom observed:**
+```
+context_id=4:c474cace-...:1227, created=False, entityCount=None, droppedCount=None
+```
+
+**Likely fix:**
+Always return `entityCount` and `droppedCount` from both the create and MERGE paths.
+
+**Impact:**
+If the entire scanned entity list was below the allow-list threshold, the agent proceeds with
+zero graph coverage and no warning surfaced to the developer.
+
+---
+
+## Live Probe — Clean Results
+
+- **Version normalisation:** Patch versions `3.5.12 → 4.0.6` returned 5 rules — server normalises to `major.minor.0`. ✅
+- **Hybrid search pipeline:** Score variance across 5 queries confirms embedding model loaded and RRF scoring active. ✅
+- **`resolve_deprecation` / `entity_evolution`:** `EnvironmentPostProcessor` found (`deprecated_in=3.0.0`); chain=1. ✅
+- **`submit_migration_insight` dedup:** Resubmit returned `status=duplicate` — fingerprint logic correct. ✅
+- **24 tools registered** — matches expected surface. ✅
+- **`close_migration_context`** accepted `final_status="partial"` correctly. ✅
+
+---
+
+## Static Analysis Summary (pre-existing, all resolved)
  
 | ID | Severity | Area | One-line description | Status | Fixed by |
 |---|---|---|---|---|---|

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+
 from migration_oracle.mcp.graph.queries import context as context_queries
-from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError
+from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError, check_context_version_match
 from migration_oracle.mcp.graph.queries.upgrade import resolve_version
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.mcp.tools.upgrade import normalize_entities, to_minor_zero
@@ -114,6 +116,39 @@ def create_migration_context(
             }
         raise
 
+    # Zombie guard (BRANCH-B): on resume, verify context edges point to correct nodes
+    if not ctx.get("created") and resolved_from.nodeId and resolved_to.nodeId:
+        if not check_context_version_match(
+            context_id=ctx["context_id"],
+            from_node_id=resolved_from.nodeId,
+            to_node_id=resolved_to.nodeId,
+        ):
+            logging.warning(
+                "Zombie context detected for %s %s→%s (id=%s), deleting and recreating",
+                project_id, from_version, to_version, ctx["context_id"],
+            )
+            context_queries.delete_zombie_context(
+                project_id=project_id,
+                from_version=from_version,
+                to_version=to_version,
+            )
+            ctx = context_queries.create_or_get_context(
+                project_id=project_id,
+                from_version=from_version,
+                to_version=to_version,
+                framework=framework,
+                scanned_entities=allowed_entities,
+                scanned_classes=norm_filtered["scanned_classes"],
+                scanned_class_simple=norm_filtered["scanned_class_simple"],
+                scanned_deps_ga=norm_filtered["scanned_deps_ga"],
+                scanned_dep_artifacts=norm_filtered["scanned_dep_artifacts"],
+                scanned_props=norm_filtered["scanned_props"],
+                from_node_id=resolved_from.nodeId,
+                to_node_id=resolved_to.nodeId,
+            )
+            if not ctx.get("created"):
+                raise RuntimeError("zombie context re-created unexpectedly")
+
     # Check Spring Cloud co-migration warning (T010)
     co_migration_warning = None
     try:
@@ -153,6 +188,9 @@ def create_migration_context(
         "completed_at": ctx.get("completed_at"),
         "notes": ctx.get("notes") or "",
         "created": bool(ctx.get("created")),
+        "reused": not bool(ctx.get("created")),
+        "entityCount": len(allowed_entities),
+        "droppedCount": dropped_count,
         "dropped_count": dropped_count,
         "upgrades_to_version": resolved_to.resolvedVersion,
         "rounded": resolved_to.rounded,

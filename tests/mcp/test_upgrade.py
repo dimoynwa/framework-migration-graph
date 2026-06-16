@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from migration_oracle.mcp.tools.upgrade import analyze_upgrade_path, build_recipe_plan
 from migration_oracle.models.graph import VersionResolutionFailure
@@ -141,3 +141,54 @@ def test_build_recipe_plan_action_step_in_rule_card():
     card = result["manual_track"][0]
     assert card["action_step"] == "Replace WebSecurityConfigurerAdapter"
     assert card["action_step"]
+
+
+@patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
+def test_build_recipe_plan_dependency_bridge_applicability(mock_session_ctx):
+    """Dependency-only rule: Cypher bridge marks matched; matched_entities populated."""
+    row = {
+        "step_id": "step-bridge-1",
+        "rule_id": "pipeline://Spring Boot/4.0.0/Web change",
+        "statement": "Web migration",
+        "action_step": "",
+        "summary": "Update web layer",
+        "instruction": "migrate",
+        "effort": "mechanical",
+        "automatable": True,
+        "verification_hint": "",
+        "scope": "api-surface",
+        "severity": "high",
+        "applicability": "matched",
+        "match_count": 1,
+        "affected_entities": ["org.springframework:spring-web"],
+        "recipe_id": None,
+        "auto": None,
+        "missing_required_params": [],
+        "version": "4.0.0",
+        "step_index": 1,
+    }
+    plan_result = MagicMock()
+    plan_result.__iter__ = lambda s: iter([row])
+    count_result = MagicMock()
+    count_result.single.return_value = {"c": 0}
+    session = mock_session_ctx.return_value.__enter__.return_value
+    session.run.side_effect = [count_result, plan_result]
+
+    from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
+
+    result = build_recipe_plan(
+        framework="Spring Boot",
+        current_version="3.5.12",
+        target_version="4.0.6",
+        scanned_classes=["org.springframework.web.bind.annotation.RestController"],
+        scanned_class_simple=["RestController"],
+        scanned_deps_ga=[],
+        scanned_dep_artifacts=[],
+        scanned_props=[],
+        has_entity_filter=True,
+    )
+
+    assert len(result["manual_track"]) == 1
+    step = result["manual_track"][0]
+    assert step["applicability"] == "matched"
+    assert "org.springframework.web.bind.annotation.RestController" in step["matched_entities"]
