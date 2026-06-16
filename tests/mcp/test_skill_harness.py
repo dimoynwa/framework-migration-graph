@@ -30,12 +30,18 @@ def _ctx(created: bool, completed=None, skipped=None, failed=None):
 
 
 def test_loop_i_resume_skips_completed_steps():
-    with patch(
-        "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
-        side_effect=[
-            _ctx(True, completed=["step-1", "step-2"]),
-            _ctx(False, completed=["step-1", "step-2"]),
-        ],
+    with (
+        patch(
+            "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
+            side_effect=[
+                _ctx(True, completed=["step-1", "step-2"]),
+                _ctx(False, completed=["step-1", "step-2"]),
+            ],
+        ),
+        patch(
+            "migration_oracle.mcp.tools.context.check_context_version_match",
+            return_value=True,
+        ),
     ):
         first = create_migration_context(
             project_id="proj-A",
@@ -65,9 +71,15 @@ def test_loop_i_resume_skips_completed_steps():
 
 
 def test_context_resume_correct_completed_steps():
-    with patch(
-        "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
-        side_effect=[_ctx(True, completed=["step-1"]), _ctx(False, completed=["step-1"])],
+    with (
+        patch(
+            "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
+            side_effect=[_ctx(True, completed=["step-1"]), _ctx(False, completed=["step-1"])],
+        ),
+        patch(
+            "migration_oracle.mcp.tools.context.check_context_version_match",
+            return_value=True,
+        ),
     ):
         create_migration_context(
             project_id="proj-A",
@@ -128,9 +140,15 @@ def test_context_auto_close_on_resume_if_all_resolved():
 def test_loop_i_stops_on_complete_context():
     complete_ctx = _ctx(False)
     complete_ctx["migration_status"] = "complete"
-    with patch(
-        "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
-        return_value=complete_ctx,
+    with (
+        patch(
+            "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
+            return_value=complete_ctx,
+        ),
+        patch(
+            "migration_oracle.mcp.tools.context.check_context_version_match",
+            return_value=True,
+        ),
     ):
         result = create_migration_context(
             project_id="proj-A",

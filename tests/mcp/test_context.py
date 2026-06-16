@@ -60,9 +60,15 @@ def test_create_migration_context_idempotent():
         "notes": "",
         "created": False,
     }
-    with patch(
-        "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
-        return_value=ctx,
+    with (
+        patch(
+            "migration_oracle.mcp.tools.context.context_queries.create_or_get_context",
+            return_value=ctx,
+        ),
+        patch(
+            "migration_oracle.mcp.tools.context.check_context_version_match",
+            return_value=True,
+        ),
     ):
         result = create_migration_context(
             project_id="proj",
