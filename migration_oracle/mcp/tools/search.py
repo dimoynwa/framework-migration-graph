@@ -136,8 +136,9 @@ def _build_hits(
                 {
                     "node_id": node_id,
                     "node_type": node.get("node_type") or "",
-                    "statement": node.get("statement") or "",
+                    "statement": node.get("statement") or node.get("description") or "",
                     "score": score,
+                    "solution": node.get("solution") or "",
                     "source_url": node.get("source_url") or "",
                     "action_step": node.get("action_step") or "",
                     "rule_type": node.get("rule_type") or "",

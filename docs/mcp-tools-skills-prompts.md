@@ -1,6 +1,45 @@
 # MCP Tools, Skills & Prompts — Paysafe Migration Oracle
 
-Full reference for every MCP tool, skill resource, and prompt exposed by the server. Each tool entry includes its description, parameters, return shape, and every Cypher query it executes.
+Full reference for every MCP tool, skill resource, and prompt exposed by the `PaysafeMigrationOracle` MCP server (`migration_oracle/mcp/`). Each tool entry includes its description, parameters, return shape, and representative Cypher where applicable.
+
+For the authoritative graph model, see [graph-schema.md](./graph-schema.md). For the end-to-end pipeline (changelog extraction → graph population), see [migration-oracle-redesign.md](./migration-oracle-redesign.md).
+
+---
+
+## System Architecture
+
+The Migration Oracle is a three-layer system:
+
+| Layer | Role | Key artifacts |
+|---|---|---|
+| **Knowledge graph** | Stores framework release knowledge — rules, steps, affected entities, OpenRewrite recipes, community insights | Neo4j/Memgraph; schema in [graph-schema.md](./graph-schema.md) |
+| **MCP server** | Exposes graph queries, context management, search, and Paysafe dependency resolution to AI agents | 23 tools, 5 skill resources, 3 prompts |
+| **Agent harness** | Procedural skill that drives a four-loop migration workflow using the MCP tools | `skill://framework-migration/*` resources |
+
+### Four-loop harness (Increment 3)
+
+The harness replaces the earlier five-phase “scan → query → plan document” flow with four **re-entrant runtime loops** backed by `MigrationContext` graph state:
+
+```
+Loop I — Context     scan codebase → create/resume MigrationContext → version-map preconditions
+Loop II — Query      scope-gated graph queries (api-surface → runtime → config/build → test)
+Loop III — Execution apply steps (OpenRewrite / agent-codemod / human-review) → update_step_status
+Loop IV — Feedback   submit_migration_insight → backlog → close_migration_context
+```
+
+Supporting skill files split concerns:
+
+| Resource URI | File | Used in |
+|---|---|---|
+| `skill://framework-migration/main` | `framework_migration_main.md` | All loops — orchestration, decision tables, stateless fallback |
+| `skill://framework-migration/scanning` | `framework_migration_scanning.md` | Loop I — entity extraction in graph-compatible string forms |
+| `skill://framework-migration/version-map` | `framework_migration_version_map.md` | Loop I — version tables, Java/Node gates, Spring Cloud co-migration |
+| `skill://framework-migration/plan-format` | `framework_migration_plan_format.md` | Loop III (human-readable mode) — `MIGRATION_PLAN.md` schema |
+| `skill://framework-migration/rollback` | `framework_migration_rollback.md` | Loop III — revert procedure after build/test failure |
+
+**Stateless fallback:** If `create_migration_context` fails after retry, the harness continues with `analyze_upgrade_path` + `build_recipe_plan` using in-memory step tracking only (no `context_id`-requiring tools).
+
+**Entity matching:** Scanned entities are normalised into five typed buckets (`scannedClasses`, `scannedClassSimple`, `scannedDepsGa`, `scannedDepArtifacts`, `scannedProps`) for exact-string matching against graph nodes. See `normalize_entities()` in `migration_oracle/mcp/tools/upgrade.py` and `migration_oracle/mcp/matching.py`.
 
 ---
 
@@ -18,6 +57,7 @@ Full reference for every MCP tool, skill resource, and prompt exposed by the ser
    - [Skill Installation](#skill-installation)
 2. [Prompts](#prompts)
 3. [Skill Resources](#skill-resources)
+4. [Tool Index](#tool-index)
 
 ---
 
@@ -31,7 +71,9 @@ Full reference for every MCP tool, skill resource, and prompt exposed by the ser
 
 #### `check_version_availability`
 
-Check whether a framework version exists in the graph and on Maven Central.
+Check whether a framework version resolves to a graph node and (for Maven-backed frameworks) whether it exists on Maven Central.
+
+Uses `resolve_version()` with configurable direction — the same resolution logic as `create_migration_context` and `submit_migration_insight`.
 
 **Parameters**
 
@@ -39,23 +81,22 @@ Check whether a framework version exists in the graph and on Maven Central.
 |---|---|---|---|---|
 | `framework` | string | yes | — | Framework name (e.g. `"Spring Boot"`) |
 | `version` | string | yes | — | Version string to check (e.g. `"3.2.0"`) |
+| `direction` | string | no | `"floor"` | `"floor"` — highest graph node ≤ requested; `"ceil"` — lowest graph node ≥ requested |
 
 **Returns**
 
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"` or `"error"` |
-| `exists_in_graph` | boolean | True if a matching `Version` node exists |
-| `ga_available` | boolean | True if the version is available on Maven Central |
-| `latest_patch` | string \| null | Latest known patch version for the same minor line |
+| `exists_in_graph` | boolean | True when resolution succeeds |
+| `nodeId` | string \| null | Element ID of resolved `Version` node |
+| `resolved_version` | string \| null | Actual graph version after floor/ceil resolution |
+| `rounded` | boolean | True when resolved version differs from requested |
+| `ahead_of_catalogue` | boolean | True when target exceeds highest known graph version |
+| `ga_available` | boolean | True if the resolved version is on Maven Central |
+| `latest_patch` | string \| null | Latest known patch on Maven Central for the artifact |
 | `hint` | string | Human-readable guidance |
-
-**Cypher**
-
-```cypher
-MATCH (v:Version {framework: $framework, version: $version})
-RETURN count(v) > 0 AS found
-```
+| `candidates_considered` | list[string] | Near-miss versions when not found |
 
 ---
 
@@ -79,6 +120,8 @@ Return all migration rules and lifecycle alerts for a framework version range. O
 | `verbose` | boolean | no | `false` | Verbose output with full reason/solution fields |
 | `scope_filter` | list[string] | no | `[]` | Filter by scope: `"api-surface"`, `"runtime"`, `"config"`, `"build"`, `"test"` |
 | `min_severity` | string | no | `null` | Minimum severity: `"low"`, `"medium"`, `"high"`, `"critical"` |
+
+> **Applicability semantics:** When `user_entities` is non-empty, rules are classified as `matched`, `uncertain` (high/critical safety net), `excluded`, `informational`, or `universal`. The `matched_entities` field in each rule reflects scanned strings that hit the rule, including package-prefix bridges implemented in `migration_oracle/mcp/matching.py`.
 
 **Returns**
 
@@ -217,6 +260,7 @@ Produce a two-track migration plan: **auto** (scriptable via OpenRewrite) and **
 | `classification` | list[string] | no | `[]` | Filter by `entityClassification` |
 | `scope_filter` | list[string] | no | `[]` | Filter by scope |
 | `min_severity` | string | no | `null` | Minimum severity threshold |
+| `context_id` | string | no | `null` | When set, resolves version bounds from the context's `UPGRADES_FROM`/`UPGRADES_TO` edges instead of caller-supplied versions |
 
 **Returns**
 
@@ -226,7 +270,7 @@ Produce a two-track migration plan: **auto** (scriptable via OpenRewrite) and **
 | `auto_track` | list | Steps with `automatable=true`, effort `"mechanical"`, and a linked recipe |
 | `manual_track` | list | All other steps; each has `applicability` and `matched_entities` |
 | `fallback_to_rule_cards` | boolean | True when no `MigrationStep` nodes exist |
-| `diagnostics` | object \| null | Present when `user_entities` is non-empty: same shape as `analyze_upgrade_path` diagnostics |
+| `diagnostics` | object \| null | Entity-filter diagnostics plus `recipes_loaded` and `recipe_count` |
 
 **Cypher**
 
@@ -304,38 +348,53 @@ ORDER BY v.sortableVersion ASC, s.stepIndex ASC
 
 #### `create_migration_context`
 
-Create or resume a `MigrationContext` for a `(project_id, from_version, to_version)` triple. Idempotent — returns the existing context unchanged when called again with the same triple.
+Create or resume a `MigrationContext` for a `(project_id, from_version, to_version)` triple. Idempotent — MERGE key is the exact triple strings; on match refreshes typed entity buckets but does not overwrite `scannedEntities` or session status.
+
+Resolves `from_version` with `floor` and `to_version` with `ceil` via `resolve_version()`. Applies a server-side allow-list filter to `scanned_entities` (framework-relevant prefixes only).
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `project_id` | string | yes | — | Unique project identifier |
-| `from_version` | string | yes | — | Starting framework version |
-| `to_version` | string | yes | — | Target framework version |
+| `from_version` | string | yes | — | Starting framework version (exact MERGE key) |
+| `to_version` | string | yes | — | Target framework version (exact MERGE key) |
 | `framework` | string | yes | — | Framework name |
 | `scanned_entities` | list[string] | no | `[]` | Entity names from codebase scan (Loop I) |
+| `allow_stub_create` | boolean | no | `false` | When true, MERGE a stub `Version` node for ahead-of-catalogue targets |
 
 **Returns**
 
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"` or `"error"` |
+| `error_code` | string | On error: `"version_not_in_graph"`, `"conflict_error"`, etc. |
 | `context_id` | string | Element ID — pass to all subsequent context tools |
 | `project_id` | string | — |
-| `from_version` | string | — |
-| `to_version` | string | — |
+| `from_version` | string | Caller-supplied MERGE key |
+| `to_version` | string | Caller-supplied MERGE key |
 | `framework` | string | — |
 | `migration_status` | string | `"in-progress"`, `"complete"`, `"partial"`, `"blocked"`, `"abandoned"` |
-| `scanned_entities` | list[string] | — |
-| `completed_steps` | list[string] | Step element IDs |
+| `scanned_entities` | list[string] | Stored entity list (allow-list filtered on create) |
+| `completed_steps` | list[string] | Step element IDs (legacy array; prefer `STEP_OUTCOME`) |
 | `skipped_steps` | list[string] | Step element IDs |
 | `created_at` | string | ISO 8601 timestamp |
+| `updated_at` | string | ISO 8601 timestamp |
 | `completed_at` | string \| null | — |
 | `notes` | string | — |
 | `created` | boolean | True if newly created, false if resumed |
+| `reused` | boolean | Inverse of `created` |
+| `entityCount` | integer | Count after allow-list filtering |
+| `droppedCount` / `dropped_count` | integer | Entities removed by allow-list |
+| `upgrades_to_version` | string | Resolved ceil version on the `UPGRADES_TO` edge |
+| `rounded` | boolean | True when resolved version differs from requested |
+| `ahead_of_catalogue` | boolean | True when target exceeds highest known graph version |
+| `stub_created` | boolean | True when a stub Version node was created |
+| `co_migration_warning` | string | Present when Spring Cloud detected on Boot 3→4 upgrade |
 
-> **Note:** `failed_steps` is tracked internally in the graph node but is not returned in the tool response.
+**Error responses:** `version_not_in_graph` includes a `hint` with candidate versions. Concurrent MERGE conflicts return `conflict_error` — retry is safe.
+
+> **Note:** `failed_steps` and `deferred_steps` are tracked in the graph node and via `STEP_OUTCOME` relationships but are not returned in this tool response.
 
 **Cypher**
 
@@ -388,6 +447,48 @@ RETURN elementId(ctx) AS context_id,
        CASE WHEN ctx.completedAt IS NULL THEN null ELSE toString(ctx.completedAt) END AS completed_at,
        coalesce(ctx.notes, '') AS notes,
        coalesce(ctx._was_created, false) AS created
+```
+
+---
+
+#### `get_migration_contexts`
+
+List all `MigrationContext` nodes for a project. Used in Loop I to discover prior sessions, resume in-progress contexts, or supersede stale ones.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `project_id` | string | yes | — | Project identifier |
+| `framework` | string | no | `null` | Optional filter by framework name |
+
+**Returns**
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | `"ok"` or `"error"` |
+| `project_id` | string | — |
+| `count` | integer | Number of contexts (0 when none exist — not an error) |
+| `contexts` | list | Each: `id`, `projectId`, `fromVersion`, `toVersion`, `framework`, `status`, `createdAt`, `updatedAt`, `outcome_counts` |
+
+Each `outcome_counts` object has: `completed`, `failed`, `skipped`, `deferred` — derived from `STEP_OUTCOME` relationships.
+
+**Cypher**
+
+```cypher
+MATCH (ctx:MigrationContext {projectId: $project_id})
+WHERE ($framework IS NULL OR ctx.framework = $framework)
+OPTIONAL MATCH (ctx)-[so:STEP_OUTCOME]->(:MigrationStep)
+WITH ctx,
+     count(CASE WHEN so.status = 'completed' THEN 1 END) AS completed_count,
+     count(CASE WHEN so.status = 'failed'    THEN 1 END) AS failed_count,
+     count(CASE WHEN so.status = 'skipped'   THEN 1 END) AS skipped_count,
+     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count
+RETURN elementId(ctx) AS id, ctx.projectId, ctx.fromVersion, ctx.toVersion,
+       ctx.framework, ctx.status, toString(ctx.createdAt) AS createdAt,
+       toString(ctx.updatedAt) AS updatedAt,
+       completed_count, failed_count, skipped_count, deferred_count
+ORDER BY ctx.createdAt DESC
 ```
 
 ---
@@ -496,9 +597,33 @@ ORDER BY sev_rank ASC, s.stepIndex ASC
 
 ---
 
+#### `update_queried_entity`
+
+Persist Loop II query results in the context's `queriedEntities` cache so resumed sessions skip already-queried entities.
+
+**Parameters**
+
+| Name | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `context_id` | string | yes | — | Context element ID |
+| `entity_name` | string | yes | — | Entity string from the codebase scan |
+| `result_summary` | string | yes | — | Brief summary of the query result (truncated to 500 chars) |
+
+**Returns**
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | `"ok"` or `"error"` |
+| `error_code` | string | `"context_not_found"` when context missing |
+| `context_id` | string | — |
+| `entity_name` | string | — |
+| `cached_count` | integer | Total entries in `queriedEntities` after upsert |
+
+---
+
 #### `update_step_status`
 
-Record the outcome of a migration step. Auto-closes the context when no pending steps remain after this call.
+Record the outcome of a migration step. Writes a `STEP_OUTCOME` relationship and updates legacy step arrays on the context node. Auto-closes the context when no pending steps remain.
 
 **Parameters**
 
@@ -506,14 +631,15 @@ Record the outcome of a migration step. Auto-closes the context when no pending 
 |---|---|---|---|---|
 | `context_id` | string | yes | — | Context element ID |
 | `step_id` | string | yes | — | Step element ID |
-| `outcome` | string | yes | — | `"completed"`, `"skipped"`, or `"failed"` |
-| `reason` | string | no | `""` | Human-readable rationale (accepted but not persisted in the current release) |
+| `outcome` | string | yes | — | `"completed"`, `"skipped"`, `"failed"`, or `"deferred"` |
+| `reason` | string | no | `""` | Human-readable rationale; for `deferred`, JSON with `bridgeName`, `bridgeReason`, `requiredChange` (step elementId) |
 
 **Returns**
 
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"` or `"error"` |
+| `error_code` | string | On error: `"invalid_outcome"`, `"bridge_not_in_graph"`, `"step_not_on_path"` |
 | `step_id` | string | — |
 | `outcome` | string | Outcome recorded |
 | `context_id` | string | — |
@@ -521,21 +647,30 @@ Record the outcome of a migration step. Auto-closes the context when no pending 
 | `context_status` | string | Current migration status |
 | `completed_count` | integer | — |
 | `skipped_count` | integer | — |
+| `auto_resolved_deferred` | list[string] | Step IDs auto-resolved when a `requiredChange` step completes |
 
-**Cypher — update context arrays**
+**Deferred outcome rules:**
+- The step's parent rule must have a `BRIDGED_BY` edge — otherwise returns `bridge_not_in_graph`.
+- When a `requiredChange` step is later completed, deferred steps auto-resolve with `resolvedVia="bridge"`.
+
+**Cypher — update context arrays + STEP_OUTCOME**
 
 ```cypher
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-SET ctx.completedSteps = CASE $outcome WHEN 'completed'
-    THEN ctx.completedSteps + [$step_id] ELSE ctx.completedSteps END,
+MATCH (s:MigrationStep) WHERE elementId(s) = $step_id
+MERGE (ctx)-[so:STEP_OUTCOME]->(s)
+SET so.status = $outcome, so.reason = $reason, so.updatedAt = datetime(),
+    ctx.updatedAt = datetime(),
+    ctx.completedSteps = CASE $outcome WHEN 'completed'
+        THEN ctx.completedSteps + [$step_id] ELSE ctx.completedSteps END,
     ctx.skippedSteps = CASE $outcome WHEN 'skipped'
-    THEN ctx.skippedSteps + [$step_id] ELSE ctx.skippedSteps END,
+        THEN ctx.skippedSteps + [$step_id] ELSE ctx.skippedSteps END,
     ctx.failedSteps = CASE $outcome WHEN 'failed'
-    THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END
-RETURN elementId(ctx) AS context_id,
-       size(ctx.completedSteps) AS completed_count,
-       size(ctx.skippedSteps) AS skipped_count,
-       ctx.status AS migration_status
+        THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END,
+    ctx.deferredSteps = CASE $outcome WHEN 'deferred'
+        THEN coalesce(ctx.deferredSteps, []) + [$step_id] ELSE coalesce(ctx.deferredSteps, []) END
+RETURN elementId(ctx) AS context_id, size(ctx.completedSteps) AS completed_count,
+       size(ctx.skippedSteps) AS skipped_count, ctx.status AS migration_status
 ```
 
 **Cypher — auto-close context**
@@ -600,21 +735,22 @@ RETURN DISTINCT e.name AS entity_name,
 
 #### `close_migration_context`
 
-Explicitly close a migration session with a final status and optional notes. `update_step_status` auto-closes when all steps complete — call this tool only when ending with skipped steps or to add notes.
+Explicitly close a migration session with a final status and optional notes. `update_step_status` auto-closes when all steps complete — call this when skipped/deferred steps remain or to record session notes.
 
 **Parameters**
 
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `context_id` | string | yes | — | Context element ID |
-| `final_status` | string | yes | — | `"complete"` or `"partial"` |
+| `final_status` | string | yes | — | `"complete"`, `"partial"`, or `"abandoned"` |
 | `notes` | string | no | `""` | Free-form session notes |
 
 **Returns**
 
 | Field | Type | Description |
 |---|---|---|
-| `tool_status` | string | `"ok"` |
+| `tool_status` | string | `"ok"` or `"error"` |
+| `error_code` | string | `"invalid_final_status"` when status is not one of the three allowed values |
 | `context_id` | string | — |
 | `migration_status` | string | Final status stored |
 | `completed_steps` | list[string] | — |
@@ -692,7 +828,7 @@ LIMIT $top_k
 
 ```cypher
 MATCH (n) WHERE elementId(n) IN $ids
-OPTIONAL MATCH (n)-[:INCLUDES_RULE|DISCOVERED_IN]-(v:Version)
+OPTIONAL MATCH (n)-[:INCLUDES_RULE]-(v:Version)
 WHERE $framework IS NULL OR v.framework = $framework
 WITH n, collect(DISTINCT v.version) AS versions
 WHERE ($framework IS NULL OR size(versions) > 0)
@@ -778,11 +914,11 @@ RETURN elementId(r) AS node_id,
 
 #### `submit_migration_insight`
 
-Submit a developer-contributed migration insight. Runs near-duplicate detection before write (cosine similarity threshold). Returns `status="duplicate"` if a similar insight already exists.
+Submit a developer-contributed migration insight. Runs a three-pass near-duplicate pipeline (exact → vector → BM25+cosine, threshold 0.92) before write. Creates a `MigrationRule` with `ruleType='community_insight'` linked via `INCLUDES_RULE`.
 
 > Not idempotent — call once per unique finding.
 
-> **Note:** The parameter name `spring_boot_version` carries the framework version string for any framework — e.g. `"3.2"` for Spring Boot, `"30"` for WildFly. The name is historical.
+> **Note:** The parameter name `spring_boot_version` carries the framework version string for any framework — e.g. `"3.2"` for Spring Boot, `"30"` for WildFly. The name is historical. Version is resolved via `resolve_version(mode="floor")`.
 
 **Parameters**
 
@@ -803,9 +939,11 @@ Submit a developer-contributed migration insight. Runs near-duplicate detection 
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `"ok"`, `"duplicate"`, or `"error"` |
-| `insight_id` | string | Element ID of written rule (or the existing duplicate) |
-| `duplicate_of` | string | Element ID of existing duplicate, or `""` when not a duplicate |
+| `insight_id` | string \| null | Element ID of new rule on success; `null` on duplicate/error |
+| `duplicate_of` | string \| null | Element ID of existing duplicate when `status="duplicate"` |
 | `message` | string | Status message |
+| `error_code` | string | `"version_not_in_graph"` when version cannot be resolved |
+| `candidates_considered` | list[string] | Near-miss versions on version resolution failure |
 
 **Cypher**
 
@@ -1016,7 +1154,7 @@ OPTIONAL MATCH (e)-[:REPLACED_BY]->(replacement)
 
 OPTIONAL MATCH (rule)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
 WHERE rule:MigrationRule
-  AND EXISTS { (rule)-[:INCLUDES_RULE|DISCOVERED_IN]-(:Version {framework: $framework}) }
+  AND EXISTS { (rule)-[:INCLUDES_RULE]-(:Version {framework: $framework}) }
 
 WITH e, depV, remV, replacement,
      collect({
@@ -1181,8 +1319,9 @@ Return the authoritative graph schema as a Markdown string. No Cypher is execute
 |---|---|---|
 | `status` | string | `"ok"` |
 | `schema_markdown` | string | Markdown describing all node labels, relationships, properties, and indexes |
+| `server_build` | object | `git_sha`, `branch`, `feature_tags`, `started_at` — populated from env vars at server startup |
 
-**Cypher** — none (static content)
+**Cypher** — none (static content; full schema in [graph-schema.md](./graph-schema.md))
 
 ---
 
@@ -1217,6 +1356,8 @@ Execute a read-only Cypher query and return rows. Blocked keywords (`CREATE`, `M
 #### `resolve_paysafe_dependency_by_service_name`
 
 Resolve a `com.paysafe.*` internal dependency via FindIt and GitLab APIs. Returns repo URL, available tags, and migration guidance. Requires `FINDIT_AUTH_TOKEN` and `GITLAB_API_KEY` environment variables.
+
+On auth failure returns `subStatus="auth_error"` with `remediationSteps` and `unresolvedDependencies`. On network failure returns `subStatus="transport_error"`. The harness treats both as Loop IV backlog items — it does not halt Loop II.
 
 **Parameters**
 
@@ -1348,7 +1489,7 @@ Run the four-loop migration harness:
 
 ## Skill Resources
 
-Skill resources are Markdown files registered as MCP resources under the `skill://` URI scheme. They are loaded by the agent at the start of a migration session via `skill://framework-migration/<name>`.
+Skill resources are Markdown files registered as MCP resources under the `skill://` URI scheme. Load them at session start via `skill://framework-migration/<name>` or through the `start_migration` / `resume_migration` prompts.
 
 ---
 
@@ -1356,17 +1497,17 @@ Skill resources are Markdown files registered as MCP resources under the `skill:
 
 **File:** `migration_oracle/mcp/skills/framework_migration_main.md`
 
-The core migration harness. Defines four sequential loops the agent must execute to complete a migration.
+The core four-loop migration harness. Defines the procedural workflow an agent must follow to complete a framework upgrade end-to-end.
 
 | Loop | Name | Purpose |
 |---|---|---|
-| **I** | Context | Call `create_migration_context` with scanned entities; handle resume vs. new-session logic; surface version boundary preconditions (Java version, namespace migration) |
-| **I (fallback)** | Stateless Fallback | When context creation fails, continue in-memory using `analyze_upgrade_path` + `build_recipe_plan` without persisting state |
-| **II** | Scope-gated Query | Query migration rules in blast-radius priority order: `api-surface` → `runtime` → `config`/`build` → `test`; use `get_steps_for_scope_tier` per tier |
-| **III** | Execution | Apply pending steps via `get_pending_steps`; route each step through a decision table: auto-execute, prompted-auto, manual, design-gate, blocked, or rollback; call `update_step_status` after each outcome |
-| **IV** | Feedback | Call `submit_migration_insight` for any novel findings; emit backlog items for unresolved issues; call `close_migration_context` |
+| **I** | Context | Preflight (Python/PyYAML), `get_migration_contexts` for resume/supersede, codebase scan, entity diff, version-map preconditions, `create_migration_context` |
+| **I (fallback)** | Stateless | When context creation fails — continue with `analyze_upgrade_path` + `build_recipe_plan` without persisting state |
+| **II** | Scope-gated Query | Query in blast-radius order: `api-surface` → `runtime` → `config`/`build` → `test`; `get_steps_for_scope_tier`, `analyze_upgrade_path`, `resolve_deprecation`, `entity_evolution`, `search_migration_knowledge`; Paysafe deps via `resolve_paysafe_dependency_by_service_name`; cache via `update_queried_entity` |
+| **III** | Execution | `get_pending_steps` work queue; executor routing (OpenRewrite → prompted-auto → agent-codemod → human-review); build-and-test gate; rollback on failure; bridge/deferred outcomes |
+| **IV** | Feedback | `submit_migration_insight` for novel findings; skipped/deferred backlog; `close_migration_context` with `complete`/`partial`/`abandoned` |
 
-Each loop has a full decision-logic reference table embedded in the skill file.
+Embedded decision tables cover context resume, query skip-guards, executor selection, and feedback routing.
 
 ---
 
@@ -1374,15 +1515,17 @@ Each loop has a full decision-logic reference table embedded in the skill file.
 
 **File:** `migration_oracle/mcp/skills/framework_migration_scanning.md`
 
-Codebase scanning patterns for entity extraction (Loop I).
+Codebase scanning patterns for entity extraction (Loop I). Produces strings in the **exact form the graph stores** — matching is exact-string, not fuzzy.
 
 | Section | Content |
 |---|---|
-| **Entity Format Quick Reference** | Maps entity types (Java class, annotation, Spring property, Maven/Gradle dep, npm package) to their graph storage format and bash extraction commands |
-| **Spring Boot — Java/Kotlin** | Import extraction (FQCN), annotation extraction (simple name without `@`), `.properties` and `.yml` parsing, Maven `pom.xml` and Gradle dependency extraction |
-| **Angular — TypeScript** | Import extraction (exact npm package name), `package.json` parsing, `NgModule` extraction |
-| **Entity Prioritisation** | Ranking tiers for trimming to top 200 entities: Spring Framework, Hibernate/Micrometer, annotations, Maven/Gradle artifacts, Angular packages, Spring properties, others |
-| **Multi-Module Detection** | Bash commands to detect and handle multi-module Maven/Gradle projects |
+| **Extractor selection** | Python canonical (`extractorPath: "python"`) vs grep fast path (`grep-gnu` / `grep-bsd`); PyYAML degrade path for YAML properties |
+| **Python canonical extractor** | Full `framework_scanner.py` reference — imports, annotations, properties, Maven/Gradle deps |
+| **Relevance filtering** | Allow-list prefixes per framework; noise causes false simple-name collisions |
+| **Entity Format Reference** | Java FQCN, annotation simple names, property keys, `groupId:artifactId`, npm packages, WildFly subsystem keys |
+| **Spring Boot / Angular / WildFly** | Per-framework extraction patterns (Python primary, grep optional) |
+| **Entity Prioritisation** | Tiered cap (default 200); test entities tracked separately for tier 4 |
+| **Multi-Module Detection** | Scan each module, union and dedupe before cap |
 
 ---
 
@@ -1390,20 +1533,17 @@ Codebase scanning patterns for entity extraction (Loop I).
 
 **File:** `migration_oracle/mcp/skills/framework_migration_plan_format.md`
 
-Output format specification for `MIGRATION_PLAN.md` (Loop III).
+Output format for human-readable migration plans (`MIGRATION_PLAN.md`) when the harness runs in plan mode rather than interactive execution.
 
 | Section | Content |
 |---|---|
-| **File location** | `MIGRATION_PLAN.md` at the project root |
-| **Header block** | Metadata: framework, from/to versions, date, project |
-| **Prerequisites block** | Checklist of environment gates (Java version, toolchain, etc.) |
-| **Task blocks** | One block per change: summary, file pattern, effort, before/after code reference, verification steps |
-| **Dependency Updates table** | Version changes for all affected dependencies |
-| **Final Verification Checklist** | Build, test, lint, cleanup |
-| **Risk Labels** | `HIGH` (removed/no replacement), `MEDIUM` (deprecated/renamed), `LOW` (trivial rename) |
-| **Task Ordering Rules** | Build changes → removed deps → foundational APIs → derived changes → config → test; within each group: `HIGH` before `MEDIUM` before `LOW` |
-| **Effort Estimation Guide** | `XS` (single rename, <5 min) → `S` → `M` → `L` (>90 min, architectural) |
-| **Agent Instructions Preamble** | Sequential-only work, verify after each task, preserve behaviour, track progress |
+| **File location** | `$PROJECT_ROOT/MIGRATION_PLAN.md` |
+| **Header / Prerequisites / Task blocks** | Structured TASK-NNN entries with risk labels, effort, before/after, verification |
+| **Dependency Updates table** | Version changes including Paysafe services |
+| **Risk Labels** | HIGH / MEDIUM / LOW semantics |
+| **Task Ordering Rules** | Build → removed deps → APIs → derived → config → test |
+| **Agent Instructions Preamble** | Sequential work, verify after each task, search before manual review |
+| **Assistant Template (4B)** | Human-readable migration guide format |
 
 ---
 
@@ -1411,14 +1551,58 @@ Output format specification for `MIGRATION_PLAN.md` (Loop III).
 
 **File:** `migration_oracle/mcp/skills/framework_migration_version_map.md`
 
-Framework version catalogue and toolchain gate rules.
+Framework version catalogue, toolchain gates, and detection heuristics. Surfaced in Loop I Step 5 before querying begins.
 
 | Section | Content |
 |---|---|
-| **Spring Boot version table** | Versions 2.5.0 → 4.1.0 with `sortableVersion`, status (`EOL`/`Maintenance`/`Active`), and minimum Java version |
-| **Spring Boot key boundaries** | `2.x → 3.x`: requires Java 17 and `javax.*` → `jakarta.*`; `3.x → 4.x`: requires Java 21 |
-| **Recommended incremental path** | `2.5.x → 2.7.x → 3.0.x → 3.2.x` — never skip more than one major |
-| **Angular version table** | Versions 14.0.0 → 22.0.0 with status and minimum Node version |
-| **Angular key boundaries** | 15→16 standalone components; 16→17 new control flow syntax; 17→18 stable signals; 18→19+ zoneless change detection |
-| **Framework Detection Heuristics** | Rules to detect framework from `pom.xml`, `build.gradle`, `angular.json`, `package.json` |
-| **Version String Normalisation** | `"3.2"` → `3.2.0`; `"Spring Boot 3"` → `3.0.0` or latest 3.x patch |
+| **Spring Boot version table** | 2.5.0 → 4.1.0 with `sortableVersion`, status, minimum Java |
+| **Spring Boot key boundaries** | 2.x→3.x (Java 17, javax→jakarta); 3.x→4.x (Java 21) |
+| **Spring Cloud train table** | Hoxton through Oakwood (2025.1.x); calVer sortableVersion formula; BOM-only Oakwood |
+| **Angular version table** | 14.0.0 → 22.0.0 with minimum Node |
+| **Angular key boundaries** | Standalone defaults, control flow, signals, zoneless |
+| **Framework Detection Heuristics** | Detect from `pom.xml`, `build.gradle`, `angular.json`, `package.json` |
+| **Version String Normalisation** | `"3.2"` → `3.2.0`; patch preserved on resolution |
+
+> Status fields are advisory — validate against upstream release schedules when planning production migrations.
+
+---
+
+### `skill://framework-migration/rollback`
+
+**File:** `migration_oracle/mcp/skills/framework_migration_rollback.md`
+
+Five-step revert procedure invoked from Loop III when a build-and-test gate fails after an agent-codemod or OpenRewrite step:
+
+1. **Identify** — note `step_id` and build error
+2. **Stash** — `git stash push -m "rollback: failed migration step <step_id>"`
+3. **Verify** — confirm build passes after stash
+4. **Decide** — skip, retry with fix, or abandon session
+5. **Record** — `update_step_status(outcome="failed", reason="build failed: …")`; continue remaining queue
+
+---
+
+## Tool Index
+
+| Tool | Loop | Purpose |
+|---|---|---|
+| `check_version_availability` | I | Resolve and validate framework versions |
+| `create_migration_context` | I | Create/resume session state |
+| `get_migration_contexts` | I, IV | List prior sessions for resume/supersede |
+| `analyze_upgrade_path` | II | Rules + lifecycle alerts for version range |
+| `get_steps_for_scope_tier` | II | Scope-tier step discovery |
+| `resolve_deprecation` | II | Single-hop deprecation lookup |
+| `entity_evolution` | II | Multi-hop replacement chain |
+| `search_migration_knowledge` | II | Hybrid BM25+vector search fallback |
+| `search_openrewrite_recipes` | II, III | Recipe discovery |
+| `resolve_paysafe_dependency_by_service_name` | II | Internal Paysafe dep resolution |
+| `update_queried_entity` | II | Cache query results on context |
+| `get_pending_steps` | III | Remaining execution queue |
+| `build_recipe_plan` | III | Auto/manual track plan |
+| `update_step_status` | III, IV | Record step outcomes |
+| `close_migration_context` | IV | End session |
+| `submit_migration_insight` | IV | Write community knowledge back |
+| `get_community_insights` | — | Read community rules |
+| `vote_insight` / `verify_insight` | — | Community moderation |
+| `list_pipeline_runs` / `get_artifact_content` | — | Pipeline artifact access |
+| `get_graph_schema` / `execute_custom_cypher` | — | Ad-hoc graph queries |
+| `install_migration_skill` | — | Install harness skills locally |

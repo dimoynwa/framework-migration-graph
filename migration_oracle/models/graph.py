@@ -58,6 +58,26 @@ class MigrationContextNode:
     notes: str = ""
 
 
+@dataclass
+class VersionResolutionResult:
+    resolvedVersion: str
+    resolvedSortable: int
+    nodeId: str
+    requestedVersion: str
+    rounded: bool
+    aheadOfCatalogue: bool
+    stubCreated: bool
+    direction: str  # "exact" | "floor" | "ceil"
+
+
+@dataclass
+class VersionResolutionFailure:
+    status: str  # always "NO_CANDIDATE"
+    framework: str
+    requestedVersion: str
+    candidatesConsidered: list[str] = field(default_factory=list)
+
+
 def sortable_version(version: str) -> int:
     """
     Compute major * 1_000_000 + minor * 1_000 + patch.

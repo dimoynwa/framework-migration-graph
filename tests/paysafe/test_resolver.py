@@ -32,7 +32,7 @@ def test_pinned_mode_short_circuit():
     assert result["selected_tag"] == "3.5.10.A"
     assert result["compatibility"] is None
     assert "name_resolution" not in result
-    assert result["effective_settings"]["max_tags_returned"] == 100
+    assert result["effective_settings"]["max_tags_returned"] == 15
 
 
 def test_error_invalid_service_name():
@@ -124,8 +124,8 @@ def test_error_http_timeout():
         side_effect=_FindItError("http_timeout", "timed out"),
     ):
         result = resolve("my-lib", target_version="3.5.6")
-    assert result["status"] == "error"
-    assert result["error"]["error_code"] == "http_timeout"
+    assert result["status"] == "RESOLUTION_FAILED"
+    assert result["subStatus"] == "transport_error"
 
 
 def test_error_http_request_failed():
@@ -173,8 +173,36 @@ def test_latest_compatible_happy_path():
     assert result["selection_strategy"] == "latest_compatible"
     assert isinstance(result["compatibility"], dict)
     assert result["compatibility"]["source_precedence"] == "spring-boot-starter-parent"
-    assert result["effective_settings"]["max_tags_returned"] == 100
+    assert result["effective_settings"]["max_tags_returned"] == 15
     assert result["code_repo_link"] == "https://gitlab.example.com/payment/my-lib.git"
+
+
+def test_no_target_fetches_only_newest_tag():
+    """Without target_version, only the newest tag is probed (not all max_tags)."""
+    compat = CompatibilityInfoObj("3.5.10", "pom.xml", "spring-boot-starter-parent")
+    with (
+        patch(
+            "migration_oracle.paysafe.resolver.findit.lookup",
+            return_value={"name": "my-lib", "codeRepoLink": "https://gitlab.example.com/a/b.git"},
+        ),
+        patch(
+            "migration_oracle.paysafe.resolver.gitlab.list_tags",
+            return_value=["3.5.10", "3.4.0", "3.3.0"],
+        ),
+        patch(
+            "migration_oracle.paysafe.resolver.gitlab.fetch_framework_version",
+            return_value=compat,
+        ) as mock_fetch,
+        patch(
+            "migration_oracle.paysafe.resolver.gitlab.detect_framework_at_head",
+            return_value="spring-boot",
+        ),
+    ):
+        result = resolve("my-lib")
+
+    assert result["status"] == "ok"
+    assert mock_fetch.call_count == 1
+    mock_fetch.assert_called_with("https://gitlab.example.com/a/b.git", "3.5.10")
 
 
 def test_latest_overall_fallback():

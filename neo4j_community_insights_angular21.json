@@ -1,0 +1,113 @@
+[
+  {
+    "statement": "Angular 21 makes zoneless change detection the default for new projects. Running ng new no longer includes zone.js in polyfills, and new apps bootstrap with provideZonelessChangeDetection() automatically. Existing apps are unaffected until you opt in — but third-party libraries that patch async primitives via zone.js may silently stop triggering change detection after upgrading to Angular 21.",
+    "solution": "For new projects: nothing to do — ng new is already zoneless. For existing apps upgrading to v21: zone.js is retained until you opt out. To migrate: 1) Replace provideExperimentalZonelessChangeDetection() / provideZonelessChangeDetection() — they are now equivalent and both work, but clean up to provideZonelessChangeDetection() in bootstrapApplication(). 2) Remove 'zone.js' from polyfills in angular.json. 3) Audit third-party libraries: any lib that relies on zone.js monkey-patching (setTimeout, fetch, XHR) will need manual markForCheck() or toSignal() wrappers. 4) Use the Angular MCP server's onpush_zoneless_migration tool for automated analysis: it scans your code and produces a migration plan per component.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://push-based.io/article/angular-v21-goes-zoneless-by-default-what-changes-why-its-faster-and-how-to",
+    "confidence": 0.96,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "zone.js",
+      "@angular/core"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 removes ng-reflect-* debug attributes from the DOM by default. Tests and CSS selectors that query elements using [ng-reflect-*] attributes (e.g. document.querySelector('[ng-reflect-router-link]')) will silently find nothing and fail. This is one of the most common test breakage patterns in Angular 21 migrations.",
+    "solution": "1) Find all ng-reflect selectors in your test suite: grep -r 'ng-reflect' src/. 2) Replace them with stable alternatives: data-testid attributes, component property queries via fixture.componentInstance, or By.directive() selectors. 3) If you need ng-reflect temporarily during migration, add provideNgReflectAttributes() to bootstrapApplication() providers — this re-enables the attributes in dev mode. 4) Do NOT rely on ng-reflect in production; it was always a debug-only feature and provideNgReflectAttributes() has no effect in production builds.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://angular.dev/api/core/provideNgReflectAttributes",
+    "confidence": 0.93,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/core"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 makes Vitest the default test runner for all new projects generated with ng new. The @angular/build:karma and @angular-devkit/build-angular:karma builders are fully removed from new project templates. Existing projects keep Karma until migrated, but the ecosystem is moving entirely to Vitest.",
+    "solution": "Run the automated schematic: ng generate @angular/core:karma-to-vitest. This: (1) rewrites angular.json to use @angular/build:unit-test with runner: 'vitest', (2) installs vitest and @vitest/browser as devDependencies, (3) converts karma.conf.js to vitest.config.ts. Known limitations: the schematic does NOT remove karma.conf.js or test.ts — delete them manually after verifying. Complex nested spy setups (jasmine.createSpyObj) need manual rewriting as vi.fn() / vi.spyOn(). Custom Webpack preprocessors in karma.conf.js must be rewritten as Vite plugins.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://angular.dev/guide/testing/migrating-to-vitest",
+    "confidence": 0.95,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "karma",
+      "karma-jasmine",
+      "karma-chrome-launcher",
+      "@angular/build",
+      "vitest"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 hard-deprecates NgModule. NgModules still function in v21 but emit hard deprecation warnings in the compiler. Any component, directive, or pipe declared in an NgModule must be explicitly marked standalone: false — the previous implicit non-standalone declaration is no longer supported without a warning.",
+    "solution": "1) Run the standalone migration schematic: ng generate @angular/core:standalone — it converts NgModule-based code to standalone components in three passes (components, routes, NgModule removal). 2) For components that cannot yet be migrated, add standalone: false explicitly to suppress the warning: @Component({ standalone: false, ... }). 3) Lazy-loaded NgModules via loadChildren: () => import('./module').then(m => m.MyModule) should be converted to loadComponent or loadChildren with a routes array. 4) SharedModules (the classic re-export barrel) should be dissolved — import each directive/pipe directly into the standalone components that need them.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://blog.angular.dev/the-future-is-standalone-475d7edbc706",
+    "confidence": 0.92,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/core"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21.1 renames the Signal Forms field directive: [field] is removed and replaced by [formField]. Any template using the experimental [field] directive from @angular/forms/signals will fail to compile after upgrading to 21.1. Signal Forms remain experimental, and breaking changes within minor/patch releases are allowed.",
+    "solution": "1) Find all [field] usages in templates: grep -r '\\[field\\]' src/. 2) Replace [field]='...' with [formField]='...'. 3) Update any TypeScript references: the Field class is replaced by FormField from @angular/forms. 4) Because Signal Forms are experimental, pin @angular/forms to a specific minor (e.g. ~21.1.0) in package.json and review the Angular changelog before each upgrade to catch further renames early. 5) The Angular update guide at angular.dev/update-guide lists Signal Forms breaking changes per minor release.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://dev.to/playfulprogramming-angular/ng-news-angular-211-4ofe",
+    "confidence": 0.91,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/forms"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 removes the @angular/platform-server/testing package with no replacement. Server-side rendering tests that import from this package will fail to compile. The Angular team recommends switching to end-to-end tests for SSR verification.",
+    "solution": "1) Remove all imports of @angular/platform-server/testing from your test files. 2) For SSR logic that was unit-tested via this package, migrate to e2e tests using Playwright or Cypress with your SSR server running. 3) Pure SSR transfer-state logic can be tested by importing from @angular/platform-server directly (non-testing entry point) and running in a node test environment with vitest's node environment (vitest.config.ts: environment: 'node').",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://www.infoq.com/news/2025/11/angular-21-released/",
+    "confidence": 0.88,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/platform-server"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 removes HammerJS integration (@angular/platform-browser/HammerModule and the HAMMER_GESTURE_CONFIG token). Applications relying on HammerJS for swipe/pinch/tap gestures will fail to compile or silently lose gesture support after upgrading.",
+    "solution": "1) Check if your app imports HammerModule or HAMMER_GESTURE_CONFIG: grep -r 'HammerModule\\|HAMMER_GESTURE_CONFIG' src/. 2) Remove HammerModule from AppModule or bootstrapApplication providers. 3) Replace HammerJS gesture handling with native Pointer Events API, Angular CDK gestures, or a dedicated library such as use-gesture (React-style but portable) or @angular/cdk/drag-drop for drag interactions. 4) Remove hammerjs and @types/hammerjs from package.json.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://arc.dev/employer-blog/angular-latest-version-your-friendly-guide-to-new-features-and-updates-in-2026/",
+    "confidence": 0.89,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "hammerjs",
+      "@angular/platform-browser"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 21 upgrades require sequential version steps — you cannot skip from Angular 19 or earlier directly to 21. Running ng update @angular/core@21 on an Angular 19 project will error. Each major version must be upgraded in sequence: 19 → 20 → 21.",
+    "solution": "Upgrade one major version at a time: 1) ng update @angular/core@20 @angular/cli@20, fix all errors and deprecation warnings, commit. 2) ng update @angular/core@21 @angular/cli@21, fix errors, commit. Check angular.dev/update-guide for the exact command and required peer dependency updates for each hop. Key peer dependencies that must align: TypeScript (≥5.8 for v21), Node.js (≥20 for both v20 and v21). Do not use --force — it masks incompatibilities that will surface at runtime.",
+    "framework": "Angular",
+    "spring_boot_version": "21.0.0",
+    "evidence_url": "https://frontendminds.com/blog/angular-upgrade-guide",
+    "confidence": 0.97,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/core",
+      "@angular/cli"
+    ],
+    "affected_properties": []
+  }
+]

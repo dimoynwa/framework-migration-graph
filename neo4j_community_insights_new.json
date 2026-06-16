@@ -1,0 +1,262 @@
+[
+  {
+    "statement": "Jackson 3 (shipped with Spring Boot 4) renames the primary mapper class and package. com.fasterxml.jackson.databind.ObjectMapper is replaced by tools.jackson.databind.JsonMapper. Direct ObjectMapper usage will compile but you lose the new immutable configuration API; injected ObjectMapper beans still work, but any code that imports com.fasterxml.jackson.databind must be updated to tools.jackson.databind.",
+    "solution": "1) Update all Jackson imports from com.fasterxml.jackson.* to tools.jackson.* (exception: jackson-annotations still uses com.fasterxml.jackson.annotation). 2) Prefer JsonMapper over ObjectMapper — it offers a fluent, immutable builder API: JsonMapper.builder().build(). 3) Run OpenRewrite recipe UpgradeJackson_2_3 to automate import and dependency updates. 4) Set spring.jackson.use-jackson2-defaults=true temporarily to preserve Jackson 2 defaults while you migrate incrementally.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://spring.io/blog/2025/10/07/introducing-jackson-3-support-in-spring/",
+    "confidence": 0.95,
+    "affected_classes": [
+      "com.fasterxml.jackson.databind.ObjectMapper",
+      "tools.jackson.databind.JsonMapper"
+    ],
+    "affected_dependencies": [
+      "com.fasterxml.jackson.core:jackson-databind",
+      "tools.jackson.core:jackson-databind"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Jackson 3 (Spring Boot 4) changes SerializationFeature.WRITE_DATES_AS_TIMESTAMPS to false by default. Date/time fields that previously serialized as Unix epoch longs (e.g. 1699257000000) now serialize as ISO-8601 strings (e.g. '2025-11-06T05:30:00'). This silently breaks JSON consumers that expect numeric timestamps and any tests asserting on numeric date values.",
+    "solution": "Option A (recommended): Update all JSON consumers and test assertions to handle ISO-8601 strings. Option B (compatibility shim): Set spring.jackson.serialization.write-dates-as-timestamps=true in application.properties to restore the old behavior. Option C (incremental migration): Set spring.jackson.use-jackson2-defaults=true to restore all Jackson 2 defaults globally, then migrate fields one by one with @JsonFormat(shape=JsonFormat.Shape.NUMBER) or @JsonFormat(shape=JsonFormat.Shape.STRING).",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://www.danvega.dev/blog/2025/11/10/jackson-3-spring-boot-4",
+    "confidence": 0.95,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "tools.jackson.core:jackson-databind"
+    ],
+    "affected_properties": [
+      "spring.jackson.serialization.write-dates-as-timestamps",
+      "spring.jackson.use-jackson2-defaults"
+    ]
+  },
+  {
+    "statement": "Jackson 3 (Spring Boot 4) renames @JsonComponent to @JacksonComponent and @JsonMixin to @JacksonMixin. Code using the old annotations will not compile after migrating to Spring Boot 4.",
+    "solution": "Replace all @JsonComponent with @JacksonComponent and @JsonMixin with @JacksonMixin. Update imports accordingly: org.springframework.boot.jackson.JsonComponent → org.springframework.boot.jackson.JacksonComponent, and org.springframework.boot.jackson.JsonMixin → org.springframework.boot.jackson.JacksonMixin.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://spring.io/blog/2025/10/07/introducing-jackson-3-support-in-spring/",
+    "confidence": 0.92,
+    "affected_classes": [
+      "org.springframework.boot.jackson.JsonComponent",
+      "org.springframework.boot.jackson.JacksonComponent",
+      "org.springframework.boot.jackson.JsonMixin",
+      "org.springframework.boot.jackson.JacksonMixin"
+    ],
+    "affected_dependencies": [],
+    "affected_properties": []
+  },
+  {
+    "statement": "Jackson 3 (Spring Boot 4) replaces checked JsonProcessingException with unchecked JacksonException. Code with try-catch(JsonProcessingException) or throws JsonProcessingException in method signatures will still compile (JacksonException extends RuntimeException and JsonProcessingException is retained as an alias) but the catch blocks may never trigger for new code paths that throw JacksonException directly.",
+    "solution": "1) Review all try-catch blocks catching JsonProcessingException — replace with catch(JacksonException e) for completeness. 2) Remove 'throws JsonProcessingException' from method signatures where it is no longer needed (it is now unchecked). 3) Update tests that assert checked exception propagation: they should now expect unchecked exceptions instead.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://itnext.io/an-introduction-to-jackson-3-in-spring-7-and-spring-boot-4-cba114aa36b1",
+    "confidence": 0.88,
+    "affected_classes": [
+      "tools.jackson.core.JacksonException",
+      "com.fasterxml.jackson.core.JsonProcessingException"
+    ],
+    "affected_dependencies": [],
+    "affected_properties": []
+  },
+  {
+    "statement": "Spring Security 7 (Spring Boot 4) enables CSRF protection for REST API endpoints by default. Stateless REST APIs that do not send CSRF tokens receive HTTP 403 Forbidden after upgrading. This is the single most common failure mode in Spring Boot 4 migrations.",
+    "solution": "For stateless REST APIs, explicitly disable CSRF in a SecurityFilterChain @Bean: http.securityMatcher('/api/**').csrf(csrf -> csrf.disable()). For session-based web apps that need CSRF, ensure your frontend sends the CSRF token in the X-XSRF-TOKEN header. Integration/component tests must also be updated: add .with(csrf()) to MockMvc request builders, or disable CSRF in your test security config.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://www.javacodegeeks.com/2026/05/spring-boot-4-migration-breaking-changes-new-defaultsand-what-actually-broke.html",
+    "confidence": 0.97,
+    "affected_classes": [
+      "org.springframework.security.config.annotation.web.builders.HttpSecurity"
+    ],
+    "affected_dependencies": [
+      "org.springframework.boot:spring-boot-starter-security",
+      "org.springframework.security:spring-security-web"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Spring Security 7 (Spring Boot 4) completely removes WebSecurityConfigurerAdapter. Any class that extends it will not compile. authorizeRequests() and antMatchers() are also removed.",
+    "solution": "Replace class-based configuration (extends WebSecurityConfigurerAdapter) with component-based configuration: declare a @Bean SecurityFilterChain method that takes HttpSecurity and returns http.build(). Replace authorizeRequests() with authorizeHttpRequests(). Replace antMatchers('/path/**') with requestMatchers('/path/**'). Example:\n@Bean\nSecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {\n    return http\n        .authorizeHttpRequests(auth -> auth.requestMatchers('/public/**').permitAll().anyRequest().authenticated())\n        .build();\n}",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://medium.com/javarevisited/spring-boot-4-migration-guide-what-breaks-and-how-to-fix-it-60373ca4683e",
+    "confidence": 0.97,
+    "affected_classes": [
+      "org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter"
+    ],
+    "affected_dependencies": [
+      "org.springframework.security:spring-security-config"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Spring Boot 4 drops Undertow support entirely. Applications using spring-boot-starter-undertow will fail to start with ClassNotFoundException because Undertow does not support Servlet 6.1, which is required by Jakarta EE 11.",
+    "solution": "Switch to Tomcat or Jetty: 1) Remove spring-boot-starter-undertow from dependencies. 2) For Tomcat (default): no explicit starter needed, it is included transitively via spring-boot-starter-web. 3) For Jetty: add spring-boot-starter-jetty and exclude spring-boot-starter-tomcat from spring-boot-starter-web. Review any Undertow-specific UndertowServletWebServerFactory or UndertowBuilderCustomizer beans and replace with the Tomcat/Jetty equivalents.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide",
+    "confidence": 0.98,
+    "affected_classes": [
+      "org.springframework.boot.web.embedded.undertow.UndertowServletWebServerFactory"
+    ],
+    "affected_dependencies": [
+      "org.springframework.boot:spring-boot-starter-undertow"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Spring Data 2025.1 (Spring Boot 4) processes repository query methods at build time by default. Malformed @Query strings, invalid derived method names, and unsupported SpEL expressions that previously caused RuntimeException at startup now cause build failures. Applications with dynamic query patterns relying on runtime generation may also break.",
+    "solution": "1) Fix all malformed derived query method names and invalid @Query JPQL/HQL strings — these now surface as compile-time errors. 2) If you have intentionally dynamic queries built at runtime, opt out per-repository with @EnableJpaRepositories(bootstrapMode = BootstrapMode.DEFERRED) or globally with spring.data.jpa.repositories.bootstrap-mode=deferred. 3) Upgrade hibernate-jpamodelgen annotation processor to org.hibernate.orm:hibernate-processor (renamed in Hibernate 7). 4) Run a build before deploying to catch all query errors early.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://spring.io/blog/2025/05/22/spring-data-ahead-of-time-repositories/",
+    "confidence": 0.90,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "org.springframework.data:spring-data-jpa",
+      "org.hibernate.orm:hibernate-processor"
+    ],
+    "affected_properties": [
+      "spring.data.jpa.repositories.bootstrap-mode"
+    ]
+  },
+  {
+    "statement": "Hibernate 7 (Spring Boot 4) removes legacy Session API methods: session.save(), session.update(), session.saveOrUpdate(), and session.delete(). Code calling these methods will not compile.",
+    "solution": "Replace with JPA-standard equivalents: session.save(entity) → session.persist(entity); session.update(entity) → session.merge(entity); session.saveOrUpdate(entity) → session.merge(entity); session.delete(entity) → session.remove(entity). Note that merge() returns the managed instance, so use the returned value if you need to continue operating on the entity. If you use EntityManager directly, the standard methods (persist, merge, remove) are unchanged.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://docs.hibernate.org/orm/7.0/migration-guide/",
+    "confidence": 0.97,
+    "affected_classes": [
+      "org.hibernate.Session",
+      "jakarta.persistence.EntityManager"
+    ],
+    "affected_dependencies": [
+      "org.hibernate.orm:hibernate-core"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Hibernate 7 (Spring Boot 4) removes version-specific dialect classes such as MySQL57Dialect, MySQL8Dialect, PostgreSQL95Dialect, and PostgreSQL10Dialect. Using these in spring.jpa.properties.hibernate.dialect will cause ClassNotFoundException at startup.",
+    "solution": "Replace version-specific dialects with the base dialect: MySQL57Dialect/MySQL8Dialect → MySQLDialect; PostgreSQL95Dialect/PostgreSQL10Dialect → PostgreSQLDialect; OracleDialect variants → OracleDialect. In most Spring Boot 4 applications, you can remove the spring.jpa.properties.hibernate.dialect property entirely — Hibernate 7 auto-detects the dialect from the JDBC driver.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://docs.hibernate.org/orm/7.0/migration-guide/",
+    "confidence": 0.95,
+    "affected_classes": [
+      "org.hibernate.dialect.MySQL57Dialect",
+      "org.hibernate.dialect.MySQL8Dialect",
+      "org.hibernate.dialect.PostgreSQL95Dialect",
+      "org.hibernate.dialect.MySQLDialect",
+      "org.hibernate.dialect.PostgreSQLDialect"
+    ],
+    "affected_dependencies": [
+      "org.hibernate.orm:hibernate-core"
+    ],
+    "affected_properties": [
+      "spring.jpa.properties.hibernate.dialect"
+    ]
+  },
+  {
+    "statement": "Angular 20 replaces @angular-devkit/build-angular with @angular/build as the default build package, removing the Karma plugin. New projects no longer have @angular-devkit/build-angular installed, and existing projects that rely on the karma builder will fail after upgrading.",
+    "solution": "1) Run ng update @angular/cli @angular/core to upgrade — the update schematics automatically rewrite angular.json to use @angular/build:application instead of @angular-devkit/build-angular:browser. 2) For unit tests, replace the karma builder with the new unit-test builder: in angular.json change 'builder': '@angular-devkit/build-angular:karma' to 'builder': '@angular/build:unit-test' and set 'runner' to 'vitest' or 'web-test-runner'. 3) If you need Karma temporarily, reinstall @angular-devkit/build-angular manually as a dev dependency — but plan to migrate off it.",
+    "framework": "Angular",
+    "spring_boot_version": "20.0.0",
+    "evidence_url": "https://blog.ninja-squad.com/2025/05/28/what-is-new-angular-20.0",
+    "confidence": 0.93,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular-devkit/build-angular",
+      "@angular/build",
+      "@angular/cli"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 20 deprecates the Karma test runner and removes it from the default build. Projects using @angular/build:karma (or @angular-devkit/build-angular:karma) must migrate to Vitest or Web Test Runner. This affects all unit test setups relying on Karma configuration files (karma.conf.js).",
+    "solution": "Run the automated migration schematic: ng generate @angular/core:karma-to-vitest. This rewrites angular.json, installs vitest and @vitest/browser, and converts your karma.conf.js to a vitest.config.ts. For custom Webpack or custom Karma preprocessors: rewrite them as Vite plugins in vitest.config.ts. After migration, run tests with ng test — this now invokes Vitest instead of Karma. Note: the schematic handles standard configs well but custom setups require manual review.",
+    "framework": "Angular",
+    "spring_boot_version": "20.0.0",
+    "evidence_url": "https://angular.dev/guide/testing/migrating-to-vitest",
+    "confidence": 0.92,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "karma",
+      "karma-chrome-launcher",
+      "karma-jasmine",
+      "@angular/build"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 20 deprecates the legacy structural directives *ngIf, *ngFor, and *ngSwitch from @angular/common. While still functional in v20, they are scheduled for removal in v22. Projects still using them will receive deprecation warnings during builds.",
+    "solution": "Migrate to the built-in control flow syntax introduced in Angular 17: replace *ngIf='condition' with @if (condition) { } @else { }; replace *ngFor='let item of items' with @for (item of items; track item.id) { }; replace *ngSwitch with @switch/@case/@default. Run ng generate @angular/core:control-flow for automated migration. Important: @for requires a track expression — use track item.id or track $index. Remove CommonModule import once all structural directives are migrated.",
+    "framework": "Angular",
+    "spring_boot_version": "20.0.0",
+    "evidence_url": "https://www.yeou.dev/articles/upgrading-to-angular-20/",
+    "confidence": 0.95,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/common",
+      "@angular/core"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 20 stabilises zoneless change detection. provideExperimentalZonelessChangeDetection() (available since Angular 18) is promoted to provideZonelessChangeDetection() in Angular 20.2. Code using the experimental API must be updated before upgrading to v21, where zoneless is the default.",
+    "solution": "1) Replace provideExperimentalZonelessChangeDetection() with provideZonelessChangeDetection() in your bootstrapApplication() providers array (or AppModule providers). 2) Remove zone.js from polyfills in angular.json (polyfills: [] or remove 'zone.js' from the array). 3) Update all components to use Angular Signals or ChangeDetectorRef.markForCheck() to trigger change detection manually — zoneless mode does not detect changes after async events automatically. 4) Test thoroughly: HTTP calls, timers, and third-party libraries that rely on zone.js patching will need explicit change detection triggers.",
+    "framework": "Angular",
+    "spring_boot_version": "20.0.0",
+    "evidence_url": "https://angular.dev/api/core/provideZonelessChangeDetection",
+    "confidence": 0.93,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/core",
+      "zone.js"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Angular 20 drops support for Node.js 18 and requires Node.js 20 or later. TypeScript 5.8 is the minimum required version. Projects running on Node 18 or TypeScript 5.7 and below will fail to build after upgrading to Angular 20.",
+    "solution": "1) Upgrade Node.js to 20.x LTS (or 22.x for latest LTS) before running ng update. 2) Upgrade TypeScript: npm install typescript@5.8 --save-dev (or to the latest 5.x). 3) Check your CI/CD pipelines and Docker base images — update node base images from node:18 to node:20 (or node:22). 4) Run ng update @angular/core @angular/cli after satisfying version requirements.",
+    "framework": "Angular",
+    "spring_boot_version": "20.0.0",
+    "evidence_url": "https://mernstackdev.com/angular-20-complete-guide-to-new-features-performance-improvements-migration-in-2025/",
+    "confidence": 0.95,
+    "affected_classes": [],
+    "affected_dependencies": [
+      "@angular/cli",
+      "@angular/core",
+      "typescript"
+    ],
+    "affected_properties": []
+  },
+  {
+    "statement": "Spring Boot 4 requires Java 17 as a hard baseline. The framework will not start on Java 11 or below. Java 21 (LTS) is recommended for production because Hibernate 7 is Loom-friendly and virtual threads work without thread-pinning issues that affected earlier versions.",
+    "solution": "1) Update your project's Java toolchain: in Gradle, set java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }; in Maven, set <java.version>21</java.version>. 2) Update CI/CD pipelines and Docker base images to use eclipse-temurin:21 or amazoncorretto:21. 3) If you use virtual threads (spring.threads.virtual.enabled=true), test thoroughly — Hibernate 7's Loom-friendly design removes the need for the pinning workarounds required in Spring Boot 3.x.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://www.openlogic.com/blog/planning-spring-boot-4-migration",
+    "confidence": 0.97,
+    "affected_classes": [],
+    "affected_dependencies": [],
+    "affected_properties": [
+      "spring.threads.virtual.enabled"
+    ]
+  },
+  {
+    "statement": "Spring Boot 4 removes approximately 36 deprecated classes from the 2.x and 3.x lines in a single cut. If your Spring Boot 3.x codebase still has deprecation warnings at compile time, those APIs are likely gone in Boot 4. The recommended migration path is to upgrade to Spring Boot 3.5.x first — it deprecates exactly what is removed in 4.0 and surfaces compiler warnings for all breaking changes.",
+    "solution": "1) Before jumping to Spring Boot 4, upgrade to Spring Boot 3.5.x and resolve every deprecation warning. Spring Boot 3.5 is a deliberate bridge release that marks everything removed in 4.0. 2) Run mvn dependency:analyze or gradle dependencies to find transitive pulls of removed modules. 3) Use OpenRewrite's UpgradeSpringBoot_4_0 recipe for automated migrations: mvn -U org.openrewrite.maven:rewrite-maven-plugin:run -Drewrite.recipeArtifactCoordinates=org.openrewrite.recipe:rewrite-spring:LATEST -Drewrite.activeRecipes=org.openrewrite.java.spring.boot4.UpgradeSpringBoot_4_0. 4) Only upgrade to Spring Boot 4.0 once the 3.5 build is clean.",
+    "framework": "Spring Boot",
+    "spring_boot_version": "4.0.0",
+    "evidence_url": "https://www.javacodegeeks.com/2026/05/spring-boot-4-migration-breaking-changes-new-defaultsand-what-actually-broke.html",
+    "confidence": 0.96,
+    "affected_classes": [],
+    "affected_dependencies": [],
+    "affected_properties": []
+  }
+]

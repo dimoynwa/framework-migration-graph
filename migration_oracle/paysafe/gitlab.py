@@ -150,9 +150,15 @@ def _strip_v_prefix(tag: str) -> str:
     return tag
 
 
+def _version_token_from_tag(tag: str) -> str:
+    """Extract the semver token from a git tag (plain, v-prefixed, or Maven coordinate)."""
+    token = tag.rsplit("/", 1)[-1] if "/" in tag else tag
+    return _strip_v_prefix(token)
+
+
 def _parse_tag_version(tag: str) -> Version | None:
     try:
-        return Version(_strip_v_prefix(tag))
+        return Version(_version_token_from_tag(tag))
     except InvalidVersion:
         return None
 
@@ -160,6 +166,9 @@ def _parse_tag_version(tag: str) -> Version | None:
 def _tag_ref_candidates(tag: str) -> list[str]:
     """Prefer the canonical tag name before optional v-prefixed git ref variants."""
     candidates = [tag]
+    # Maven coordinate tags (group/artifact/version) must use the exact ref only.
+    if "/" in tag:
+        return candidates
     if tag.startswith(("v", "V")):
         stripped = _strip_v_prefix(tag)
         if stripped != tag:
@@ -229,7 +238,7 @@ def list_tags(repo_url: str) -> list[str]:
     for tag in tag_names:
         version = _parse_tag_version(tag)
         if version is not None:
-            parsed.append((version, _strip_v_prefix(tag)))
+            parsed.append((version, tag))
 
     if not parsed:
         raise _GitError("no_parseable_tags", "No tags parse as semantic versions")
@@ -291,21 +300,66 @@ def _parse_pom_xml(content: bytes) -> CompatibilityInfoObj | None:
                 prop.text.strip(), "pom.xml", "spring-boot.version-property"
             )
 
+    for dep in root.findall(f".//{ns}dependencyManagement/{ns}dependencies/{ns}dependency"):
+        group_id = dep.findtext(f"{ns}groupId", "")
+        artifact_id = dep.findtext(f"{ns}artifactId", "")
+        version = dep.findtext(f"{ns}version", "")
+        if (
+            group_id == "org.springframework.boot"
+            and artifact_id == "spring-boot-dependencies"
+            and version
+        ):
+            return CompatibilityInfoObj(
+                version.strip(), "pom.xml", "spring-boot-dependencies-bom"
+            )
+
     return None
 
 
-def _parse_gradle(content: str) -> CompatibilityInfoObj | None:
-    patterns = [
-        r'id\s*\(\s*["\']org\.springframework\.boot["\']\s*\)\s*version\s*["\']([^"\']+)["\']',
-        r'id\s+"org\.springframework\.boot"\s+version\s+"([^"]+)"',
-        r"org\.springframework\.boot['\"]?\s+version\s+['\"]([^'\"]+)['\"]",
+def _parse_gradle(content: str, source_file: str = "build.gradle") -> CompatibilityInfoObj | None:
+    patterns: list[tuple[str, str]] = [
+        (
+            r'id\s*\(\s*["\']org\.springframework\.boot["\']\s*\)\s*version\s*["\']([^"\']+)["\']',
+            "gradle-plugin-version",
+        ),
+        (
+            r'id\s+"org\.springframework\.boot"\s+version\s+"([^"]+)"',
+            "gradle-plugin-version",
+        ),
+        (
+            r"org\.springframework\.boot['\"]?\s+version\s+['\"]([^'\"]+)['\"]",
+            "gradle-plugin-version",
+        ),
+        (
+            r"springBootVersion\s*=\s*['\"]([^'\"]+)['\"]",
+            "gradle-springBootVersion-property",
+        ),
+        (
+            r"ext\.springBootVersion\s*=\s*['\"]([^'\"]+)['\"]",
+            "gradle-springBootVersion-property",
+        ),
     ]
-    for pattern in patterns:
+    for pattern, precedence in patterns:
         match = re.search(pattern, content)
         if match:
-            return CompatibilityInfoObj(
-                match.group(1), "build.gradle", "gradle-plugin-version"
-            )
+            return CompatibilityInfoObj(match.group(1), source_file, precedence)
+    return None
+
+
+def _parse_gradle_properties(content: str) -> CompatibilityInfoObj | None:
+    patterns: list[tuple[str, str]] = [
+        (r"^springBootVersion\s*=\s*([^\s#]+)", "gradle-springBootVersion-property"),
+        (r"^spring\.boot\.version\s*=\s*([^\s#]+)", "gradle-springBootVersion-property"),
+    ]
+    for line in content.splitlines():
+        stripped = line.strip()
+        for pattern, precedence in patterns:
+            match = re.match(pattern, stripped)
+            if match:
+                version = match.group(1).strip().strip('"').strip("'")
+                return CompatibilityInfoObj(
+                    version, "gradle.properties", precedence
+                )
     return None
 
 
@@ -344,13 +398,20 @@ def _fetch_framework_version_at_ref(repo_url: str, ref: str) -> CompatibilityInf
     for gradle_file in ("build.gradle", "build.gradle.kts"):
         gradle_content = _archive_file(repo_url, ref, gradle_file)
         if gradle_content:
-            info = _parse_gradle(gradle_content.decode("utf-8", errors="replace"))
+            info = _parse_gradle(
+                gradle_content.decode("utf-8", errors="replace"),
+                source_file=gradle_file,
+            )
             if info:
-                return CompatibilityInfoObj(
-                    info.framework_version,
-                    gradle_file,
-                    info.source_precedence,
-                )
+                return info
+
+    gradle_props = _archive_file(repo_url, ref, "gradle.properties")
+    if gradle_props:
+        info = _parse_gradle_properties(
+            gradle_props.decode("utf-8", errors="replace")
+        )
+        if info:
+            return info
 
     pkg_content = _archive_file(repo_url, ref, "package.json")
     if pkg_content:

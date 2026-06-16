@@ -1,0 +1,54 @@
+# Eval Lane A — Rollback execution (FR-D06 / ISSUE-005)
+# Agent-in-the-loop eval scenario — NOT a pytest test
+#
+# Validates: rollback skill fires and restores all modified files when
+# the build-and-test gate fails after an agent-codemod transformation.
+#
+# Spec anchor: T049, FR-D06, SC-008
+
+name: eval_rollback_on_failed_agent_codemod
+
+description: |
+  Verify that a deliberately failed agent-codemod step triggers rollback,
+  marks the step failed, and does NOT halt the session.
+
+fixture:
+  type: MigrationStep
+  properties:
+    effort: mechanical
+    instruction: "rename com.example.LegacyService to com.example.ModernService"
+    automatable: true
+    stepType: code_change
+    summary: "Rename LegacyService to ModernService (build-breaking transformation)"
+  # The fixture is seeded with a transformation that will cause a build failure
+  rule:
+    recipe_id: null
+    auto: false
+
+entry_point:
+  harness: Loop III
+  step: route step to agent-codemod executor (row 3: no recipe, mechanical, concrete instruction, entity anchor)
+
+execution:
+  - Select agent-codemod executor track
+  - Identify all files matching entity anchor
+  - Confirm blast-radius gate
+  - Apply full transformation (this will break the build)
+  - Run build+test gate
+
+assertions:
+  - name: rollback_fires
+    description: rollback skill is invoked and all modified files restored to pre-change state
+    check: all_files_restored_to_pre_change_state == true
+
+  - name: step_outcome_failed
+    description: STEP_OUTCOME.status = 'failed' with reason containing build error
+    check: step_outcome.status == "failed" AND "build failed" in step_outcome.reason
+
+  - name: session_continues
+    description: remaining tier steps are processed after the rollback (session not halted)
+    check: remaining_steps_processed == true
+
+  - name: step_in_loop4_backlog
+    description: failed step appears in Loop IV backlog with failure reason
+    check: step_in_backlog == true

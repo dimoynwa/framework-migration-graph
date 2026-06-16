@@ -1,0 +1,594 @@
+[
+  {
+    "statement": "Spring Boot 4 uses Jackson 3 (tools.jackson.*). GenericJackson2JsonRedisSerializer was removed; use GenericJacksonJsonRedisSerializer with tools.jackson.databind.ObjectMapper instead.",
+    "solution": "1) Replace import: org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer → GenericJacksonJsonRedisSerializer. 2) Inject ObjectMapper: Add tools.jackson.databind.ObjectMapper as a parameter to your CacheManager @Bean method (Spring Boot 4 auto-configures it). 3) Update serializer usage: Change fromSerializer(new GenericJackson2JsonRedisSerializer()) to fromSerializer(new GenericJacksonJsonRedisSerializer(jacksonObjectMapper)). 4) The ObjectMapper must be from tools.jackson.databind (Jackson 3), not com.fasterxml.jackson.databind.",
+    "confidence": 0.85,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "spring-data-redis",
+      "jackson-databind"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer",
+      "org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer"
+    ]
+  },
+  {
+    "statement": "RedisCacheConfiguration.getTtl() was removed in Spring Data Redis 4.x. Code using it as a fallback (e.g. in createCacheConfig) will not compile.",
+    "solution": "Replace redisCacheConfiguration.getTtl() with an explicit Duration. Example: .orElse(redisCacheConfiguration.getTtl()) → .orElse(Duration.ofMinutes(15)). Use the same default TTL you had configured (e.g. spring.cache.redis.time-to-live) or a sensible default like 15 minutes. The getTtl() method no longer exists on RedisCacheConfiguration.",
+    "confidence": 0.8,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.data.redis.cache.RedisCacheConfiguration"
+    ]
+  },
+  {
+    "statement": "Shedlock 7.x changed LockConfiguration constructor from (String taskName, Instant lockAtMostUntil, Instant lockAtLeastUntil) to (Instant lockAtMostUntil, String taskName, Duration lockAtMostFor, Duration lockAtLeastFor).",
+    "solution": "Replace: new LockConfiguration(taskName, Instant.now().plusSeconds(maxHold), Instant.now().plusSeconds(minHold)) with new LockConfiguration(Instant.now(), taskName, Duration.ofSeconds(maxHold), Duration.ofSeconds(minHold)). Note: 1) First param is now lockAtMostUntil (Instant), 2) Second is taskName (String), 3) Third and fourth are Duration, not Instant. Add import java.time.Duration.",
+    "confidence": 0.95,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "net.javacrumbs.shedlock:shedlock-spring"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "net.javacrumbs.shedlock.core.LockConfiguration"
+    ]
+  },
+  {
+    "statement": "HttpHeaders.containsKey(String) was removed in Spring Framework 6.x / Spring Boot 4. Use containsHeader(String) instead.",
+    "solution": "Replace headers.containsKey(headerName) with headers.containsHeader(headerName). Same semantics: returns true if the header is present. Typically found in ClientHttpRequestInterceptor implementations when checking if a header should be propagated (e.g. X-Forwarded-Host, X-Forwarded-Proto).",
+    "confidence": 0.9,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.http.HttpHeaders"
+    ]
+  },
+  {
+    "statement": "spring-boot-webmvc-test pulls in spring-cloud-contract-wiremock which may conflict with Spring Boot 4. Tests using @EnableWireMock need wiremock-spring-boot instead.",
+    "solution": "1) Add: testImplementation 'org.wiremock.integrations:wiremock-spring-boot:4.2.0'. 2) Exclude contract wiremock: testImplementation('org.springframework.boot:spring-boot-webmvc-test') { exclude group: 'org.springframework.cloud', module: 'spring-cloud-contract-wiremock' }. 3) Keep @EnableWireMock and @ConfigureWireMock from org.wiremock.spring. 4) Do not use @AutoConfigureWireMock or other spring-cloud-contract-wiremock annotations. WireMock client APIs (stubFor, post, aResponse) and wiremock.server.port config remain unchanged.",
+    "confidence": 0.8,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "org.springframework.cloud:spring-cloud-contract-wiremock",
+      "org.springframework.boot:spring-boot-webmvc-test"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "NoResourceFoundException constructor changed from 2 params (HttpMethod, resourcePath) to 3 params (HttpMethod, requestUri, resourcePath) in Spring Framework 7 / Spring Boot 4. Tests constructing it for exception handlers will not compile. getMessage() format also changed.",
+    "solution": "**Before:** `new NoResourceFoundException(HttpMethod.GET, \"/path\")` and `assertEquals(\"No static resource /path.\", error.getDetails().get(0))`. **After:** `new NoResourceFoundException(HttpMethod.GET, \"/path\", \"/path\")` — pass requestUri as second param (can match resourcePath for tests). For assertions, use `assertTrue(error.getDetails().get(0).contains(\"/path\"))` instead of exact match since getMessage() format changed. **Why:** Spring Framework 7 added requestUri to separate original request URI from resource path; message format is no longer stable.",
+    "confidence": 0.9,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.web.servlet.resource.NoResourceFoundException"
+    ]
+  },
+  {
+    "statement": "ResponseEntity.getStatusCodeValue() was removed in Spring Framework 6. Code using it (e.g. in servlet filters setting response status) will not compile.",
+    "solution": "**Before:** `response.setStatus(responseEntity.getStatusCodeValue())`. **After:** `response.setStatus(responseEntity.getStatusCode().value())`. **Why:** getStatusCodeValue() was deprecated in Spring 5.3 and removed in Spring 6; getStatusCode() now returns HttpStatusCode with .value().",
+    "confidence": 0.85,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.http.ResponseEntity"
+    ]
+  },
+  {
+    "statement": "HttpHeaders.addIfAbsent(String, String) was removed in Spring Framework 7 / Spring Boot 4 because HttpHeaders no longer implements MultiValueMap. Code using it (e.g. in ClientHttpRequestInterceptor for header propagation) will not compile.",
+    "solution": "**Before:** `request.getHeaders().addIfAbsent(headerName, value);`\n\n**After:**\n```java\nif (!request.getHeaders().containsHeader(headerName)) {\n  request.getHeaders().add(headerName, value);\n}\n```\n\n**Why:** In Spring Framework 7, HttpHeaders no longer implements MultiValueMap, so addIfAbsent() (inherited from MultiValueMap) is gone. Use containsHeader() + add() for equivalent behavior.",
+    "confidence": 0.9,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.http.HttpHeaders"
+    ]
+  },
+  {
+    "statement": "HttpHeaders.get(headerName) was removed in Spring Framework 7 / Spring Boot 4 because HttpHeaders no longer implements MultiValueMap. Code using headers.get(key).getFirst() or headers.get(key).get(0) will not compile.",
+    "solution": "**Before:** `Objects.requireNonNull(headers.get(HttpHeaders.CONTENT_TYPE)).getFirst()` or `headers.get(key).get(0)`\n\n**After:** `headers.getFirst(headerName)`\n\n**Why:** HttpHeaders no longer implements MultiValueMap; get() is gone. Use getFirst(headerName) for the first value of a header.",
+    "confidence": 0.85,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.http.HttpHeaders"
+    ]
+  },
+  {
+    "statement": "Spring Cloud Contract 5 removed @AutoConfigureWireMock. Tests using spring-cloud-contract-wiremock must migrate to wiremock-spring-boot-standalone with @EnableWireMock and @InjectWireMock.",
+    "solution": "**Before:** Dependency `spring-cloud-contract-wiremock`, annotation `@AutoConfigureWireMock(port = 0)`, injection `@Autowired WireMockServer`.\n\n**After:** Add `org.wiremock.integrations:wiremock-spring-boot-standalone:4.0.9`, use `@EnableWireMock` (class-level), use `@InjectWireMock WireMockServer` (field injection). WireMock client APIs (stubFor, get, aResponse) remain unchanged.\n\n**Why:** Spring Cloud Contract 5 removed the WireMock integration; wiremock-spring-boot-standalone provides the replacement.",
+    "confidence": 0.9,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "org.wiremock.integrations:wiremock-spring-boot-standalone",
+      "org.springframework.cloud:spring-cloud-contract-wiremock"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Spring Boot 4 uses Spring Data 4.x, which requires Redisson 4.x. Redisson 3.52.x is incompatible with Spring Data Redis 4.x.",
+    "solution": "Bump redisson-spring-boot-starter from 3.52.x to 4.2.0 or later. Exclude redisson-hibernate-53 and redisson-hibernate-6 if not using Hibernate L2 cache.",
+    "confidence": 0.92,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "org.redisson:redisson-spring-boot-starter"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The compile configuration is deprecated in Gradle. Using compile.exclude module causes deprecation warnings.",
+    "solution": "Replace compile.exclude with implementation.exclude in the configurations block.",
+    "confidence": 0.98,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The mainClassName property on the Application plugin is deprecated in favor of mainClass.set(...).",
+    "solution": "Replace mainClassName = \"com.example.Application\" with mainClass.set(\"com.example.Application\").",
+    "confidence": 0.98,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Spring Boot 4 uses Apache Kafka 4.x. Tests depending on kafka-server-common, kafka-metadata, or kafka-streams-test-utils at 3.9.x may fail due to version mismatch with spring-kafka-test.",
+    "solution": "Align Kafka test dependencies with Spring Boot 4: use kafka-server-common, kafka-metadata, and kafka-streams-test-utils at 4.2.0 (or BOM-provided version).",
+    "confidence": 0.88,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "org.apache.kafka:kafka-streams-test-utils",
+      "org.apache.kafka:kafka-server-common",
+      "org.apache.kafka:kafka-metadata"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Spring Boot 4 aligns with JUnit Jupiter 6.x. Projects on JUnit 5.10.x or 5.14.x may need to upgrade to junit-jupiter:6.0.3 for full compatibility.",
+    "solution": "Bump org.junit.jupiter:junit-jupiter and junit-jupiter-params to 6.0.3.",
+    "confidence": 0.9,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "org.junit.jupiter:junit-jupiter-params",
+      "org.junit.jupiter:junit-jupiter"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-op-dependencies BOM to at least 4.0.2-RC1 for Spring Boot 4.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.op:paysafe-op-dependencies"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-op-commons-framework to at least 6.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.op:paysafe-op-commons-framework"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-op-commons-test to at least 5.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.op:paysafe-op-commons-test"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-ss-logging to at least 11.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.ss:paysafe-ss-logging"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-op-flowable to at least 2.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.op:paysafe-op-flowable"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-op-http-interfaces-spring-boot-starter to at least 4.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.operations:paysafe-op-http-interfaces-spring-boot-starter"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Bump paysafe-wallet-usage-kafka-producer-spring3 to at least 3.0.0-RC1.",
+    "solution": "",
+    "confidence": 0.5,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.2",
+    "affectedDependencies": [
+      "com.paysafe.wal:paysafe-wallet-usage-kafka-producer-spring3"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Spring Boot 4 + Gradle integrationTest + wiremock-spring-boot: stubs in src/test/resources are not on integrationTest classpath by default; WireMock 3 needs mappings/ and __files/ under filesUnderClasspath; bodyFileName fails with Not found in blob store if __files are missing. wiremock-spring-boot JUnit extension defaults resetWireMockServer=true and clears classpath stubs between @ParameterizedTest invocations.",
+    "solution": "**Before:** Stubs lived as `src/test/resources/component-test-mappings/<scenario>/*.json` and shared bodies in `src/test/resources/__files/**`. `integrationTest` only packaged `src/integrationTest/resources`, so `@EnableWireMock(filesUnderClasspath = \"component-test-mappings/…\")` saw no files (log: no stub mappings). After copying resources, flat `*.json` still did not load under WireMock 3; responses using `bodyFileName` failed with `Not found in blob store: platform/….json`. `@ParameterizedTest` then failed on later rows because stubs were reset between invocations.\n\n**After:** (1) `testImplementation(\"org.springframework.boot:spring-boot-webmvc-test\") { exclude group: \"org.springframework.cloud\", module: \"spring-cloud-contract-wiremock\" }` plus `testImplementation \"org.wiremock.integrations:wiremock-spring-boot:4.2.0\"`. (2) Extend `processIntegrationTestResources` (type `Copy`): copy `component-test-mappings/**/*.json` and `api-test-mappings/**/*.json` from `src/test/resources` and use `eachFile` to insert a `mappings` path segment before the filename (e.g. `…/registrations-activation/mappings/foo.json`). (3) For each direct child dir under `component-test-mappings` and `api-test-mappings`, copy all of `src/test/resources/__files` into `<scenario>/__files` so `bodyFileName` resolves. (4) On every `@ConfigureWireMock` that uses `filesUnderClasspath`, set `resetWireMockServer = false` if the class uses `@ParameterizedTest` or needs stubs to survive across invocations. Keep `duplicatesStrategy = DuplicatesStrategy.INCLUDE` if the task merges with other resource copies.\n\n**Why:** Integration test classpath is separate from `test` resources; WireMock 3’s file source expects `mappings/` + `__files/` siblings under the classpath root passed to `filesUnderClasspath`; `bodyFileName` is resolved against `__files`. The wiremock-spring JUnit extension resets servers before each test method when `resetWireMockServer` is true (default), which removes stubs loaded from the classpath at context startup—harmful for parameterized methods that reuse the same Spring context.",
+    "confidence": 0.88,
+    "sourceUrl": "https://github.com/wiremock/wiremock-spring-boot/issues/65",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.5",
+    "affectedDependencies": [
+      "org.wiremock.integrations:wiremock-spring-boot",
+      "org.springframework.cloud:spring-cloud-contract-wiremock",
+      "org.springframework.boot:spring-boot-webmvc-test"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.wiremock.spring.EnableWireMock",
+      "org.wiremock.spring.ConfigureWireMock"
+    ]
+  },
+  {
+    "statement": "After Spring Boot 4 + paysafe-op-commons-framework 6.x, MockMvc tests using @WithUserDetails on secured servlet APIs can return 401: OneplatformJwtSecurityFilter only accepts a Jwt principal, not UserDetails from @WithUserDetails.",
+    "solution": "**Before:** Component tests annotated methods with `@WithUserDetails(\"123456\")` and called `mockMvc.perform(MockMvcRequestBuilders.post(\"/onboarding/v1/...\").contentType(...).content(...))` expecting 200. Application security uses OAuth2 resource server + Paysafe filters (`OneplatformJwtSecurityFilter`, `OneplatformAuthenticationFilter`) from `paysafe-op-commons-framework`.\n\n**After:** Remove `@WithUserDetails` for those requests and add Spring Security Test’s JWT post-processor, building a JWT whose `sub` is the customer id (and other claims as needed), e.g. `mockMvc.perform(MockMvcRequestBuilders.post(...).with(jwt().jwt(j -> j.subject(customerId).claim(\"email\", \"user@example.com\"))).header(...).content(...))`. Optionally centralise in a small `RequestPostProcessor customerJwt(String id)` helper.\n\n**Why:** `OneplatformJwtSecurityFilter` validates the `SecurityContext` authentication for paths it handles; if the principal is not a `Jwt`, it throws `UnauthorizedAccessException` (HTTP 401). `@WithUserDetails` loads `UserDetails` directly and never creates a `Jwt`. `jwt()` supplies a `Jwt` so the same filter chain can run and `OneplatformAuthenticationFilter` can convert claims into `OneplatformUser` (e.g. `sub` for `getId()`), matching how real requests are authenticated.",
+    "confidence": 0.86,
+    "sourceUrl": "",
+    "framework": "Spring Boot",
+    "frameworkVersion": "4.0.5",
+    "affectedDependencies": [
+      "org.springframework.security:spring-security-test",
+      "org.springframework.boot:spring-boot-starter-security",
+      "com.paysafe.op:paysafe-op-commons-framework"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+      "org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors",
+      "com.paysafe.op.commons.framework.security.authentication.OneplatformJwtSecurityFilter",
+      "com.paysafe.op.commons.framework.security.authentication.OneplatformAuthenticationFilter"
+    ]
+  },
+  {
+    "statement": "Angular 19 introduces a new signal-based input binding API to enhance component input performance and clarity.",
+    "solution": "To migrate, replace traditional @Input() bindings with signal inputs by using the schematic command: `ng generate @angular/core:signal-input-migration`.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/meet-angular-v19-7b29dfd05b84",
+    "framework": "Angular",
+    "frameworkVersion": "19.0.0",
+    "affectedDependencies": [
+      "@angular/core"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The `zone.js` dependency is now optional in Angular 19 for improved performance with zoneless change detection.",
+    "solution": "Remove `zone.js` from your dependencies and update your bootstrap process to include `provideZonelessChangeDetection()`.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/meet-angular-v19-7b29dfd05b84",
+    "framework": "Angular",
+    "frameworkVersion": "19.0.0",
+    "affectedDependencies": [
+      "zone.js"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Angular 19 deprecates `ngOnChanges` in favor of signal-based lifecycle hooks for component change detection.",
+    "solution": "Replace `ngOnChanges` implementations with the new signal-based mechanism by updating your components to use the new lifecycle API.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/meet-angular-v19-7b29dfd05b84",
+    "framework": "Angular",
+    "frameworkVersion": "19.0.0",
+    "affectedDependencies": [
+      "@angular/core"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Updates to `angular.json` are required to support the new build system improvements in Angular 19.",
+    "solution": "Update `angular.json` to include new build options by following the migration guide provided in the official Angular documentation.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/meet-angular-v19-7b29dfd05b84",
+    "framework": "Angular",
+    "frameworkVersion": "19.0.0",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The RxJS version is updated in Angular 19, requiring developers to ensure compatibility with the new RxJS APIs.",
+    "solution": "Update your project to use the latest RxJS version and refactor code to accommodate any changes in the RxJS API.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/meet-angular-v19-7b29dfd05b84",
+    "framework": "Angular",
+    "frameworkVersion": "19.0.0",
+    "affectedDependencies": [
+      "rxjs"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Angular 20 introduces a breaking change in the way signals are handled, requiring migration to the new signal API.",
+    "solution": "Replace previous signal handling patterns with the new API as demonstrated in the blog's code examples.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+    "framework": "Angular",
+    "frameworkVersion": "20.0.0",
+    "affectedDependencies": [
+      "@angular/core"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The deprecated ReactiveFormsModule has been replaced by a new module, requiring developers to update their imports.",
+    "solution": "Replace all instances of `ReactiveFormsModule` with `NewReactiveFormsModule` in your application imports.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+    "framework": "Angular",
+    "frameworkVersion": "20.0.0",
+    "affectedDependencies": [
+      "@angular/forms"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Angular 20 introduces a new schematic command for migrating input signals to the latest format.",
+    "solution": "Run the schematic command `ng generate @angular/core:signal-input-migration` to auto-migrate input signals.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+    "framework": "Angular",
+    "frameworkVersion": "20.0.0",
+    "affectedDependencies": [
+      "@angular/core"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "Updates to `angular.json` require enabling strict mode for the build configuration to comply with Angular 20 standards.",
+    "solution": "In `angular.json`, set `projects.*.architect.build.options.strict` to `true`.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+    "framework": "Angular",
+    "frameworkVersion": "20.0.0",
+    "affectedDependencies": [
+
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  },
+  {
+    "statement": "The dependency on `zone.js` has been reduced, allowing for more efficient change detection mechanisms in Angular 20.",
+    "solution": "Update your application to remove unnecessary `zone.js` dependencies as per the guidelines provided in the blog.",
+    "confidence": 0.7,
+    "sourceUrl": "https://blog.angular.dev/announcing-angular-v20-b5c9c06cf301",
+    "framework": "Angular",
+    "frameworkVersion": "20.0.0",
+    "affectedDependencies": [
+      "zone.js"
+    ],
+    "affectedProperties": [
+
+    ],
+    "affectedClasses": [
+
+    ]
+  }
+]

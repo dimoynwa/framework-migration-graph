@@ -90,3 +90,41 @@ def test_total_gt_zero_when_pending(mock_get):
     result = get_steps_for_scope_tier(context_id="ctx-1", scope="build")
 
     assert result["total"] > 0
+
+
+# ---------------------------------------------------------------------------
+# T051: severity threshold filtering (FR-D06 / ISSUE-003)
+# ---------------------------------------------------------------------------
+
+@patch("migration_oracle.mcp.tools.context.context_queries.get_steps_for_scope_tier")
+def test_high_threshold_returns_only_high_severity(mock_get):
+    """severity_threshold='high' returns only high-severity steps from the query layer."""
+    mock_get.return_value = [
+        _make_step_row(step_id="s-high", scope="api-surface", severity="high", entity_name="com.example.Foo"),
+    ]
+
+    from migration_oracle.mcp.tools.context import get_steps_for_scope_tier
+
+    result = get_steps_for_scope_tier(context_id="ctx-1", scope="api-surface", severity_threshold="high")
+
+    assert result["status"] == "ok"
+    assert all(h["severity"] in ("high", "critical") for h in result["hits"] if h["severity"])
+    mock_get.assert_called_once_with(context_id="ctx-1", scope="api-surface", min_severity="high")
+
+
+@patch("migration_oracle.mcp.tools.context.context_queries.get_steps_for_scope_tier")
+def test_low_threshold_returns_all_severities(mock_get):
+    """severity_threshold='low' returns all severity levels."""
+    mock_get.return_value = [
+        _make_step_row(step_id="s-high", scope="build", severity="high", entity_name="com.example.A"),
+        _make_step_row(step_id="s-med", scope="build", severity="medium", entity_name="com.example.B"),
+        _make_step_row(step_id="s-low", scope="build", severity="low", entity_name="com.example.C"),
+    ]
+
+    from migration_oracle.mcp.tools.context import get_steps_for_scope_tier
+
+    result = get_steps_for_scope_tier(context_id="ctx-1", scope="build", severity_threshold="low")
+
+    assert result["status"] == "ok"
+    assert result["total"] == 3
+    mock_get.assert_called_once_with(context_id="ctx-1", scope="build", min_severity="low")

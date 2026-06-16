@@ -28,8 +28,10 @@ ON CREATE SET
   ctx.completedSteps = [],
   ctx.skippedSteps = [],
   ctx.failedSteps = [],
+  ctx.deferredSteps = [],
   ctx.queriedEntities = '{}',
   ctx.createdAt = datetime(),
+  ctx.updatedAt = datetime(),
   ctx.completedAt = null,
   ctx.notes = '',
   ctx._was_created = true,
@@ -40,14 +42,15 @@ ON CREATE SET
   ctx.scannedProps         = $scanned_props
 ON MATCH SET
   ctx._was_created = false,
+  ctx.updatedAt = datetime(),
   ctx.scannedClasses       = $scanned_classes,
   ctx.scannedClassSimple   = $scanned_class_simple,
   ctx.scannedDepsGa        = $scanned_deps_ga,
   ctx.scannedDepArtifacts  = $scanned_dep_artifacts,
   ctx.scannedProps         = $scanned_props
 WITH ctx
-MATCH (vf:Version {framework: $framework, version: $from_version})
-MATCH (vt:Version {framework: $framework, version: $to_version})
+MATCH (vf:Version) WHERE elementId(vf) = $from_node_id
+MATCH (vt:Version) WHERE elementId(vt) = $to_node_id
 MERGE (ctx)-[:UPGRADES_FROM]->(vf)
 MERGE (ctx)-[:UPGRADES_TO]->(vt)
 RETURN elementId(ctx) AS context_id,
@@ -60,10 +63,40 @@ RETURN elementId(ctx) AS context_id,
        ctx.completedSteps AS completed_steps,
        ctx.skippedSteps AS skipped_steps,
        ctx.failedSteps AS failed_steps,
+       coalesce(ctx.deferredSteps, []) AS deferred_steps,
        toString(ctx.createdAt) AS created_at,
+       toString(ctx.updatedAt) AS updated_at,
        CASE WHEN ctx.completedAt IS NULL THEN null ELSE toString(ctx.completedAt) END AS completed_at,
        coalesce(ctx.notes, '') AS notes,
        coalesce(ctx._was_created, false) AS created
+"""
+
+_GET_MIGRATION_CONTEXTS = """
+MATCH (ctx:MigrationContext {projectId: $project_id})
+WHERE ($framework IS NULL OR ctx.framework = $framework)
+
+OPTIONAL MATCH (ctx)-[so:STEP_OUTCOME]->(:MigrationStep)
+WITH ctx,
+     count(CASE WHEN so.status = 'completed' THEN 1 END) AS completed_count,
+     count(CASE WHEN so.status = 'failed'    THEN 1 END) AS failed_count,
+     count(CASE WHEN so.status = 'skipped'   THEN 1 END) AS skipped_count,
+     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count
+
+RETURN
+  elementId(ctx)          AS id,
+  ctx.projectId           AS projectId,
+  ctx.fromVersion         AS fromVersion,
+  ctx.toVersion           AS toVersion,
+  ctx.framework           AS framework,
+  ctx.status              AS status,
+  toString(ctx.createdAt) AS createdAt,
+  toString(ctx.updatedAt) AS updatedAt,
+  completed_count,
+  failed_count,
+  skipped_count,
+  deferred_count
+
+ORDER BY ctx.createdAt DESC
 """
 
 _GET_PENDING_STEPS = """
@@ -77,6 +110,7 @@ MATCH (v)-[:INCLUDES_RULE]->(r:MigrationRule)-[:REQUIRES_STEP]->(s:MigrationStep
 WHERE NOT elementId(s) IN ctx.completedSteps
   AND NOT elementId(s) IN ctx.skippedSteps
   AND NOT elementId(s) IN coalesce(ctx.failedSteps, [])
+  AND NOT elementId(s) IN coalesce(ctx.deferredSteps, [])
   AND (size($effort_filter) = 0 OR s.effort IN $effort_filter)
 
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
@@ -111,6 +145,21 @@ WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filt
             (size(split(e.name, ':')) >= 2
                AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN sc_dga)
          OR last(split(e.name, ':')) IN sc_da
+         // Package-prefix bridge: primary = Class node package, fallback = groupId (T046)
+         OR any(cls IN sc_c WHERE
+              any(ruleClass IN [(r)-[:AFFECTS_CLASS]->(rc:Class) | rc.name] WHERE
+                cls STARTS WITH (left(ruleClass,
+                  size(ruleClass) - size(split(ruleClass, '.')[size(split(ruleClass, '.'))-1]) - 1) + '.')
+              )
+            )
+         OR (
+              // Fallback: only when rule has no Class nodes at all (Dependency-only rule)
+              NOT (r)-[:AFFECTS_CLASS]->(:Class)
+              AND size(split(e.name, ':')) >= 2
+              AND any(cls IN sc_c WHERE
+                cls STARTS WITH (split(e.name, ':')[0] + '.')
+              )
+            )
        ELSE false
      END AS entity_match
 
@@ -131,7 +180,7 @@ OPTIONAL MATCH (s)-[ab:AUTOMATED_BY]->(rec:OpenRewriteRecipe)
 OPTIONAL MATCH (s)-[:REQUIRES]->(prereq:MigrationStep)
 RETURN elementId(s) AS step_id,
        s.stepType    AS step_type,
-       elementId(r)  AS rule_id,
+       coalesce(r.ruleId, elementId(r))  AS rule_id,
        s.summary     AS summary,
        s.instruction AS instruction,
        s.verificationHint AS verification_hint,
@@ -152,7 +201,10 @@ SET ctx.completedSteps = CASE $outcome WHEN 'completed'
     ctx.skippedSteps = CASE $outcome WHEN 'skipped'
     THEN ctx.skippedSteps + [$step_id] ELSE ctx.skippedSteps END,
     ctx.failedSteps = CASE $outcome WHEN 'failed'
-    THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END
+    THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END,
+    ctx.deferredSteps = CASE $outcome WHEN 'deferred'
+    THEN coalesce(ctx.deferredSteps, []) + [$step_id] ELSE coalesce(ctx.deferredSteps, []) END,
+    ctx.updatedAt = datetime()
 WITH ctx
 MATCH (step:MigrationStep) WHERE elementId(step) = $step_id
 MERGE (ctx)-[so:STEP_OUTCOME]->(step)
@@ -167,7 +219,7 @@ RETURN elementId(ctx) AS context_id,
 
 _AUTO_CLOSE_WRITE = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
-SET ctx.status = 'complete', ctx.completedAt = datetime()
+SET ctx.status = 'complete', ctx.completedAt = datetime(), ctx.updatedAt = datetime()
 RETURN elementId(ctx) AS context_id, ctx.status AS migration_status
 """
 
@@ -196,6 +248,7 @@ _CLOSE_CONTEXT = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
 SET ctx.status = $final_status,
     ctx.completedAt = datetime(),
+    ctx.updatedAt = datetime(),
     ctx.notes = $notes
 RETURN elementId(ctx) AS context_id,
        ctx.status AS migration_status,
@@ -204,6 +257,82 @@ RETURN elementId(ctx) AS context_id,
        toString(ctx.completedAt) AS completed_at,
        coalesce(ctx.notes, '') AS notes
 """
+
+
+_CHECK_BRIDGE_DISCOVERABILITY = """
+MATCH (s:MigrationStep) WHERE elementId(s) = $step_id
+MATCH (r:MigrationRule)-[:REQUIRES_STEP]->(s)
+OPTIONAL MATCH (r)-[:BRIDGED_BY]->(b:Dependency)
+RETURN b.name AS bridge_name, b.applicableRuleTypes AS applicable_rule_types
+LIMIT 1
+"""
+
+_RESOLVE_DEFERRED_STEPS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+UNWIND coalesce(ctx.deferredSteps, []) AS deferred_id
+MATCH (ds:MigrationStep) WHERE elementId(ds) = deferred_id
+MATCH (ctx)-[dso:STEP_OUTCOME]->(ds) WHERE dso.status = 'deferred'
+WHERE $completed_step_id IN dso.reason
+RETURN elementId(ds) AS deferred_step_id, dso.reason AS reason
+"""
+
+_AUTO_RESOLVE_DEFERRED = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (ds:MigrationStep) WHERE elementId(ds) = $deferred_step_id
+MATCH (ctx)-[dso:STEP_OUTCOME]->(ds)
+SET dso.status = 'completed',
+    dso.resolvedVia = 'bridge',
+    dso.bridgeResolvedAt = datetime(),
+    dso.updatedAt = datetime(),
+    ctx.deferredSteps = [d IN coalesce(ctx.deferredSteps, []) WHERE d <> $deferred_step_id],
+    ctx.completedSteps = ctx.completedSteps + [$deferred_step_id],
+    ctx.updatedAt = datetime()
+RETURN elementId(ds) AS resolved_step_id
+"""
+
+
+def check_bridge_discoverability(*, step_id: str) -> dict | None:
+    with read_session() as session:
+        record = session.run(_CHECK_BRIDGE_DISCOVERABILITY, step_id=step_id).single()
+    if record is None:
+        return None
+    return dict(record)
+
+
+def auto_resolve_deferred_steps(*, context_id: str, completed_step_id: str) -> list[str]:
+    """After a step is completed, resolve any deferred steps whose requiredChange = that step."""
+    import json
+
+    # First fetch deferred steps with their reasons
+    with read_session() as session:
+        rows = list(session.run(
+            """
+            MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+            UNWIND coalesce(ctx.deferredSteps, []) AS deferred_id
+            MATCH (ds:MigrationStep) WHERE elementId(ds) = deferred_id
+            MATCH (ctx)-[dso:STEP_OUTCOME]->(ds) WHERE dso.status = 'deferred'
+            RETURN elementId(ds) AS deferred_step_id, dso.reason AS reason
+            """,
+            context_id=context_id,
+        ))
+
+    resolved_ids: list[str] = []
+    for row in rows:
+        reason_raw = row.get("reason") or ""
+        try:
+            reason_obj = json.loads(reason_raw)
+        except (ValueError, TypeError):
+            continue
+        if reason_obj.get("requiredChange") == completed_step_id:
+            with write_session() as session:
+                session.run(
+                    _AUTO_RESOLVE_DEFERRED,
+                    context_id=context_id,
+                    deferred_step_id=row["deferred_step_id"],
+                ).single()
+            resolved_ids.append(row["deferred_step_id"])
+
+    return resolved_ids
 
 
 def create_or_get_context(
@@ -218,6 +347,8 @@ def create_or_get_context(
     scanned_deps_ga: list[str] | None = None,
     scanned_dep_artifacts: list[str] | None = None,
     scanned_props: list[str] | None = None,
+    from_node_id: str = "",
+    to_node_id: str = "",
 ) -> dict:
     with write_session() as session:
         record = session.run(
@@ -232,10 +363,29 @@ def create_or_get_context(
             scanned_deps_ga=scanned_deps_ga or [],
             scanned_dep_artifacts=scanned_dep_artifacts or [],
             scanned_props=scanned_props or [],
+            from_node_id=from_node_id,
+            to_node_id=to_node_id,
         ).single()
     if record is None:
         raise RuntimeError("Failed to create or load MigrationContext")
     return dict(record)
+
+
+def get_migration_contexts(
+    *,
+    project_id: str,
+    framework: str | None = None,
+) -> list[dict]:
+    with read_session() as session:
+        rows = [
+            dict(row)
+            for row in session.run(
+                _GET_MIGRATION_CONTEXTS,
+                project_id=project_id,
+                framework=framework,
+            )
+        ]
+    return rows
 
 
 def get_pending_steps(
@@ -324,12 +474,39 @@ def delete_zombie_context(
               fromVersion: $from_version,
               toVersion: $to_version
             })
-            DELETE ctx
+            DETACH DELETE ctx
             """,
             project_id=project_id,
             from_version=from_version,
             to_version=to_version,
         )
+
+
+_CHECK_CONTEXT_VERSION_MATCH = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+OPTIONAL MATCH (ctx)-[:UPGRADES_FROM]->(vf)
+OPTIONAL MATCH (ctx)-[:UPGRADES_TO]->(vt)
+RETURN coalesce(elementId(vf) = $from_node_id AND elementId(vt) = $to_node_id, false) AS match
+"""
+
+
+def check_context_version_match(
+    *,
+    context_id: str,
+    from_node_id: str,
+    to_node_id: str,
+) -> bool:
+    """Return True if the context's UPGRADES_FROM/UPGRADES_TO edges point to the given node IDs."""
+    with read_session() as session:
+        record = session.run(
+            _CHECK_CONTEXT_VERSION_MATCH,
+            context_id=context_id,
+            from_node_id=from_node_id,
+            to_node_id=to_node_id,
+        ).single()
+    if record is None:
+        return False
+    return bool(record.get("match"))
 
 
 _GET_QUERIED_ENTITIES = """
@@ -375,6 +552,25 @@ def update_queried_entity(
         session.run(_SET_QUERIED_ENTITIES, id=context_id, updated_json=updated_json).single()
 
     return {"cached_count": len(current)}
+
+
+_GET_CONTEXT_VERSION_BOUNDS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
+MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
+RETURN from_v.version AS from_version,
+       to_v.version AS to_version,
+       ctx.framework AS framework
+"""
+
+
+def get_context_version_bounds(*, context_id: str) -> dict | None:
+    """Return the resolved from/to version strings from context's UPGRADES_FROM/UPGRADES_TO edges."""
+    with read_session() as session:
+        record = session.run(_GET_CONTEXT_VERSION_BOUNDS, context_id=context_id).single()
+    if record is None:
+        return None
+    return dict(record)
 
 
 def close_migration_context(

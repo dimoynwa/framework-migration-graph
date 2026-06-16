@@ -15,6 +15,8 @@ from migration_oracle.paysafe.gitlab import (
     _parse_package_json,
     _parse_pom_xml,
     _parse_tag_version,
+    _tag_ref_candidates,
+    _version_token_from_tag,
     detect_framework_at_head,
     list_tags,
 )
@@ -70,6 +72,39 @@ def test_list_tags_no_parseable_tags_raises():
         with pytest.raises(_GitError) as exc_info:
             list_tags("https://gitlab.example.com/a/b.git")
     assert exc_info.value.error_code == "no_parseable_tags"
+
+
+def test_version_token_from_maven_coordinate_tag():
+    tag = "com.paysafe.op/paysafe-op-dependencies/4.0.7.A"
+    assert _version_token_from_tag(tag) == "4.0.7.A"
+    assert _parse_tag_version(tag) is not None
+
+
+def test_tag_ref_candidates_maven_coordinate_tag():
+    tag = "com.paysafe.op/paysafe-op-dependencies/4.0.7"
+    assert _tag_ref_candidates(tag) == [tag]
+
+
+def test_list_tags_parses_maven_coordinate_tags():
+    stdout = (
+        "a\trefs/tags/com.paysafe.op/paysafe-op-dependencies/3.2.5\n"
+        "b\trefs/tags/com.paysafe.op/paysafe-op-dependencies/4.0.7\n"
+        "c\trefs/tags/com.paysafe.op/paysafe-op-dependencies/4.0.7.A\n"
+        "d\trefs/tags/DEPLOYED\n"
+        "e\trefs/tags/not-a-version\n"
+    )
+    with patch(
+        "migration_oracle.paysafe.gitlab.subprocess.run",
+        return_value=_mock_subprocess(stdout),
+    ):
+        tags = list_tags("https://gitlab.example.com/a/b.git")
+    assert tags[0] in (
+        "com.paysafe.op/paysafe-op-dependencies/4.0.7",
+        "com.paysafe.op/paysafe-op-dependencies/4.0.7.A",
+    )
+    assert tags[-1] == "com.paysafe.op/paysafe-op-dependencies/3.2.5"
+    assert "DEPLOYED" not in tags
+    assert "not-a-version" not in tags
 
 
 @pytest.mark.parametrize(
@@ -136,6 +171,51 @@ def test_parse_gradle_plugin_version():
     info = _parse_gradle(content)
     assert info is not None
     assert info.source_precedence == "gradle-plugin-version"
+
+
+def test_parse_gradle_spring_boot_version_ext_property():
+    content = """
+buildscript {
+  ext {
+    springBootVersion = "4.0.6"
+  }
+}
+"""
+    info = _parse_gradle(content)
+    assert info is not None
+    assert info.framework_version == "4.0.6"
+    assert info.source_precedence == "gradle-springBootVersion-property"
+
+
+def test_parse_gradle_properties_spring_boot_version():
+    from migration_oracle.paysafe.gitlab import _parse_gradle_properties
+
+    content = "springBootVersion=4.0.6\nversion=6.0.0"
+    info = _parse_gradle_properties(content)
+    assert info is not None
+    assert info.framework_version == "4.0.6"
+    assert info.source_file == "gradle.properties"
+
+
+def test_parse_pom_spring_boot_dependencies_bom():
+    pom = b"""<?xml version="1.0"?>
+<project>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>4.0.6</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>"""
+    info = _parse_pom_xml(pom)
+    assert info is not None
+    assert info.framework_version == "4.0.6"
+    assert info.source_precedence == "spring-boot-dependencies-bom"
 
 
 def test_parse_angular_core_dependencies():

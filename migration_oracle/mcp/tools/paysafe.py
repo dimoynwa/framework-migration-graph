@@ -12,14 +12,16 @@ def resolve_paysafe_dependency_by_service_name(
     target_version: str | None = None,
     framework: str | None = None,
     allow_latest_overall: bool = False,
-    max_tags: int = 100,
+    max_tags: int = 15,
     pinned_version: str | None = None,
     pinned_tag: str | None = None,
 ) -> dict:
     """Resolve a com.paysafe.* dependency via FindIt and GitLab. Returns repo, tags, and migration guidance.
 
-    Requires FINDIT_AUTH_TOKEN and GITLAB_API_KEY environment variables. Returns an error dict if either is missing.
+    Requires FINDIT_AUTH_TOKEN and GITLAB_API_KEY environment variables. Returns a RESOLUTION_FAILED dict with subStatus='auth_error' if FINDIT_AUTH_TOKEN is absent.
     Pass target_version to filter returned tags to those compatible with that framework version.
+    Scans at most max_tags (default 15) within a 45s wall-clock budget. For BOM-only repos without
+    per-tag framework metadata, omit target_version or set allow_latest_overall=True.
     The tool delegates entirely to the Paysafe resolver — check resolver logs for root-cause errors.
     """
     return resolve(
