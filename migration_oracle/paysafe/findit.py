@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _cache: dict[str, tuple[list[dict], datetime]] = {}
 _REPO_CACHE: dict[str, str] = {}
+_VERSION_FILE_CACHE: dict[str, str] = {}
 
 _HTTP_TIMEOUT_SECONDS = 10
 _RETRIES = 2
@@ -63,7 +64,27 @@ def _write_cache_entries(service_name: str, code_repo_link: str) -> None:
         _REPO_CACHE[key] = code_repo_link
 
 
-def _load_static_registry() -> dict[str, str]:
+def _write_version_file_entry(service_name: str, version_file: str) -> None:
+    for key in _cache_key_variants(service_name):
+        _VERSION_FILE_CACHE[key] = version_file
+
+
+def _parse_static_entry(entry: str | dict) -> tuple[str, str | None]:
+    """Return (codeRepoLink, optional versionFile path inside the repo)."""
+    if isinstance(entry, str):
+        return entry, None
+    if isinstance(entry, dict):
+        link = entry.get("codeRepoLink")
+        if not link or not isinstance(link, str):
+            raise ValueError("static registry object entry requires string codeRepoLink")
+        version_file = entry.get("versionFile")
+        if version_file is not None and not isinstance(version_file, str):
+            raise ValueError("static registry versionFile must be a string path")
+        return link, version_file
+    raise ValueError(f"static registry entry must be string or object, got {type(entry)!r}")
+
+
+def _load_static_registry() -> dict[str, str | dict]:
     """Load static_registry.json. Raises FileNotFoundError or json.JSONDecodeError on failure."""
     path = Path(__file__).parent / "static_registry.json"
     return json.loads(path.read_text(encoding="utf-8"))
@@ -107,10 +128,14 @@ def populate_cache(timeout_seconds: float | None = None) -> None:
     Logs WARNING and continues if FindIt is unreachable or times out.
     """
     _REPO_CACHE.clear()
+    _VERSION_FILE_CACHE.clear()
 
     static_entries = _load_static_registry()
-    for service_name, code_repo_link in static_entries.items():
+    for service_name, raw_entry in static_entries.items():
+        code_repo_link, version_file = _parse_static_entry(raw_entry)
         _write_cache_entries(service_name, code_repo_link)
+        if version_file:
+            _write_version_file_entry(service_name, version_file)
 
     static_count = len(static_entries)
     findit_count = 0
@@ -171,6 +196,12 @@ def populate_cache(timeout_seconds: float | None = None) -> None:
         findit_count,
         len(_REPO_CACHE),
     )
+
+
+def get_version_file(service_name: str) -> str | None:
+    """Gradle build file path for subproject version lookup, if configured in static registry."""
+    cache_key = _normalise(service_name)
+    return _VERSION_FILE_CACHE.get(cache_key)
 
 
 def get_repo_link(service_name: str) -> str | None:

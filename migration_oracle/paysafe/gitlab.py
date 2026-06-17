@@ -378,6 +378,26 @@ def _parse_package_json(content: bytes) -> CompatibilityInfoObj | None:
     return None
 
 
+_GRADLE_VERSION_RE = re.compile(r'^\s*version\s+"([^"]+)"')
+
+
+def fetch_gradle_subproject_version(
+    repo_url: str,
+    gradle_path: str,
+    ref: str = "HEAD",
+) -> str | None:
+    """Read a Gradle subproject version declaration (e.g. ms-wrapper/build.gradle)."""
+    content = _archive_file(repo_url, ref, gradle_path)
+    if content is None:
+        return None
+    text = content.decode("utf-8", errors="replace")
+    for line in text.splitlines():
+        match = _GRADLE_VERSION_RE.match(line)
+        if match:
+            return match.group(1)
+    return None
+
+
 def fetch_framework_version(repo_url: str, tag: str) -> CompatibilityInfoObj | None:
     """Fetch and parse framework version from build files at a tag."""
     # deprecated — not used by resolver v2

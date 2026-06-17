@@ -246,6 +246,40 @@ def resolve(
                 details={"service_name": service_name},
             )
 
+        version_file = findit.get_version_file(service_name)
+        if version_file:
+            subproject_version = gitlab.fetch_gradle_subproject_version(
+                code_repo_link, version_file
+            )
+            if not subproject_version:
+                return _build_error(
+                    "subproject_version_not_found",
+                    f"Could not read version from {version_file!r} at HEAD in {code_repo_link}.",
+                    recoverable=False,
+                    actionable_hint=(
+                        "Ensure the static registry versionFile path is correct and declares "
+                        'version "X.Y.Z" in the Gradle file.'
+                    ),
+                    details={
+                        "service_name": service_name,
+                        "version_file": version_file,
+                        "repo_url": code_repo_link,
+                    },
+                )
+            return _build_result(
+                status="ok",
+                service_name=service_name,
+                selected_tag=None,
+                selected_version=subproject_version,
+                framework=framework,
+                framework_version=None,
+                selection_strategy="latest_overall",
+                target_version=target_version,
+                code_repo_link=code_repo_link,
+                compatibility=None,
+                effective_settings=_build_effective_settings(max_tags),
+            )
+
         # Step 5 (v2): list tags, return the first (latest) one
         try:
             tags = gitlab.list_tags(code_repo_link)

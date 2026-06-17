@@ -263,3 +263,55 @@ def test_fetch_framework_version_never_called():
         resolve("payment-service", target_version="3.2.0", allow_latest_overall=False)
         resolve("payment-service", allow_latest_overall=True)
     mock_ffv.assert_not_called()
+
+
+def test_subproject_version_from_gradle_file(static_registry_file):
+    static_registry_file(
+        {
+            "ms-wrapper": {
+                "codeRepoLink": "https://gitlab.example.com/parent-lib",
+                "versionFile": "ms-wrapper/build.gradle",
+            }
+        }
+    )
+    findit._REPO_CACHE.clear()
+    findit._VERSION_FILE_CACHE.clear()
+    findit.populate_cache()
+    gradle = 'version "2.0.0-RC1"\n'
+    with (
+        patch(
+            "migration_oracle.paysafe.gitlab.fetch_gradle_subproject_version",
+            return_value="2.0.0-RC1",
+        ) as mock_fetch,
+        patch("migration_oracle.paysafe.resolver.gitlab.list_tags") as mock_tags,
+    ):
+        result = resolve("ms-wrapper")
+    mock_fetch.assert_called_once_with(
+        "https://gitlab.example.com/parent-lib",
+        "ms-wrapper/build.gradle",
+    )
+    mock_tags.assert_not_called()
+    assert result["status"] == "ok"
+    assert result["selected_version"] == "2.0.0-RC1"
+    assert result["selection_strategy"] == "latest_overall"
+
+
+def test_subproject_version_missing_returns_error(static_registry_file):
+    static_registry_file(
+        {
+            "ms-wrapper": {
+                "codeRepoLink": "https://gitlab.example.com/parent-lib",
+                "versionFile": "ms-wrapper/build.gradle",
+            }
+        }
+    )
+    findit._REPO_CACHE.clear()
+    findit._VERSION_FILE_CACHE.clear()
+    findit.populate_cache()
+    with patch(
+        "migration_oracle.paysafe.gitlab.fetch_gradle_subproject_version",
+        return_value=None,
+    ):
+        result = resolve("ms-wrapper")
+    assert result["status"] == "error"
+    assert result["error"]["error_code"] == "subproject_version_not_found"
