@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
-import time
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 import requests
 from packaging.version import InvalidVersion, Version
 
-_FINDIT_TIMEOUT_SECONDS = 10
-_TAG_SCAN_BUDGET_SECONDS = 45
-
 _CRED_RE = re.compile(r'https?://[^:@/\s]+:[^@\s]+@|oauth2:[^@\s]+@')
+
+_logger = logging.getLogger(__name__)
 
 
 def _scrub(s: str) -> str:
@@ -22,7 +20,6 @@ def _scrub(s: str) -> str:
 from migration_oracle.paysafe import findit, gitlab
 from migration_oracle.paysafe._types import (
     RESOLVER_RESULT_REQUIRED_KEYS,
-    CompatibilityInfoObj,
     EffectiveSettings,
 )
 from migration_oracle.paysafe.findit import _FindItError
@@ -57,6 +54,34 @@ def _build_error(
             "details": details or {},
         },
     }
+
+
+def _error_no_compatible_version(target_version: str, tags_scanned: int) -> dict:
+    # unreachable in resolver v2 — retained for reference
+    return _build_error(
+        "no_compatible_version",
+        f"No tag compatible with target version {target_version!r}.",
+        recoverable=False,
+        actionable_hint="Try a different target version or set allow_latest_overall=True.",
+        details={
+            "target_version": target_version,
+            "tags_scanned": tags_scanned,
+        },
+    )
+
+
+def _error_compatibility_unknown(target_version: str, tags_scanned: int) -> dict:
+    # unreachable in resolver v2 — retained for reference
+    return _build_error(
+        "compatibility_unknown",
+        "All scanned tags have unreadable or missing framework versions.",
+        recoverable=False,
+        actionable_hint="Ensure build files declare framework versions at tag refs.",
+        details={
+            "target_version": target_version,
+            "tags_scanned": tags_scanned,
+        },
+    )
 
 
 def _build_resolution_failed(
@@ -111,6 +136,45 @@ def _parse_selected_version(tag: str | None, pinned_version: str | None = None) 
         return cleaned
 
 
+def _handle_findit_error(exc: _FindItError, service_name: str) -> dict:
+    if exc.error_code == "service_not_found":
+        return _build_error(
+            exc.error_code,
+            exc.message or f"No FindIt service matched {service_name!r}.",
+            recoverable=False,
+            actionable_hint="Verify the service name against the FindIt registry.",
+            details=exc.details,
+        )
+    if exc.error_code == "http_timeout":
+        return _build_resolution_failed(
+            "transport_error",
+            exc.message or "FindIt request timed out.",
+            service_name,
+        )
+    if exc.error_code == "http_request_failed":
+        status_code = exc.details.get("status_code", 0)
+        if status_code in (401, 403):
+            return _build_resolution_failed(
+                "auth_error",
+                exc.message or f"FindIt returned HTTP {status_code} — authentication failed.",
+                service_name,
+            )
+        return _build_error(
+            exc.error_code,
+            exc.message or "FindIt request failed.",
+            recoverable=True,
+            actionable_hint="Check FindIt availability and authentication token.",
+            details=exc.details,
+        )
+    return _build_error(
+        exc.error_code,
+        exc.message or "FindIt lookup failed.",
+        recoverable=True,
+        actionable_hint="Check FindIt configuration.",
+        details=exc.details,
+    )
+
+
 def resolve(
     service_name: str,
     target_version: str | None = None,
@@ -122,6 +186,12 @@ def resolve(
 ) -> dict:
     """Resolve the newest compatible Paysafe internal library version."""
     try:
+        if allow_latest_overall is False:
+            _logger.warning(
+                "allow_latest_overall=False is ignored in resolver v2; "
+                "latest_overall is always returned."
+            )
+
         # Step 1: pinned short-circuit
         if pinned_version:
             result = _build_result(
@@ -158,72 +228,59 @@ def resolve(
                 service_name,
             )
 
-        # Step 3: FindIt lookup (time-bounded to avoid hanging on unresponsive backend)
-        _fi_executor = ThreadPoolExecutor(max_workers=1)
+        # Step 3 (v2): cache lookup with per-call fallback
         try:
-            _fi_future = _fi_executor.submit(findit.lookup, service_name)
-            try:
-                findit_record = _fi_future.result(timeout=_FINDIT_TIMEOUT_SECONDS)
-            except FuturesTimeout:
-                _fi_executor.shutdown(wait=False)
-                return _build_resolution_failed(
-                    "transport_error",
-                    f"FindIt did not respond within {_FINDIT_TIMEOUT_SECONDS}s for {service_name!r}.",
-                    service_name,
-                )
-            _fi_executor.shutdown(wait=False)
+            code_repo_link = findit.get_repo_link(service_name)
         except _FindItError as exc:
-            if exc.error_code == "service_not_found":
-                return _build_error(
-                    exc.error_code,
-                    exc.message or f"No FindIt service matched {service_name!r}.",
-                    recoverable=False,
-                    actionable_hint="Verify the service name against the FindIt registry.",
-                    details=exc.details,
-                )
-            if exc.error_code == "http_timeout":
-                return _build_resolution_failed(
-                    "transport_error",
-                    exc.message or "FindIt request timed out.",
-                    service_name,
-                )
-            if exc.error_code == "http_request_failed":
-                status_code = exc.details.get("status_code", 0)
-                if status_code in (401, 403):
-                    return _build_resolution_failed(
-                        "auth_error",
-                        exc.message or f"FindIt returned HTTP {status_code} — authentication failed.",
-                        service_name,
-                    )
-                return _build_error(
-                    exc.error_code,
-                    exc.message or "FindIt request failed.",
-                    recoverable=True,
-                    actionable_hint="Check FindIt availability and authentication token.",
-                    details=exc.details,
-                )
-            return _build_error(
-                exc.error_code,
-                exc.message or "FindIt lookup failed.",
-                recoverable=True,
-                actionable_hint="Check FindIt configuration.",
-                details=exc.details,
-            )
+            return _handle_findit_error(exc, service_name)
 
-        name_resolution = findit_record.pop("name_resolution", None)
-
-        # Step 4: extract codeRepoLink
-        code_repo_link = findit_record.get("codeRepoLink")
         if not code_repo_link:
             return _build_error(
                 "no_repo_url",
-                f"FindIt record for {service_name!r} has no codeRepoLink.",
+                f"No codeRepoLink found for {service_name!r} in cache or FindIt.",
                 recoverable=False,
-                actionable_hint="Ensure the service is registered in FindIt with a GitLab repo URL.",
+                actionable_hint=(
+                    "Check that the service is registered in FindIt or add it to "
+                    "migration_oracle/paysafe/static_registry.json."
+                ),
                 details={"service_name": service_name},
             )
 
-        # Step 5: list tags
+        version_file = findit.get_version_file(service_name)
+        if version_file:
+            subproject_version = gitlab.fetch_gradle_subproject_version(
+                code_repo_link, version_file
+            )
+            if not subproject_version:
+                return _build_error(
+                    "subproject_version_not_found",
+                    f"Could not read version from {version_file!r} at HEAD in {code_repo_link}.",
+                    recoverable=False,
+                    actionable_hint=(
+                        "Ensure the static registry versionFile path is correct and declares "
+                        'version "X.Y.Z" in the Gradle file.'
+                    ),
+                    details={
+                        "service_name": service_name,
+                        "version_file": version_file,
+                        "repo_url": code_repo_link,
+                    },
+                )
+            return _build_result(
+                status="ok",
+                service_name=service_name,
+                selected_tag=None,
+                selected_version=subproject_version,
+                framework=framework,
+                framework_version=None,
+                selection_strategy="latest_overall",
+                target_version=target_version,
+                code_repo_link=code_repo_link,
+                compatibility=None,
+                effective_settings=_build_effective_settings(max_tags),
+            )
+
+        # Step 5 (v2): list tags, return the first (latest) one
         try:
             tags = gitlab.list_tags(code_repo_link)
         except _GitError as exc:
@@ -283,130 +340,20 @@ def resolve(
                     details={"repo_url": code_repo_link},
                 )
 
-        # Step 6+7: resolve version from tags
-        detected_framework = framework
+        best_tag = tags[0]
 
-        if target_version is None:
-            if detected_framework is None:
-                detected_framework = gitlab.detect_framework_at_head(code_repo_link)
-            best_tag = tags[0]
-            best_info = gitlab.fetch_framework_version(code_repo_link, best_tag)
-            if best_info is not None:
-                result_kwargs = dict(
-                    status="ok",
-                    service_name=service_name,
-                    selected_tag=best_tag,
-                    selected_version=_parse_selected_version(best_tag),
-                    framework=detected_framework,
-                    framework_version=best_info.framework_version,
-                    selection_strategy="latest_with_known_compatibility",
-                    target_version=None,
-                    code_repo_link=code_repo_link,
-                    compatibility=best_info.to_dict(),
-                    effective_settings=_build_effective_settings(max_tags),
-                )
-            else:
-                result_kwargs = dict(
-                    status="ok",
-                    service_name=service_name,
-                    selected_tag=best_tag,
-                    selected_version=_parse_selected_version(best_tag),
-                    framework=detected_framework,
-                    framework_version=None,
-                    selection_strategy="latest_overall",
-                    target_version=None,
-                    code_repo_link=code_repo_link,
-                    compatibility=None,
-                    effective_settings=_build_effective_settings(max_tags),
-                )
-            if name_resolution is not None:
-                result_kwargs["name_resolution"] = name_resolution
-            return _build_result(**result_kwargs)
-
-        # target_version set — scan newest tags for compatibility (bounded wall time)
-        deadline = time.monotonic() + _TAG_SCAN_BUDGET_SECONDS
-        compatible_tags: list[tuple[str, CompatibilityInfoObj]] = []
-        unknown_tags: list[str] = []
-        overall_tags: list[str] = []
-        incompatible_found = False
-        first_tag_info: CompatibilityInfoObj | None = None
-
-        for tag in tags[:max_tags]:
-            if time.monotonic() > deadline:
-                break
-            overall_tags.append(tag)
-            info = gitlab.fetch_framework_version(code_repo_link, tag)
-            if tag == tags[0]:
-                first_tag_info = info
-            if info is None:
-                unknown_tags.append(tag)
-                continue
-            if gitlab._is_compatible(info.framework_version, target_version):
-                compatible_tags.append((tag, info))
-                break
-            incompatible_found = True
-
-        if compatible_tags:
-            best_tag, best_info = compatible_tags[0]
-            result_kwargs = dict(
-                status="ok",
-                service_name=service_name,
-                selected_tag=best_tag,
-                selected_version=_parse_selected_version(best_tag),
-                framework=detected_framework,
-                framework_version=best_info.framework_version,
-                selection_strategy="latest_compatible",
-                target_version=target_version,
-                code_repo_link=code_repo_link,
-                compatibility=best_info.to_dict(),
-                effective_settings=_build_effective_settings(max_tags),
-            )
-            if name_resolution is not None:
-                result_kwargs["name_resolution"] = name_resolution
-            return _build_result(**result_kwargs)
-
-        if allow_latest_overall and overall_tags:
-            best_tag = overall_tags[0]
-            best_info = first_tag_info
-            if best_info is None and best_tag != tags[0]:
-                best_info = gitlab.fetch_framework_version(code_repo_link, best_tag)
-            result_kwargs = dict(
-                status="ok",
-                service_name=service_name,
-                selected_tag=best_tag,
-                selected_version=_parse_selected_version(best_tag),
-                framework=detected_framework,
-                framework_version=best_info.framework_version if best_info else None,
-                selection_strategy="latest_overall",
-                target_version=target_version,
-                code_repo_link=code_repo_link,
-                compatibility=None,
-                effective_settings=_build_effective_settings(max_tags),
-            )
-            if name_resolution is not None:
-                result_kwargs["name_resolution"] = name_resolution
-            return _build_result(**result_kwargs)
-
-        if incompatible_found:
-            return _build_error(
-                "no_compatible_version",
-                f"No tag compatible with target version {target_version!r}.",
-                recoverable=False,
-                actionable_hint="Try a different target version or set allow_latest_overall=True.",
-                details={
-                    "target_version": target_version,
-                    "tags_scanned": len(overall_tags),
-                },
-            )
-        return _build_error(
-            "compatibility_unknown",
-            "All scanned tags have unreadable or missing framework versions.",
-            recoverable=False,
-            actionable_hint="Ensure build files declare framework versions at tag refs.",
-            details={
-                "target_version": target_version,
-                "tags_scanned": len(overall_tags),
-            },
+        return _build_result(
+            status="ok",
+            service_name=service_name,
+            selected_tag=best_tag,
+            selected_version=_parse_selected_version(best_tag),
+            framework=framework,
+            framework_version=None,
+            selection_strategy="latest_overall",
+            target_version=target_version,
+            code_repo_link=code_repo_link,
+            compatibility=None,
+            effective_settings=_build_effective_settings(max_tags),
         )
 
     except Exception as exc:

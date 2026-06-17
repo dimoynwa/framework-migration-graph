@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 from rapidfuzz import fuzz
@@ -12,7 +16,11 @@ from rapidfuzz import fuzz
 from migration_oracle import config
 from migration_oracle.paysafe._types import NameResolution
 
+logger = logging.getLogger(__name__)
+
 _cache: dict[str, tuple[list[dict], datetime]] = {}
+_REPO_CACHE: dict[str, str] = {}
+_VERSION_FILE_CACHE: dict[str, str] = {}
 
 _HTTP_TIMEOUT_SECONDS = 10
 _RETRIES = 2
@@ -30,6 +38,191 @@ class _FindItError(Exception):
 
 def _normalize_alphanumeric(name: str) -> str:
     return re.sub(r"[^a-z0-9]", "", name.lower())
+
+
+def _normalise(name: str) -> str:
+    """Return the best cache key for a service name lookup."""
+    if name in _REPO_CACHE:
+        return name
+    lower = name.lower()
+    if lower in _REPO_CACHE:
+        return lower
+    alpha = _normalize_alphanumeric(name)
+    if alpha in _REPO_CACHE:
+        return alpha
+    return name
+
+
+def _cache_key_variants(service_name: str) -> set[str]:
+    """All normalised key forms inserted at load time for maximum hit rate."""
+    variants = {service_name, service_name.lower(), _normalize_alphanumeric(service_name)}
+    return {variant for variant in variants if variant}
+
+
+def _write_cache_entries(service_name: str, code_repo_link: str) -> None:
+    for key in _cache_key_variants(service_name):
+        _REPO_CACHE[key] = code_repo_link
+
+
+def _write_version_file_entry(service_name: str, version_file: str) -> None:
+    for key in _cache_key_variants(service_name):
+        _VERSION_FILE_CACHE[key] = version_file
+
+
+def _parse_static_entry(entry: str | dict) -> tuple[str, str | None]:
+    """Return (codeRepoLink, optional versionFile path inside the repo)."""
+    if isinstance(entry, str):
+        return entry, None
+    if isinstance(entry, dict):
+        link = entry.get("codeRepoLink")
+        if not link or not isinstance(link, str):
+            raise ValueError("static registry object entry requires string codeRepoLink")
+        version_file = entry.get("versionFile")
+        if version_file is not None and not isinstance(version_file, str):
+            raise ValueError("static registry versionFile must be a string path")
+        return link, version_file
+    raise ValueError(f"static registry entry must be string or object, got {type(entry)!r}")
+
+
+def _load_static_registry() -> dict[str, str | dict]:
+    """Load static_registry.json. Raises FileNotFoundError or json.JSONDecodeError on failure."""
+    path = Path(__file__).parent / "static_registry.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _services_to_repo_map(services: list[dict]) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for svc in services:
+        name = svc.get("name", "")
+        link = svc.get("codeRepoLink")
+        if name and link:
+            mapping[name] = link
+    return mapping
+
+
+def _load_findit_bulk() -> dict[str, str]:
+    """Single GET /services call. Raises _FindItError on failure."""
+    # TODO: implement once endpoint is confirmed
+    raise NotImplementedError(
+        "FindIt bulk endpoint not yet confirmed — set FINDIT_CACHE_STRATEGY=none"
+    )
+
+
+def _load_findit_paginated() -> dict[str, str]:
+    """Paginated GET /services?page=N loop. Raises _FindItError on failure."""
+    # TODO: implement once endpoint is confirmed
+    raise NotImplementedError(
+        "FindIt bulk endpoint not yet confirmed — set FINDIT_CACHE_STRATEGY=none"
+    )
+
+
+def populate_cache(timeout_seconds: float | None = None) -> None:
+    """
+    Build the two-layer repo-link cache. Always called once at server startup.
+
+    Layer 1 (always): load static_registry.json into _REPO_CACHE.
+    Layer 2 (optional): fetch from FindIt per FINDIT_CACHE_STRATEGY and merge in.
+    FindIt entries overwrite static entries on key conflict.
+
+    Raises if static_registry.json is missing or invalid JSON.
+    Logs WARNING and continues if FindIt is unreachable or times out.
+    """
+    _REPO_CACHE.clear()
+    _VERSION_FILE_CACHE.clear()
+
+    static_entries = _load_static_registry()
+    for service_name, raw_entry in static_entries.items():
+        code_repo_link, version_file = _parse_static_entry(raw_entry)
+        _write_cache_entries(service_name, code_repo_link)
+        if version_file:
+            _write_version_file_entry(service_name, version_file)
+
+    static_count = len(static_entries)
+    findit_count = 0
+    strategy = config.FINDIT_CACHE_STRATEGY
+
+    if strategy == "none":
+        logger.info("FINDIT_CACHE_STRATEGY=none; skipping FindIt merge")
+        logger.info(
+            "Cache populated: %d static entries, %d FindIt entries, %d total",
+            static_count,
+            findit_count,
+            len(_REPO_CACHE),
+        )
+        return
+
+    timeout = (
+        config.FINDIT_CACHE_LOAD_TIMEOUT_SECONDS
+        if timeout_seconds is None
+        else timeout_seconds
+    )
+    loader = _load_findit_bulk if strategy == "bulk" else _load_findit_paginated
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(loader)
+        findit_entries = future.result(timeout=timeout)
+    except FuturesTimeout:
+        logger.warning(
+            "FindIt cache load timed out after %ss; using static registry only",
+            timeout,
+        )
+        logger.info(
+            "Cache populated: %d static entries, %d FindIt entries, %d total",
+            static_count,
+            findit_count,
+            len(_REPO_CACHE),
+        )
+        return
+    except Exception as exc:
+        logger.warning("FindIt cache load failed: %s; using static registry only", exc)
+        logger.info(
+            "Cache populated: %d static entries, %d FindIt entries, %d total",
+            static_count,
+            findit_count,
+            len(_REPO_CACHE),
+        )
+        return
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+    findit_count = len(findit_entries)
+    for service_name, code_repo_link in findit_entries.items():
+        _write_cache_entries(service_name, code_repo_link)
+
+    logger.info(
+        "Cache populated: %d static entries, %d FindIt entries, %d total",
+        static_count,
+        findit_count,
+        len(_REPO_CACHE),
+    )
+
+
+def get_version_file(service_name: str) -> str | None:
+    """Gradle build file path for subproject version lookup, if configured in static registry."""
+    cache_key = _normalise(service_name)
+    return _VERSION_FILE_CACHE.get(cache_key)
+
+
+def get_repo_link(service_name: str) -> str | None:
+    """
+    Look up a service's codeRepoLink.
+
+    1. Check _REPO_CACHE (populated at startup from static registry + FindIt).
+    2. On cache miss: call lookup() live (original slow path).
+    3. On live hit: warm _REPO_CACHE for subsequent calls.
+    4. Return None if neither source has a record.
+    """
+    cache_key = _normalise(service_name)
+    hit = _REPO_CACHE.get(cache_key)
+    if hit:
+        return hit
+
+    record = lookup(service_name)
+    link = record.get("codeRepoLink")
+    if link:
+        _write_cache_entries(service_name, link)
+    return link
 
 
 def _get_services(base_url: str) -> list[dict]:

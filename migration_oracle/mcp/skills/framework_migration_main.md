@@ -74,7 +74,7 @@ Call `create_migration_context` with the scanned entity list. If response includ
 | 2 | `runtime` | `medium`, `high`, `critical` | Same sequence, skipping entities already cached from tier 1 |
 | 3 | `config`, `build` | all | `analyze_upgrade_path` with scope filter. `search_migration_knowledge` for entities with no graph hit |
 | 4 | `test` | all | `analyze_upgrade_path`. Results are deferred and handled last in loop III. |
-| — | Paysafe deps | — | `resolve_paysafe_dependency_by_service_name` for every `com.paysafe` dependency. Run concurrently with tier 1 — these are independent. |
+| — | Paysafe deps | — | `resolve_paysafe_dependency_by_service_name` for every `com.paysafe` dependency. Pass only `service_name` — do not pass `target_version` or `framework`. The tool always returns the latest available version (`selection_strategy: "latest_overall"`). Run concurrently with tier 1 — these are independent. |
 
 **Parameter:** `query_handoff_threshold: int = 0` (default 0 = all tiers queried before execution begins). When set to a positive value N, the harness transitions from query to execution for completed tiers once `current_tier >= N`, before querying the next tier. Test-scope (tier 4) always executes last regardless of threshold.
 
@@ -84,6 +84,14 @@ Call `create_migration_context` with the scanned entity list. If response includ
 |---|---|
 | `resolve_paysafe_dependency_by_service_name` returns `subStatus="auth_error"` | Log `auth_error` with `remediationSteps` (name `FINDIT_AUTH_TOKEN` and `GITLAB_API_KEY`). Emit each entry in `unresolvedDependencies` as a Loop IV backlog item. Surface `fallbackInstructions` to engineer. Continue to next entity — do **not** halt Loop II. |
 | `resolve_paysafe_dependency_by_service_name` returns `subStatus="transport_error"` | Log `transport_error` with `remediationSteps` (VPN check, `FINDIT_BASE_URL` reachability). Emit `unresolvedDependencies` as backlog items. Surface `fallbackInstructions`. Continue. |
+
+**Paysafe dep result interpretation (v2):**
+
+When `resolve_paysafe_dependency_by_service_name` returns `status="ok"`:
+- `selected_version` is the latest semver tag on the library's GitLab repo. Use this as the recommended version to pin in `pom.xml` / `build.gradle`.
+- `compatibility` and `framework_version` are always `null`. Do not treat their absence as an error — this is expected v2 behaviour.
+- `selection_strategy` will always be `"latest_overall"`. Surface this to the engineer as "latest available — compatibility with the target framework version not verified".
+- Record the result in the dependency upgrade table with a ⚠️ unverified badge rather than a ✅ verified badge. The engineer must confirm the library version is compatible after upgrading.
 
 **Skip guard:** Before any tool call in Loop II, check `ctx.queriedEntities[entity_name]`.
 - If the key is present, the entity was queried in a prior session and its result is cached — skip the tool call and read the cached result from `ctx.queriedEntities[entity_name]`.
@@ -236,7 +244,7 @@ e. When the `requiredChange` step is later completed, `update_step_status` auto-
 | `resolve_deprecation` returns partial chain | Call `entity_evolution`. Then call `search_migration_knowledge`. |
 | `resolve_deprecation` returns no records | Call `search_migration_knowledge`. If still no result, mark as unverified. |
 | All steps for rule are `automatable=true AND effort='mechanical'` | Skip `search_migration_knowledge`. Queue for auto track in loop III. |
-| Entity name starts with `com.paysafe` | Call `resolve_paysafe_dependency_by_service_name` concurrently. Do not wait for it before proceeding with framework rule queries. |
+| Entity name starts with `com.paysafe` | Call `resolve_paysafe_dependency_by_service_name(service_name=<dep>)` concurrently — omit `target_version`. The tool returns the latest overall version; treat the result as the recommended upgrade target regardless of the framework version being migrated. Do not wait for it before proceeding with framework rule queries. |
 
 ### Execution loop decisions
 

@@ -1364,14 +1364,25 @@ On auth failure returns `subStatus="auth_error"` with `remediationSteps` and `un
 | Name | Type | Required | Default | Description |
 |---|---|---|---|---|
 | `service_name` | string | yes | — | Service name to resolve |
-| `target_version` | string | no | `null` | Filter tags compatible with this framework version |
-| `framework` | string | no | `null` | Framework name |
-| `allow_latest_overall` | boolean | no | `false` | Allow returning the latest tag regardless of version compatibility |
+| `target_version` | string | no | `null` | **Ignored in v2** — accepted for backward compatibility only |
+| `framework` | string | no | `null` | **Ignored in v2** — accepted for backward compatibility only |
+| `allow_latest_overall` | boolean | no | `false` | **Ignored in v2** — always behaves as `true` |
 | `max_tags` | integer | no | `100` | Maximum tags to return |
 | `pinned_version` | string | no | `null` | Pinned version override |
 | `pinned_tag` | string | no | `null` | Pinned tag override |
 
 **Returns** — delegate response from the Paysafe resolver: `repo`, `tags`, `migration_guidance`
+
+| Field | Type | Description |
+|---|---|---|
+| `framework_version` | string \| null | Always null in v2 |
+| `compatibility` | object \| null | Always null in v2 |
+| `selection_strategy` | string | Always `"latest_overall"` in v2 (except pinned) |
+
+> **v2 behaviour:** FindIt is queried once at server startup. Per-call resolution reads from
+> the startup cache and falls back to a live FindIt call only on a cache miss. Compatibility
+> checking has been removed — the tool always returns the latest semver-sorted tag. The agent
+> harness should treat all results as needing human confirmation before deployment.
 
 **Cypher** — none (external API calls only)
 

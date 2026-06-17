@@ -1,0 +1,8 @@
+{
+  "ms-wrapper": {
+    "codeRepoLink": "https://gitlab.paysafe.cloud/paysafe/consumer/prepaid-cards/paysafe-wallet-feature-management-lib",
+    "versionFile": "ms-wrapper/build.gradle"
+  },
+  "paysafe-op-apigenerator": "https://gitlab.paysafe.cloud/paysafe/corporate/microservices-tools/openapi-generator",
+  "paysafe-wallet-feature-management-lib": "https://gitlab.paysafe.cloud/paysafe/consumer/prepaid-cards/paysafe-wallet-feature-management-lib"
+}

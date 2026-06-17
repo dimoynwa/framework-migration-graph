@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-from concurrent.futures import TimeoutError as FuturesTimeout
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,40 +12,27 @@ def _set_findit_token(monkeypatch):
     monkeypatch.setenv("FINDIT_AUTH_TOKEN", "test-token")
 
 
-@patch("migration_oracle.paysafe.resolver.findit.lookup")
-def test_timeout_returns_structured_findit_timeout_error(mock_lookup):
-    """When findit.lookup hangs past the timeout, resolver returns findit_timeout error."""
-    def _hang(*args, **kwargs):
-        time.sleep(60)
-
-    mock_lookup.side_effect = _hang
-
+@patch("migration_oracle.paysafe.findit.get_repo_link")
+def test_timeout_returns_structured_findit_timeout_error(mock_get_repo_link):
+    """When get_repo_link raises http_timeout, resolver returns transport_error."""
+    from migration_oracle.paysafe.findit import _FindItError
     from migration_oracle.paysafe.resolver import resolve
 
-    start = time.monotonic()
+    mock_get_repo_link.side_effect = _FindItError("http_timeout", "timed out")
+
     result = resolve("paysafe-wallet-switch")
-    elapsed = time.monotonic() - start
 
     assert result["status"] == "RESOLUTION_FAILED"
     assert result["subStatus"] == "transport_error"
-    # result["error"]["recoverable"] removed — RESOLUTION_FAILED has no error sub-object
-    assert elapsed < 15, f"Resolver hung for {elapsed:.1f}s — timeout not applied"
 
 
-@patch("migration_oracle.paysafe.resolver.findit.lookup")
+@patch("migration_oracle.paysafe.findit.get_repo_link")
 @patch("migration_oracle.paysafe.resolver.gitlab.list_tags")
 @patch("migration_oracle.paysafe.resolver.gitlab.fetch_framework_version")
-def test_normal_response_resolves(mock_ffv, mock_tags, mock_lookup):
-    """When findit responds normally, resolution proceeds as before."""
-    mock_lookup.return_value = {
-        "codeRepoLink": "https://gitlab.example.com/paysafe/wallet-switch",
-        "name": "paysafe-wallet-switch",
-    }
+def test_normal_response_resolves(mock_ffv, mock_tags, mock_get_repo_link):
+    """When cache returns a repo link, resolution returns latest tag in v2."""
+    mock_get_repo_link.return_value = "https://gitlab.example.com/paysafe/wallet-switch"
     mock_tags.return_value = ["v1.2.0"]
-    compat = MagicMock()
-    compat.framework_version = "3.5.0"
-    compat.to_dict.return_value = {"framework_version": "3.5.0", "compatible": True}
-    mock_ffv.return_value = compat
 
     from migration_oracle.paysafe.resolver import resolve
 
@@ -55,20 +40,21 @@ def test_normal_response_resolves(mock_ffv, mock_tags, mock_lookup):
 
     assert result["status"] == "ok"
     assert result["selected_tag"] == "v1.2.0"
+    assert result["selection_strategy"] == "latest_overall"
+    mock_ffv.assert_not_called()
 
 
-@patch("migration_oracle.paysafe.resolver.findit.lookup")
-def test_unregistered_service_returns_not_found(mock_lookup):
+@patch("migration_oracle.paysafe.findit.get_repo_link")
+def test_unregistered_service_returns_not_found(mock_get_repo_link):
     """An unregistered service returns the service_not_found error (no timeout)."""
     from migration_oracle.paysafe.findit import _FindItError
+    from migration_oracle.paysafe.resolver import resolve
 
-    mock_lookup.side_effect = _FindItError(
+    mock_get_repo_link.side_effect = _FindItError(
         error_code="service_not_found",
         message="No service matched",
         details={},
     )
-
-    from migration_oracle.paysafe.resolver import resolve
 
     result = resolve("unknown-service-xyz")
 
