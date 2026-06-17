@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 from sentence_transformers import SentenceTransformer
 
 from migration_oracle import config
+from migration_oracle.mcp.config import MIGRATION_MODE
 from migration_oracle.mcp.graph.queries import search as search_queries
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.mcp.tools._rrf import rrf_fuse
@@ -183,43 +184,44 @@ async def search_migration_knowledge(
         "top_k": max_results,
     }
 
+if MIGRATION_MODE == "full":
 
-@mcp.tool()
-async def search_openrewrite_recipes(
-    query: str,
-    max_results: int = 5,
-    only_composite: bool | None = None,
-    require_no_params: bool = False,
-    rrf_k: int = 60,
-    top_k_per_index: int = 50,
-    min_vector_similarity: float = 0.30,
-) -> dict:
-    """Search OpenRewrite recipe descriptions using hybrid BM25 + vector ranking (RRF).
+    @mcp.tool()
+    async def search_openrewrite_recipes(
+        query: str,
+        max_results: int = 5,
+        only_composite: bool | None = None,
+        require_no_params: bool = False,
+        rrf_k: int = 60,
+        top_k_per_index: int = 50,
+        min_vector_similarity: float = 0.30,
+    ) -> dict:
+        """Search OpenRewrite recipe descriptions using hybrid BM25 + vector ranking (RRF).
 
-    Returns up to max_results recipe hits with statement and score.
-    Filters only_composite and require_no_params are applied at the Cypher layer.
-    - only_composite: filters on the graph property r.composite (boolean), not r.isComposite.
-    - require_no_params: excludes recipes that have (r)-[:HAS_PARAM]->(p:RecipeParam {required: true}).
-      Required parameters are modelled as RecipeParam nodes, not as an array property.
-    """
-    bm25_hits, vector_hits = await _parallel_retrieval(
-        query=query,
-        bm25_index="openrewrite_recipe_description",
-        vector_index="openrewrite_recipe_vector",
-        top_k_per_index=top_k_per_index,
-        min_vector_similarity=min_vector_similarity,
-    )
-    fused = rrf_fuse(bm25_hits, vector_hits, k=rrf_k)[:max_results]
-    hits = _build_hits(
-        fused,
-        framework=None,
-        openrewrite=True,
-        only_composite=only_composite,
-        require_no_params=require_no_params,
-    )
-    return {
-        "status": "ok",
-        "query": query,
-        "hits": hits,
-        "top_k": max_results,
-    }
+        Returns up to max_results recipe hits with statement and score.
+        Filters only_composite and require_no_params are applied at the Cypher layer.
+        - only_composite: filters on the graph property r.composite (boolean), not r.isComposite.
+        - require_no_params: excludes recipes that have (r)-[:HAS_PARAM]->(p:RecipeParam {required: true}).
+          Required parameters are modelled as RecipeParam nodes, not as an array property.
+        """
+        bm25_hits, vector_hits = await _parallel_retrieval(
+            query=query,
+            bm25_index="openrewrite_recipe_description",
+            vector_index="openrewrite_recipe_vector",
+            top_k_per_index=top_k_per_index,
+            min_vector_similarity=min_vector_similarity,
+        )
+        fused = rrf_fuse(bm25_hits, vector_hits, k=rrf_k)[:max_results]
+        hits = _build_hits(
+            fused,
+            framework=None,
+            openrewrite=True,
+            only_composite=only_composite,
+            require_no_params=require_no_params,
+        )
+        return {
+            "status": "ok",
+            "query": query,
+            "hits": hits,
+            "top_k": max_results,
+        }

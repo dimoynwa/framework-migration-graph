@@ -16,6 +16,7 @@ from migration_oracle.graph.driver import read_session
 from migration_oracle.mcp.graph.queries import upgrade as upgrade_queries
 from migration_oracle.mcp.matching import compute_matched_entities
 from migration_oracle.mcp.graph.queries.upgrade import _CHECK_VERSION_IN_GRAPH, resolve_version
+from migration_oracle.mcp.config import MIGRATION_MODE
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.models.graph import VersionResolutionFailure
 
@@ -282,211 +283,213 @@ def analyze_upgrade_path(
     return result
 
 
-@mcp.tool()
-def build_recipe_plan(
-    current_version: str,
-    target_version: str,
-    framework: str = "Spring Boot",
-    user_entities: list[str] | None = None,
-    auto_only: bool = False,
-    classification: list[str] | None = None,
-    scope_filter: list[str] | None = None,
-    min_severity: str | None = None,
-    context_id: str | None = None,
-) -> dict:
-    """Produce a two-track migration plan: auto (scriptable) and manual (human review required).
+if MIGRATION_MODE == "full":
 
-    Auto track: steps with automatable=true, effort=mechanical, and a linked OpenRewrite recipe.
-    Manual track: all other steps. Falls back to rule-level cards when no MigrationStep nodes exist.
+    @mcp.tool()
+    def build_recipe_plan(
+        current_version: str,
+        target_version: str,
+        framework: str = "Spring Boot",
+        user_entities: list[str] | None = None,
+        auto_only: bool = False,
+        classification: list[str] | None = None,
+        scope_filter: list[str] | None = None,
+        min_severity: str | None = None,
+        context_id: str | None = None,
+    ) -> dict:
+        """Produce a two-track migration plan: auto (scriptable) and manual (human review required).
 
-    Returns: auto_track list, manual_track list, fallback_to_rule_cards bool.
-    An empty auto_track is expected in the first release (no AUTOMATED_BY edges yet).
-    """
-    norm = normalize_entities(user_entities or [])
-    has_filter = _has_entity_filter(norm)
+        Auto track: steps with automatable=true, effort=mechanical, and a linked OpenRewrite recipe.
+        Manual track: all other steps. Falls back to rule-level cards when no MigrationStep nodes exist.
 
-    if context_id is not None:
-        from migration_oracle.mcp.graph.queries.context import get_context_version_bounds
-        bounds = get_context_version_bounds(context_id=context_id)
-        if bounds is not None:
-            from_ver = bounds["from_version"]
-            to_ver = bounds["to_version"]
-            framework = bounds.get("framework") or framework
+        Returns: auto_track list, manual_track list, fallback_to_rule_cards bool.
+        An empty auto_track is expected in the first release (no AUTOMATED_BY edges yet).
+        """
+        norm = normalize_entities(user_entities or [])
+        has_filter = _has_entity_filter(norm)
+
+        if context_id is not None:
+            from migration_oracle.mcp.graph.queries.context import get_context_version_bounds
+            bounds = get_context_version_bounds(context_id=context_id)
+            if bounds is not None:
+                from_ver = bounds["from_version"]
+                to_ver = bounds["to_version"]
+                framework = bounds.get("framework") or framework
+            else:
+                resolved_from = resolve_version(framework, current_version, mode="floor")
+                resolved_to = resolve_version(framework, target_version, mode="ceil")
+                from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+                to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
         else:
             resolved_from = resolve_version(framework, current_version, mode="floor")
             resolved_to = resolve_version(framework, target_version, mode="ceil")
             from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
             to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
-    else:
-        resolved_from = resolve_version(framework, current_version, mode="floor")
-        resolved_to = resolve_version(framework, target_version, mode="ceil")
-        from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
-        to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
 
-    plan = upgrade_queries.build_recipe_plan(
-        framework=framework,
-        current_version=from_ver,
-        target_version=to_ver,
-        scanned_classes=norm["scanned_classes"],
-        scanned_class_simple=norm["scanned_class_simple"],
-        scanned_deps_ga=norm["scanned_deps_ga"],
-        scanned_dep_artifacts=norm["scanned_dep_artifacts"],
-        scanned_props=norm["scanned_props"],
-        has_entity_filter=has_filter,
-        classification=classification,
-        scope_filter=scope_filter or [],
-        min_severity=min_severity,
-    )
-    manual_track = plan["manual_track"]
-    if auto_only:
-        manual_track = []
-
-    diagnostics = None
-    if has_filter:
-        diagnostics = _build_diagnostics(
-            norm,
-            plan.get("rules_included", 0),
-            plan.get("excluded_count", 0),
-            plan.get("uncertain_count", 0),
-            50,
-            len(plan["auto_track"]) + len(manual_track),
+        plan = upgrade_queries.build_recipe_plan(
+            framework=framework,
+            current_version=from_ver,
+            target_version=to_ver,
+            scanned_classes=norm["scanned_classes"],
+            scanned_class_simple=norm["scanned_class_simple"],
+            scanned_deps_ga=norm["scanned_deps_ga"],
+            scanned_dep_artifacts=norm["scanned_dep_artifacts"],
+            scanned_props=norm["scanned_props"],
+            has_entity_filter=has_filter,
+            classification=classification,
+            scope_filter=scope_filter or [],
+            min_severity=min_severity,
         )
+        manual_track = plan["manual_track"]
+        if auto_only:
+            manual_track = []
 
-    result = {
-        "status": "ok",
-        "auto_track": plan["auto_track"],
-        "manual_track": manual_track,
-        "fallback_to_rule_cards": plan["fallback_to_rule_cards"],
-    }
-    recipe_diag = {
-        "recipes_loaded": plan.get("recipes_loaded", False),
-        "recipe_count": plan.get("recipe_count", 0),
-    }
-    if diagnostics is not None:
-        diagnostics.update(recipe_diag)
-        result["diagnostics"] = diagnostics
-    else:
-        result["diagnostics"] = recipe_diag
-    return result
+        diagnostics = None
+        if has_filter:
+            diagnostics = _build_diagnostics(
+                norm,
+                plan.get("rules_included", 0),
+                plan.get("excluded_count", 0),
+                plan.get("uncertain_count", 0),
+                50,
+                len(plan["auto_track"]) + len(manual_track),
+            )
 
-
-@mcp.tool()
-def check_version_availability(
-    framework: str,
-    version: str,
-    direction: Literal["floor", "ceil"] = "floor",
-) -> dict:
-    """Check whether a framework version exists in the graph and on Maven Central.
-
-    direction='floor' (default): resolve to the highest graph node <= requested version.
-    direction='ceil': resolve to the lowest graph node >= requested version (for target checks).
-
-    Returns: status, exists_in_graph, nodeId, resolved_version, rounded, ahead_of_catalogue,
-             ga_available, latest_patch, hint.
-    On Maven Central probe failure, returns status='ok' with ga_available=False and a hint.
-    """
-    cf = canonical_framework(framework)
-    if isinstance(cf, dict):
-        return cf
-
-    coords = _MAVEN_COORDS.get(cf.slug)
-    if coords is None:
-        return {
-            "status": "error",
-            "error_code": "unsupported_framework",
-            "exists_in_graph": False,
-            "ga_available": False,
-            "latest_patch": None,
-            "hint": f"Unknown framework; supported: {', '.join(sorted(_MAVEN_COORDS))}",
-        }
-
-    resolution = resolve_version(cf.display, version, mode=direction)
-    if isinstance(resolution, VersionResolutionFailure):
-        return {
+        result = {
             "status": "ok",
-            "exists_in_graph": False,
-            "nodeId": None,
-            "resolved_version": None,
-            "rounded": False,
-            "ahead_of_catalogue": False,
-            "ga_available": False,
-            "latest_patch": None,
-            "hint": (
-                f"Version {version!r} has no matching node in the graph "
-                f"(direction={direction}). Candidates considered: "
-                f"{', '.join(resolution.candidatesConsidered) or 'none (framework unknown)'}"
-            ),
-            "candidates_considered": resolution.candidatesConsidered,
+            "auto_track": plan["auto_track"],
+            "manual_track": manual_track,
+            "fallback_to_rule_cards": plan["fallback_to_rule_cards"],
         }
+        recipe_diag = {
+            "recipes_loaded": plan.get("recipes_loaded", False),
+            "recipe_count": plan.get("recipe_count", 0),
+        }
+        if diagnostics is not None:
+            diagnostics.update(recipe_diag)
+            result["diagnostics"] = diagnostics
+        else:
+            result["diagnostics"] = recipe_diag
+        return result
 
-    exists_in_graph = True
-    resolved_v = resolution.resolvedVersion
-    node_id = resolution.nodeId
 
-    group_id, artifact_id = coords
-    _maven_base = "https://search.maven.org/solrsearch/select"
-    cache_key = (group_id, artifact_id, resolved_v)
-    cached = _MAVEN_CACHE.get(cache_key)
-    if cached and time.time() < cached[2]:
-        ga_available: bool = cached[0]
-        latest_patch: str | None = cached[1]
-    else:
-        try:
-            def _fetch_ga() -> bool:
-                r = requests.get(
-                    f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}+AND+v:{resolved_v}&rows=1&wt=json",
-                    timeout=3,
-                )
-                r.raise_for_status()
-                return r.json()["response"]["numFound"] >= 1
+    @mcp.tool()
+    def check_version_availability(
+        framework: str,
+        version: str,
+        direction: Literal["floor", "ceil"] = "floor",
+    ) -> dict:
+        """Check whether a framework version exists in the graph and on Maven Central.
 
-            def _fetch_latest() -> str | None:
-                r = requests.get(
-                    f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}&rows=1&wt=json&sort=version+desc",
-                    timeout=3,
-                )
-                r.raise_for_status()
-                docs = r.json()["response"]["docs"]
-                return docs[0]["v"] if docs else None
+        direction='floor' (default): resolve to the highest graph node <= requested version.
+        direction='ceil': resolve to the lowest graph node >= requested version (for target checks).
 
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                fut_ga = executor.submit(_fetch_ga)
-                fut_lp = executor.submit(_fetch_latest)
-                ga_available = fut_ga.result(timeout=4)
-                latest_patch = fut_lp.result(timeout=4)
+        Returns: status, exists_in_graph, nodeId, resolved_version, rounded, ahead_of_catalogue,
+                 ga_available, latest_patch, hint.
+        On Maven Central probe failure, returns status='ok' with ga_available=False and a hint.
+        """
+        cf = canonical_framework(framework)
+        if isinstance(cf, dict):
+            return cf
 
-            with _MAVEN_CACHE_LOCK:
-                _MAVEN_CACHE[cache_key] = (ga_available, latest_patch, time.time() + _MAVEN_CACHE_TTL)
-
-        except Exception:
+        coords = _MAVEN_COORDS.get(cf.slug)
+        if coords is None:
             return {
-                "status": "ok",
-                "exists_in_graph": exists_in_graph,
-                "nodeId": node_id,
-                "resolved_version": resolved_v,
-                "rounded": resolution.rounded,
-                "ahead_of_catalogue": resolution.aheadOfCatalogue,
+                "status": "error",
+                "error_code": "unsupported_framework",
+                "exists_in_graph": False,
                 "ga_available": False,
                 "latest_patch": None,
-                "hint": "Maven Central unavailable — could not verify GA status",
+                "hint": f"Unknown framework; supported: {', '.join(sorted(_MAVEN_COORDS))}",
             }
 
-    hint = f"Version {resolved_v} {'is' if ga_available else 'is not'} available on Maven Central."
-    if latest_patch:
-        hint += f" Latest patch: {latest_patch}."
-    if resolution.rounded:
-        hint += f" Requested {version!r} resolved to {resolved_v!r} (direction={direction})."
-    if resolution.aheadOfCatalogue:
-        hint += f" Version {version!r} is ahead of the highest catalogued version ({resolved_v})."
+        resolution = resolve_version(cf.display, version, mode=direction)
+        if isinstance(resolution, VersionResolutionFailure):
+            return {
+                "status": "ok",
+                "exists_in_graph": False,
+                "nodeId": None,
+                "resolved_version": None,
+                "rounded": False,
+                "ahead_of_catalogue": False,
+                "ga_available": False,
+                "latest_patch": None,
+                "hint": (
+                    f"Version {version!r} has no matching node in the graph "
+                    f"(direction={direction}). Candidates considered: "
+                    f"{', '.join(resolution.candidatesConsidered) or 'none (framework unknown)'}"
+                ),
+                "candidates_considered": resolution.candidatesConsidered,
+            }
 
-    return {
-        "status": "ok",
-        "exists_in_graph": exists_in_graph,
-        "nodeId": node_id,
-        "resolved_version": resolved_v,
-        "rounded": resolution.rounded,
-        "ahead_of_catalogue": resolution.aheadOfCatalogue,
-        "ga_available": ga_available,
-        "latest_patch": latest_patch,
-        "hint": hint,
-    }
+        exists_in_graph = True
+        resolved_v = resolution.resolvedVersion
+        node_id = resolution.nodeId
+
+        group_id, artifact_id = coords
+        _maven_base = "https://search.maven.org/solrsearch/select"
+        cache_key = (group_id, artifact_id, resolved_v)
+        cached = _MAVEN_CACHE.get(cache_key)
+        if cached and time.time() < cached[2]:
+            ga_available: bool = cached[0]
+            latest_patch: str | None = cached[1]
+        else:
+            try:
+                def _fetch_ga() -> bool:
+                    r = requests.get(
+                        f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}+AND+v:{resolved_v}&rows=1&wt=json",
+                        timeout=3,
+                    )
+                    r.raise_for_status()
+                    return r.json()["response"]["numFound"] >= 1
+
+                def _fetch_latest() -> str | None:
+                    r = requests.get(
+                        f"{_maven_base}?q=g:{group_id}+AND+a:{artifact_id}&rows=1&wt=json&sort=version+desc",
+                        timeout=3,
+                    )
+                    r.raise_for_status()
+                    docs = r.json()["response"]["docs"]
+                    return docs[0]["v"] if docs else None
+
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    fut_ga = executor.submit(_fetch_ga)
+                    fut_lp = executor.submit(_fetch_latest)
+                    ga_available = fut_ga.result(timeout=4)
+                    latest_patch = fut_lp.result(timeout=4)
+
+                with _MAVEN_CACHE_LOCK:
+                    _MAVEN_CACHE[cache_key] = (ga_available, latest_patch, time.time() + _MAVEN_CACHE_TTL)
+
+            except Exception:
+                return {
+                    "status": "ok",
+                    "exists_in_graph": exists_in_graph,
+                    "nodeId": node_id,
+                    "resolved_version": resolved_v,
+                    "rounded": resolution.rounded,
+                    "ahead_of_catalogue": resolution.aheadOfCatalogue,
+                    "ga_available": False,
+                    "latest_patch": None,
+                    "hint": "Maven Central unavailable — could not verify GA status",
+                }
+
+        hint = f"Version {resolved_v} {'is' if ga_available else 'is not'} available on Maven Central."
+        if latest_patch:
+            hint += f" Latest patch: {latest_patch}."
+        if resolution.rounded:
+            hint += f" Requested {version!r} resolved to {resolved_v!r} (direction={direction})."
+        if resolution.aheadOfCatalogue:
+            hint += f" Version {version!r} is ahead of the highest catalogued version ({resolved_v})."
+
+        return {
+            "status": "ok",
+            "exists_in_graph": exists_in_graph,
+            "nodeId": node_id,
+            "resolved_version": resolved_v,
+            "rounded": resolution.rounded,
+            "ahead_of_catalogue": resolution.aheadOfCatalogue,
+            "ga_available": ga_available,
+            "latest_patch": latest_patch,
+            "hint": hint,
+        }
