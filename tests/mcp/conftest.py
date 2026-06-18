@@ -3,6 +3,8 @@
 import importlib
 import os
 
+# Most MCP tests assume the full 24-tool surface; production default is lite.
+os.environ.setdefault("MIGRATION_MODE", "full")
 os.environ.setdefault("NEO4J_URI", "bolt://localhost:7687")
 os.environ.setdefault("NEO4J_PASSWORD", "test")
 

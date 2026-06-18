@@ -13,7 +13,7 @@ each one maps to a specific behavior or completion-gate item in `spec.md`.
 ## Phase A — Foundation (no dependents may start before this completes)
 
 - [ ] **T001** Create `migration_oracle/mcp/config.py` with the `MIGRATION_MODE` singleton.
-  Read `os.getenv("MIGRATION_MODE", "full")`, lowercase and strip it, raise `ValueError`
+  Read `os.getenv("MIGRATION_MODE", "lite")`, lowercase and strip it, raise `ValueError`
   naming the invalid value and the two valid options if it is not `"full"` or `"lite"`.
   No other imports in this file beyond `os`.
   *(spec.md → Components → config.py; behavior MODE_SINGLETON, INVALID_MODE_FAILS_FAST)*

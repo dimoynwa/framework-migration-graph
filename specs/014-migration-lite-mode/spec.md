@@ -242,7 +242,7 @@ This must be logged after the conditional imports, not before, so the count is a
 
 ## Error cases
 
-**`MIGRATION_MODE` unset** — defaults to `"full"`. No error raised.
+**`MIGRATION_MODE` unset** — defaults to `"lite"`. No error raised.
 
 **`MIGRATION_MODE=lite` but `FINDIT_AUTH_TOKEN` missing** — `resolve_paysafe_dependency_by_service_name`
 returns `subStatus="auth_error"` per its existing contract — this tool's body is unaffected by

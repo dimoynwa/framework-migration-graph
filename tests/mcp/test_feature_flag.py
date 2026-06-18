@@ -81,7 +81,20 @@ def test_invalid_mode_raises_before_server_builds():
         with pytest.raises(ValueError, match="MIGRATION_MODE"):
             import migration_oracle.mcp.config  # noqa: F401
     finally:
-        os.environ["MIGRATION_MODE"] = "full"
+        os.environ["MIGRATION_MODE"] = "lite"
+
+
+def test_default_mode_is_lite_when_unset():
+    backup = os.environ.pop("MIGRATION_MODE", None)
+    _evict_mcp_modules()
+    try:
+        import migration_oracle.mcp.config as cfg
+
+        assert cfg.MIGRATION_MODE == "lite"
+    finally:
+        if backup is not None:
+            os.environ["MIGRATION_MODE"] = backup
+        _evict_mcp_modules()
 
 
 @pytest.mark.asyncio

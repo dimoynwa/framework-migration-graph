@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 
 _VALID_MODES = frozenset({"full", "lite"})
-_raw = os.getenv("MIGRATION_MODE", "full").strip().lower()
+_raw = os.getenv("MIGRATION_MODE", "lite").strip().lower()
 
 if _raw not in _VALID_MODES:
     raise ValueError(

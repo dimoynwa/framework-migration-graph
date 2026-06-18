@@ -36,8 +36,8 @@ assert hasattr(cfg, 'MIGRATION_MODE'), 'MIGRATION_MODE not defined'
 print(f'PASS: MIGRATION_MODE = {cfg.MIGRATION_MODE!r}')
 "
 ```
-Expected: prints `full` if `MIGRATION_MODE` env var is unset (default), per spec.md
-"`MIGRATION_MODE` unset — defaults to `full`. No error raised."
+Expected: prints `lite` if `MIGRATION_MODE` env var is unset (default), per spec.md
+"`MIGRATION_MODE` unset — defaults to `lite`. No error raised."
 
 **0-B — config.py has no import of server.py or any tool module**
 ```bash
@@ -391,7 +391,7 @@ Each step has an explicit expected outcome to compare against.
   graph call → tiered execution) reads coherently and the file-count routing logic to
   `openrewrite-runner` is unambiguous.
 
-- [ ] **4-E** Repeat 4-A through 4-C with `MIGRATION_MODE=full` (or unset) and confirm the
+- [ ] **4-E** Repeat 4-A through 4-C with `MIGRATION_MODE=full` and confirm the
   full 24-tool surface and the `framework-migration` bundle install both work exactly as
   they did before this spec — this is the regression check that lite mode did not break
   full mode.
@@ -405,7 +405,7 @@ item below is checked.
 
 | Check | Description | Result |
 |---|---|---|
-| 0-A | config.py imports cleanly, MIGRATION_MODE defaults to full | |
+| 0-A | config.py imports cleanly, MIGRATION_MODE defaults to lite | |
 | 0-B | config.py has no circular-risk imports | |
 | 0-C | invalid mode raises with correct message text | |
 | 0-D | no tool module performs I/O at import time (manual review) | |
