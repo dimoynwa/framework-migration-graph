@@ -23,6 +23,7 @@ services:
       GITLAB_API_KEY: ${GITLAB_API_KEY:-}
       FINDIT_AUTH_TOKEN: ${FINDIT_AUTH_TOKEN:-}
       FINDIT_BASE_URL: ${FINDIT_BASE_URL:-https://findit-api.icd.paysafe.cloud}
+      MIGRATION_MODE: ${MIGRATION_MODE:-lite}
     volumes:
       - oracle-data:/data
     depends_on:

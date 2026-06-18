@@ -35,6 +35,7 @@ harness). Agents use it to:
 | `NEO4J_PASSWORD` | **Yes** | — | Graph password |
 | `NEO4J_USERNAME` | No | `neo4j` | Graph username |
 | `MCP_TRANSPORT` | No | `stdio` | `stdio` \| `sse` \| `streamable-http` |
+| `MIGRATION_MODE` | No | `lite` | `lite` (4 tools, migration-lite skill) \| `full` (24 tools, four-loop harness) |
 | `MCP_HOST` | No | `0.0.0.0` | Bind host (HTTP transports only) |
 | `MCP_PORT` | No | `8080` | Bind port (HTTP transports only) |
 | `MCP_STATELESS_HTTP` | No | `false` | Enable stateless HTTP for remote clients |
@@ -150,7 +151,14 @@ docker compose up -d
 
 The compose file starts the oracle alongside a Neo4j 5 sidecar with a named data
 volume. The oracle waits for Neo4j to become healthy before starting. Both services
-are reachable on the same default ports.
+are reachable on the same default ports. Default mode is **lite** (4 tools); set
+`MIGRATION_MODE=full` in `.env` or compose `environment` for the 24-tool harness.
+
+After changing `MIGRATION_MODE` or server code, rebuild the image:
+
+```bash
+docker compose up -d --build oracle
+```
 
 To stop and preserve data:
 

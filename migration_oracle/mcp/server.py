@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 import logging
 from pathlib import Path
 
+from migration_oracle.mcp.config import MIGRATION_MODE
+
 from neo4j.exceptions import ServiceUnavailable
 
 from migration_oracle import config
@@ -131,16 +133,27 @@ def migration_workflow_prompt() -> str:
 
 
 # Register tools via import side effects.
-from migration_oracle.mcp.tools import (  # noqa: E402, F401
-    artifacts,
-    community,
-    context,
-    deprecation,
-    install,
-    paysafe,
-    schema,
-    search,
-    upgrade,
+from migration_oracle.mcp.tools import install  # noqa: E402, F401
+from migration_oracle.mcp.tools import paysafe  # noqa: E402, F401
+from migration_oracle.mcp.tools import search  # noqa: E402, F401
+from migration_oracle.mcp.tools import upgrade  # noqa: E402, F401
+
+if MIGRATION_MODE == "full":
+    from migration_oracle.mcp.tools import artifacts  # noqa: E402, F401
+    from migration_oracle.mcp.tools import community  # noqa: E402, F401
+    from migration_oracle.mcp.tools import context  # noqa: E402, F401
+    from migration_oracle.mcp.tools import deprecation  # noqa: E402, F401
+    from migration_oracle.mcp.tools import schema  # noqa: E402, F401
+
+
+def _registered_tool_count() -> int:
+    return len(mcp._tool_manager._tools)
+
+
+logger.info(
+    "Migration Oracle starting — mode=%s tools=%d",
+    MIGRATION_MODE,
+    _registered_tool_count(),
 )
 
 
