@@ -12,25 +12,31 @@ import pytest
 
 
 def _reload_install_module():
-    for name in list(sys.modules.keys()):
-        if name.startswith("migration_oracle.mcp"):
-            sys.modules.pop(name, None)
+    for name in ("migration_oracle.mcp.tools.install", "migration_oracle.mcp.config"):
+        sys.modules.pop(name, None)
     import migration_oracle.mcp.tools.install as inst_mod
 
     return inst_mod
 
 
-def test_full_mode_installs_five_files():
+def test_full_mode_installs_six_bundles():
     os.environ["MIGRATION_MODE"] = "full"
     inst_mod = _reload_install_module()
 
     with tempfile.TemporaryDirectory() as tmp:
         result = inst_mod.install_migration_skill(target="cursor", target_dir=tmp)
         assert result["status"] == "ok"
-        assert len(result["installed_paths"]) == 5
+        assert len(result["installed_paths"]) == 9
         assert result["mode"] == "full"
-        assert result["installed_skills"] == ["framework-migration"]
-        assert Path(tmp, "SKILL.md").is_file()
+        assert set(result["installed_skills"]) == {
+            "framework-migration-plan",
+            "framework-migration-gap-check",
+            "framework-migration-clarify",
+            "framework-migration-preview",
+            "framework-migration-execute",
+            "framework-migration-feedback",
+        }
+        assert Path(tmp, "framework-migration-plan", "SKILL.md").is_file()
 
 
 def test_lite_mode_installs_five_files_across_bundles():

@@ -13,3 +13,16 @@ if _raw not in _VALID_MODES:
     )
 
 MIGRATION_MODE: str = _raw
+
+# Optional harness stage for per-session tool gating (015-split-migration-harness).
+# When unset, all tools for the active MIGRATION_MODE are registered.
+MCP_ACTIVE_STAGE: str | None = os.getenv("MCP_ACTIVE_STAGE", "").strip().lower() or None
+
+VALID_ACTIVE_STAGES: frozenset[str] = frozenset({
+    "plan",
+    "gap-check",
+    "clarify",
+    "preview",
+    "execute",
+    "feedback",
+})

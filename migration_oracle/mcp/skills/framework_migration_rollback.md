@@ -1,8 +1,8 @@
 # Rollback Procedure
 
-**URI:** `skill://framework-migration/rollback`
-
-Use this skill when a build fails after a migration step and you need to revert the change safely.
+Bundled as `references/rollback.md` under the `framework-migration-execute` skill bundle.
+Load it during the execute stage when a build fails after a migration step and you need to
+revert the change safely.
 
 ---
 

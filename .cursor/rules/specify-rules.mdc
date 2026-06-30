@@ -5,5 +5,5 @@ alwaysApply: true
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-located at specs/013-real-run-hardening/plan.md.
+located at specs/015-split-migration-harness/plan.md.
 <!-- SPECKIT END -->

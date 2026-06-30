@@ -32,9 +32,13 @@ def _evict_mcp_modules() -> None:
             sys.modules.pop(name, None)
 
 
-def _fresh_server(mode: str):
+def _fresh_server(mode: str, stage: str | None = None):
     """Force every relevant module to be re-imported under the given mode."""
     os.environ["MIGRATION_MODE"] = mode
+    if stage is None:
+        os.environ.pop("MCP_ACTIVE_STAGE", None)
+    else:
+        os.environ["MCP_ACTIVE_STAGE"] = stage
     _evict_mcp_modules()
     import migration_oracle.mcp.server as srv
 
@@ -59,10 +63,10 @@ async def test_lite_registers_4_tools():
 
 
 @pytest.mark.asyncio
-async def test_full_registers_24_tools():
+async def test_full_registers_26_tools():
     mcp = _fresh_server("full")
     tools = await mcp.list_tools()
-    assert len(tools) == 24
+    assert len(tools) == 26
 
 
 @pytest.mark.asyncio

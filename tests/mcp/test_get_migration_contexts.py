@@ -22,6 +22,8 @@ def _ctx_row(
     failed=0,
     skipped=0,
     deferred=0,
+    excluded=0,
+    has_gap_check_flags=False,
 ):
     return {
         "id": ctx_id,
@@ -36,6 +38,8 @@ def _ctx_row(
         "failed_count": failed,
         "skipped_count": skipped,
         "deferred_count": deferred,
+        "excluded_count": excluded,
+        "has_gap_check_flags": has_gap_check_flags,
     }
 
 
@@ -69,17 +73,20 @@ def test_one_context_returned_with_full_shape(mock_q):
 
 @patch("migration_oracle.mcp.tools.context.context_queries")
 def test_outcome_counts_shape(mock_q):
-    """outcome_counts includes completed/failed/skipped/deferred."""
+    """outcome_counts includes completed/failed/skipped/deferred/excluded."""
     mock_q.get_migration_contexts.return_value = [
-        _ctx_row(completed=5, failed=1, skipped=2, deferred=1)
+        _ctx_row(completed=5, failed=1, skipped=2, deferred=1, excluded=2, has_gap_check_flags=True)
     ]
 
     result = get_migration_contexts(project_id="proj-x")
-    counts = result["contexts"][0]["outcome_counts"]
+    ctx = result["contexts"][0]
+    counts = ctx["outcome_counts"]
     assert counts["completed"] == 5
     assert counts["failed"] == 1
     assert counts["skipped"] == 2
     assert counts["deferred"] == 1
+    assert counts["excluded"] == 2
+    assert ctx["has_gap_check_flags"] is True
 
 
 def test_empty_project_id_returns_error():
