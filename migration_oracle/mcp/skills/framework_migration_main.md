@@ -1,8 +1,32 @@
-# Framework Migration — Four-Loop Harness (Increment 3)
+# Framework Migration — Six-Stage Split Harness
 
-This skill replaces the pre-redesign five-phase harness with four re-entrant runtime loops backed by `MigrationContext` graph state.
+This skill drives the split migration harness: six session-scoped entry points that resume purely from `MigrationContext` graph state.
 
-## Loop I — Context
+## Six stages
+
+| Stage | Skill resource | Purpose |
+|---|---|---|
+| **plan** | `skill://framework-migration/main` (Loops I–II) | Scan codebase, create context, scope-gated graph queries |
+| **gap-check** | `skill://framework-migration/gap-check` | Mechanical plan audit; write `gapCheckFlags` |
+| **clarify** | `skill://framework-migration/clarify` | Optional human amendments (manual steps, exclusions, force-include) |
+| **preview** | `skill://framework-migration/preview` | Read-only plan grouped by risk with caveats |
+| **execute** | `skill://framework-migration/main` (Loop III) | Apply pending steps; fresh `get_pending_steps` every invocation |
+| **feedback** | `skill://framework-migration/main` (Loop IV) | Submit insights; `close_migration_context` |
+
+Set `MCP_ACTIVE_STAGE` when starting the MCP server to restrict tools to the active stage.
+
+## Execute stage — context discovery
+
+When `context_id` is unknown at execute time:
+
+1. Call `get_migration_contexts(project_id)` and filter `status="in-progress"`.
+2. If exactly one match → use its `id` as `context_id`.
+3. If multiple matches → stop and ask the operator to choose (list `id`, `framework`, `fromVersion`, `toVersion`).
+4. Always call `get_pending_steps(context_id)` fresh on every execute invocation.
+
+---
+
+## Loop I — Context (plan stage)
 
 **Purpose:** Load or create a `MigrationContext`. Run the codebase scan. Surface version boundary pre-conditions.
 

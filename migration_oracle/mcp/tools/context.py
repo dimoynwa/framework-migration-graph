@@ -8,6 +8,7 @@ from migration_oracle.mcp.graph.queries import context as context_queries
 from migration_oracle.mcp.graph.queries.context import VersionNotInGraphError, check_context_version_match
 from migration_oracle.mcp.graph.queries.upgrade import resolve_version
 from migration_oracle.mcp.instance import mcp
+from migration_oracle.mcp.stage_gating import validate_context_id_for_stage
 from migration_oracle.mcp.tools.upgrade import normalize_entities, to_minor_zero
 from migration_oracle.models.graph import VersionResolutionFailure
 
@@ -28,6 +29,7 @@ def _pending_step(row: dict) -> dict:
         "requires": requires,
         "recipe_id": row.get("recipe_id"),
         "applicability": row.get("applicability") or "informational",
+        "origin": row.get("origin") or "graph",
     }
 
 
@@ -39,6 +41,7 @@ def create_migration_context(
     framework: str,
     scanned_entities: list[str] | None = None,
     allow_stub_create: bool = False,
+    diagnostics: dict | None = None,
 ) -> dict:
     """Create or resume a MigrationContext for a (project_id, from_version, to_version) triple. Idempotent.
 
@@ -199,6 +202,12 @@ def create_migration_context(
     }
     if co_migration_warning:
         result["co_migration_warning"] = co_migration_warning
+    if diagnostics and ctx.get("created"):
+        context_queries.set_diagnostics_on_create(
+            context_id=ctx["context_id"],
+            diagnostics=diagnostics,
+        )
+        result["diagnostics_cached"] = True
     return result
 
 
@@ -244,7 +253,8 @@ def get_migration_contexts(
     """List all MigrationContext nodes for a project. Returns count=0 with empty list when none exist.
 
     Returns: status, project_id, count, contexts[].
-    Each context has: id, projectId, fromVersion, toVersion, framework, status, createdAt, updatedAt, outcome_counts.
+    Each context has: id, projectId, fromVersion, toVersion, framework, status, createdAt,
+    updatedAt, outcome_counts (including excluded), and has_gap_check_flags.
     """
     if not project_id:
         return {
@@ -275,7 +285,9 @@ def get_migration_contexts(
                 "failed": row.get("failed_count") or 0,
                 "skipped": row.get("skipped_count") or 0,
                 "deferred": row.get("deferred_count") or 0,
+                "excluded": row.get("excluded_count") or 0,
             },
+            "has_gap_check_flags": bool(row.get("has_gap_check_flags")),
         }
         for row in rows
     ]
@@ -295,11 +307,14 @@ def get_pending_steps(
 ) -> dict:
     """Return the remaining step queue for a context, ordered by scope severity then topological order.
 
-    Excludes completed and skipped steps. Returns an empty list when:
+    Excludes completed, skipped, failed, deferred, and excluded steps. Returns an empty list when:
       (a) all steps are done, or
       (b) no MigrationStep nodes exist in the graph (pre-redesign data — use build_recipe_plan instead).
     Supports effort_filter (e.g. ['mechanical']) and scope_filter (e.g. ['api-surface']) to narrow results.
     """
+    stage_err = validate_context_id_for_stage(context_id)
+    if stage_err:
+        return stage_err
     rows = context_queries.get_pending_steps(
         context_id=context_id,
         effort_filter=effort_filter or [],
@@ -314,7 +329,7 @@ def get_pending_steps(
     }
 
 
-_VALID_OUTCOMES = {"completed", "skipped", "failed", "deferred"}
+_VALID_OUTCOMES = {"completed", "skipped", "failed", "deferred", "excluded"}
 
 
 @mcp.tool()
@@ -324,9 +339,11 @@ def update_step_status(
     outcome: str,
     reason: str = "",
 ) -> dict:
-    """Record the outcome of a migration step: 'completed', 'skipped', 'failed', or 'deferred'.
+    """Record the outcome of a migration step: 'completed', 'skipped', 'failed', 'deferred', or 'excluded'.
 
     For outcome='deferred', the step's rule must have a BRIDGED_BY edge in the graph.
+    For outcome='excluded', the step is removed from the pending queue but does not block
+    final_status='complete' during close_migration_context.
     Auto-closes the context when no pending steps remain after this call.
     Writes a STEP_OUTCOME relationship (ctx)-[:STEP_OUTCOME {status, reason, updatedAt}]->(step).
     Returns: step_id, outcome, context_auto_closed, context_status, completed_count, skipped_count.
@@ -457,14 +474,20 @@ def update_queried_entity(
     context_id: str,
     entity_name: str,
     result_summary: str,
+    force_include: bool = False,
 ) -> dict:
     """Store the result summary for a queried entity in the context's queriedEntities cache.
 
     Call after each successful entity query in Loop II so resumed sessions can skip
-    already-queried entities. result_summary is truncated to 500 characters.
+    already-queried entities. When force_include=True (clarify stage), re-surface rules
+    for this entity that were previously excluded by the entity filter.
+    result_summary is truncated to 500 characters.
     Returns: status, context_id, entity_name, cached_count (total entries after upsert).
     On context not found: status='error', error_code='context_not_found'.
     """
+    stage_err = validate_context_id_for_stage(context_id)
+    if stage_err:
+        return stage_err
     result = context_queries.update_queried_entity(
         context_id=context_id,
         entity_name=entity_name,
@@ -476,11 +499,17 @@ def update_queried_entity(
             "error_code": "context_not_found",
             "hint": f"Context '{context_id}' not found",
         }
+    if force_include:
+        context_queries.force_include_entity(
+            context_id=context_id,
+            entity_name=entity_name,
+        )
     return {
         "status": "ok",
         "context_id": context_id,
         "entity_name": entity_name,
         "cached_count": result["cached_count"],
+        "force_included": force_include,
     }
 
 
@@ -495,8 +524,9 @@ def close_migration_context(
 ) -> dict:
     """Set completedAt, migration_status, and notes on a context. Call at the end of every session.
 
-    final_status: 'complete' (all steps done), 'partial' (steps were skipped or deferred),
-    or 'abandoned' (session cancelled or deferred). Any other value is rejected.
+    final_status: 'complete' (all actionable steps done; excluded steps do not block complete),
+    'partial' (steps were skipped or deferred), or 'abandoned' (session cancelled).
+    Any other value is rejected.
     Note: update_step_status auto-closes the context when all steps complete — call this tool
     explicitly only when ending a session with skipped steps or adding notes.
     Returns: context_id, migration_status, completed_steps, skipped_steps, completed_at, notes.
@@ -520,4 +550,292 @@ def close_migration_context(
         "skipped_steps": result.get("skipped_steps") or [],
         "completed_at": result.get("completed_at"),
         "notes": result.get("notes") or "",
+    }
+
+
+_VALID_GAP_FLAG_TYPES = frozenset({
+    "truncation",
+    "applicability_uncertain",
+    "stepless_rule",
+    "bridge_eligible",
+    "version_sanity",
+    "paysafe_unresolved",
+})
+
+_VALID_EFFORTS = frozenset({"mechanical", "moderate", "architectural"})
+_VALID_SEVERITY_HINTS = frozenset({"low", "medium", "high", "critical"})
+
+# Public aliases for verification and external contracts (success-criteria.md Level 0).
+MIGRATION_STEP_ORIGIN_VALUES = frozenset({"graph", "manual"})
+STEP_OUTCOME_VALUES = _VALID_OUTCOMES
+EFFORT_VALUES = _VALID_EFFORTS
+SEVERITY_VALUES = _VALID_SEVERITY_HINTS
+GAP_CHECK_FLAG_TYPES = _VALID_GAP_FLAG_TYPES
+
+_LITE_GAP_CHECKS = (
+    "truncation",
+    "applicability_uncertain",
+    "version_sanity",
+    "paysafe_unresolved",
+)
+_FULL_ONLY_GAP_CHECKS = ("stepless_rule", "bridge_eligible")
+
+
+def dedup_gap_check_flags(existing: list[dict], incoming: list[dict]) -> list[dict]:
+    """Merge incoming flags into existing, deduplicating identical type+reference+message triples."""
+    merged = list(existing)
+    seen = {
+        (f.get("type"), f.get("reference"), f.get("message"))
+        for f in existing
+    }
+    for flag in incoming:
+        key = (flag.get("type"), flag.get("reference"), flag.get("message"))
+        if key not in seen:
+            merged.append(flag)
+            seen.add(key)
+    return merged
+
+
+def apply_gap_check_write(
+    existing: list[dict],
+    incoming: list[dict],
+    *,
+    overwrite: bool = False,
+) -> list[dict]:
+    if overwrite:
+        return list(incoming)
+    return dedup_gap_check_flags(existing, incoming)
+
+
+def get_applicable_gap_checks(*, mode: str) -> list[str]:
+    checks = list(_LITE_GAP_CHECKS)
+    if mode == "full":
+        checks.extend(_FULL_ONLY_GAP_CHECKS)
+    return checks
+
+
+def check_truncation(diagnostics: dict) -> bool:
+    """Return True when rules_capped_at indicates truncation (authoritative source)."""
+    return diagnostics.get("rules_capped_at") is not None
+
+
+def compute_final_status(outcomes: list[str]) -> str:
+    """Derive final_status from step outcomes; excluded does not block complete."""
+    if "skipped" in outcomes or "failed" in outcomes:
+        return "partial"
+    return "complete"
+
+
+def run_gap_check(context_id: str) -> list[dict]:
+    """Run mode-aware gap-check audit and persist flags. Read-only on step/rule graph."""
+    import json
+
+    meta = context_queries.get_context_metadata(context_id=context_id)
+    if meta is None:
+        raise ValueError(f"Context not found: {context_id}")
+
+    mode = meta.get("mode") or "full"
+    applicable = set(get_applicable_gap_checks(mode=mode))
+    flags: list[dict] = []
+
+    diag_raw = meta.get("diagnostics")
+    if diag_raw and "truncation" in applicable:
+        try:
+            diagnostics = json.loads(diag_raw) if isinstance(diag_raw, str) else diag_raw
+        except (ValueError, TypeError):
+            diagnostics = {}
+        if check_truncation(diagnostics):
+            flags.append({
+                "type": "truncation",
+                "reference": None,
+                "message": (
+                    f"Rule count capped at {diagnostics.get('rules_capped_at')} "
+                    f"({diagnostics.get('rules_included')} included)."
+                ),
+            })
+
+    if "applicability_uncertain" in applicable:
+        pending = context_queries.get_pending_steps(context_id=context_id)
+        for step in pending:
+            if step.get("applicability") == "uncertain":
+                flags.append({
+                    "type": "applicability_uncertain",
+                    "reference": step.get("rule_id"),
+                    "message": f"Uncertain applicability for step: {step.get('summary', '')}",
+                })
+
+    if flags:
+        context_queries.write_gap_check_flags(
+            context_id=context_id,
+            flags=flags,
+            overwrite=False,
+        )
+    return flags
+
+
+def resolve_execute_context(
+    context_id: str | None = None,
+    project_id: str | None = None,
+) -> dict:
+    """Resolve the MigrationContext for the execute stage.
+
+    When context_id is provided, validates it exists. When omitted, auto-discovers
+    the sole in-progress context for project_id (or globally when project_id is also omitted).
+    Returns an ambiguous_context error when multiple in-progress contexts match.
+    """
+    if context_id:
+        if not context_queries.context_exists(context_id=context_id):
+            return {
+                "status": "error",
+                "error_code": "context_not_found",
+                "hint": f"Context '{context_id}' not found",
+            }
+        return {"status": "ok", "context_id": context_id}
+
+    candidates = context_queries.get_in_progress_contexts(project_id=project_id)
+    if not candidates:
+        return {
+            "status": "error",
+            "error_code": "no_in_progress_context",
+            "hint": "No in-progress MigrationContext found",
+        }
+    if len(candidates) == 1:
+        return {"status": "ok", "context_id": candidates[0]["context_id"]}
+    return {
+        "status": "error",
+        "error_code": "ambiguous_context",
+        "hint": "Multiple in-progress contexts found — provide context_id explicitly",
+        "candidates": [
+            {
+                "context_id": c["context_id"],
+                "framework": c.get("framework") or "",
+                "current_version": c.get("from_version") or "",
+                "target_version": c.get("to_version") or "",
+            }
+            for c in candidates
+        ],
+    }
+
+
+@mcp.tool()
+def write_gap_check_flags(
+    context_id: str,
+    flags: list[dict],
+    overwrite: bool = False,
+) -> dict:
+    """Persist gap-check findings on a MigrationContext.
+
+    flags: list of {type, reference?, message} objects.
+    overwrite: when True, replaces all existing flags; when False, appends and deduplicates.
+    """
+    stage_err = validate_context_id_for_stage(context_id)
+    if stage_err:
+        return stage_err
+    if not flags:
+        return {
+            "status": "error",
+            "error_code": "empty_flags",
+            "hint": "flags must contain at least one entry",
+        }
+    for flag in flags:
+        if flag.get("type") not in _VALID_GAP_FLAG_TYPES:
+            return {
+                "status": "error",
+                "error_code": "invalid_flag_type",
+                "hint": f"type must be one of: {', '.join(sorted(_VALID_GAP_FLAG_TYPES))}",
+            }
+        if not flag.get("message"):
+            return {
+                "status": "error",
+                "error_code": "missing_message",
+                "hint": "each flag must include a message",
+            }
+    try:
+        persisted = context_queries.write_gap_check_flags(
+            context_id=context_id,
+            flags=flags,
+            overwrite=overwrite,
+        )
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "error_code": "context_not_found",
+            "hint": str(exc),
+        }
+    return {
+        "status": "ok",
+        "context_id": context_id,
+        "flags": persisted,
+        "flag_count": len(persisted),
+    }
+
+
+@mcp.tool()
+def add_manual_step(
+    context_id: str,
+    summary: str,
+    instruction: str,
+    file_pattern: str | None = None,
+    effort: str = "moderate",
+    severity_hint: str = "medium",
+) -> dict:
+    """Add a context-scoped manual migration step during the clarify stage.
+
+    Creates a MigrationStep with origin='manual' linked via OWNS_STEP to the context.
+    """
+    stage_err = validate_context_id_for_stage(context_id)
+    if stage_err:
+        return stage_err
+    if not summary or not instruction:
+        return {
+            "status": "error",
+            "error_code": "missing_required_field",
+            "hint": "summary and instruction are required",
+        }
+    if effort not in _VALID_EFFORTS:
+        return {
+            "status": "error",
+            "error_code": "invalid_effort",
+            "hint": f"effort must be one of: {', '.join(sorted(_VALID_EFFORTS))}",
+        }
+    if severity_hint not in _VALID_SEVERITY_HINTS:
+        return {
+            "status": "error",
+            "error_code": "invalid_severity_hint",
+            "hint": f"severity_hint must be one of: {', '.join(sorted(_VALID_SEVERITY_HINTS))}",
+        }
+    meta = context_queries.get_context_metadata(context_id=context_id)
+    if meta is None:
+        return {
+            "status": "error",
+            "error_code": "context_not_found",
+            "hint": f"Context '{context_id}' not found",
+        }
+    if meta.get("status") != "in-progress":
+        return {
+            "status": "error",
+            "error_code": "context_not_open",
+            "hint": f"Context '{context_id}' has status '{meta.get('status')}' — manual steps require in-progress",
+        }
+    try:
+        created = context_queries.add_manual_step(
+            context_id=context_id,
+            summary=summary,
+            instruction=instruction,
+            file_pattern=file_pattern,
+            effort=effort,
+            severity_hint=severity_hint,
+        )
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "error_code": "context_not_found",
+            "hint": str(exc),
+        }
+    return {
+        "status": "ok",
+        "context_id": context_id,
+        "step_id": created["step_id"],
+        "summary": created.get("summary") or summary,
+        "origin": "manual",
     }

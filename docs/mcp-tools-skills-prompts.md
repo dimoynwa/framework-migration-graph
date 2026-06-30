@@ -13,29 +13,37 @@ The Migration Oracle is a three-layer system:
 | Layer | Role | Key artifacts |
 |---|---|---|
 | **Knowledge graph** | Stores framework release knowledge — rules, steps, affected entities, OpenRewrite recipes, community insights | Neo4j/Memgraph; schema in [graph-schema.md](./graph-schema.md) |
-| **MCP server** | Exposes graph queries, context management, search, and Paysafe dependency resolution to AI agents | 23 tools, 5 skill resources, 3 prompts |
-| **Agent harness** | Procedural skill that drives a four-loop migration workflow using the MCP tools | `skill://framework-migration/*` resources |
+| **MCP server** | Exposes graph queries, context management, search, and Paysafe dependency resolution to AI agents | 26 tools (full mode), 8 skill resources, 3 prompts |
+| **Agent harness** | Procedural skill that drives a six-stage split migration workflow using the MCP tools | `skill://framework-migration/*` resources |
 
-### Four-loop harness (Increment 3)
+### Six-stage split harness (015)
 
-The harness replaces the earlier five-phase “scan → query → plan document” flow with four **re-entrant runtime loops** backed by `MigrationContext` graph state:
+The harness splits planning, audit, clarification, preview, execution, and feedback across independent agent sessions:
 
 ```
-Loop I — Context     scan codebase → create/resume MigrationContext → version-map preconditions
-Loop II — Query      scope-gated graph queries (api-surface → runtime → config/build → test)
-Loop III — Execution apply steps (OpenRewrite / agent-codemod / human-review) → update_step_status
-Loop IV — Feedback   submit_migration_insight → backlog → close_migration_context
+plan        → scan codebase, create context, scope-gated graph queries
+gap-check   → mechanical plan audit; write gapCheckFlags
+clarify     → optional human amendments (manual steps, exclusions, force-include)
+preview     → read-only plan grouped by risk with gap-check caveats
+execute     → apply pending steps; fresh get_pending_steps every invocation
+feedback    → submit insights, close context
 ```
+
+Set `MCP_ACTIVE_STAGE` to restrict registered tools per session.
 
 Supporting skill files split concerns:
 
 | Resource URI | File | Used in |
 |---|---|---|
-| `skill://framework-migration/main` | `framework_migration_main.md` | All loops — orchestration, decision tables, stateless fallback |
-| `skill://framework-migration/scanning` | `framework_migration_scanning.md` | Loop I — entity extraction in graph-compatible string forms |
-| `skill://framework-migration/version-map` | `framework_migration_version_map.md` | Loop I — version tables, Java/Node gates, Spring Cloud co-migration |
-| `skill://framework-migration/plan-format` | `framework_migration_plan_format.md` | Loop III (human-readable mode) — `MIGRATION_PLAN.md` schema |
-| `skill://framework-migration/rollback` | `framework_migration_rollback.md` | Loop III — revert procedure after build/test failure |
+| `skill://framework-migration-plan/main` | `framework_migration_plan.md` | plan — Loops I–II |
+| `skill://framework-migration-gap-check/main` | `framework_migration_gap_check.md` | gap-check — mechanical plan audit |
+| `skill://framework-migration-clarify/main` | `framework_migration_clarify.md` | clarify — optional human amendments |
+| `skill://framework-migration-preview/main` | `framework_migration_preview.md` | preview — read-only plan rendering |
+| `skill://framework-migration-execute/main` | `framework_migration_execute.md` | execute — Loop III |
+| `skill://framework-migration-feedback/main` | `framework_migration_feedback.md` | feedback — Loop IV |
+| `skill://framework-migration-plan/scanning` | `framework_migration_scanning.md` | plan — entity extraction |
+| `skill://framework-migration-plan/version-map` | `framework_migration_version_map.md` | plan — version tables, toolchain gates |
+| `skill://framework-migration-execute/rollback` | `framework_migration_rollback.md` | execute — revert procedure after build failure |
 
 **Stateless fallback:** If `create_migration_context` fails after retry, the harness continues with `analyze_upgrade_path` + `build_recipe_plan` using in-memory step tracking only (no `context_id`-requiring tools).
 
@@ -469,9 +477,9 @@ List all `MigrationContext` nodes for a project. Used in Loop I to discover prio
 | `status` | string | `"ok"` or `"error"` |
 | `project_id` | string | — |
 | `count` | integer | Number of contexts (0 when none exist — not an error) |
-| `contexts` | list | Each: `id`, `projectId`, `fromVersion`, `toVersion`, `framework`, `status`, `createdAt`, `updatedAt`, `outcome_counts` |
+| `contexts` | list | Each: `id`, `projectId`, `fromVersion`, `toVersion`, `framework`, `status`, `createdAt`, `updatedAt`, `outcome_counts`, `has_gap_check_flags` |
 
-Each `outcome_counts` object has: `completed`, `failed`, `skipped`, `deferred` — derived from `STEP_OUTCOME` relationships.
+Each `outcome_counts` object has: `completed`, `failed`, `skipped`, `deferred`, `excluded` — derived from `STEP_OUTCOME` relationships. `has_gap_check_flags` is `true` when `gapCheckFlags` is set and non-empty.
 
 **Cypher**
 
@@ -483,11 +491,14 @@ WITH ctx,
      count(CASE WHEN so.status = 'completed' THEN 1 END) AS completed_count,
      count(CASE WHEN so.status = 'failed'    THEN 1 END) AS failed_count,
      count(CASE WHEN so.status = 'skipped'   THEN 1 END) AS skipped_count,
-     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count
+     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count,
+     count(CASE WHEN so.status = 'excluded'  THEN 1 END) AS excluded_count,
+     (ctx.gapCheckFlags IS NOT NULL AND ctx.gapCheckFlags <> '[]') AS has_gap_check_flags
 RETURN elementId(ctx) AS id, ctx.projectId, ctx.fromVersion, ctx.toVersion,
        ctx.framework, ctx.status, toString(ctx.createdAt) AS createdAt,
        toString(ctx.updatedAt) AS updatedAt,
-       completed_count, failed_count, skipped_count, deferred_count
+       completed_count, failed_count, skipped_count, deferred_count,
+       excluded_count, has_gap_check_flags
 ORDER BY ctx.createdAt DESC
 ```
 
@@ -1411,6 +1422,12 @@ Copy bundled skill Markdown files to the Cursor or Claude Code skills directory.
 | `target` | string | Resolved target IDE |
 | `installed_paths` | list[string] | Paths written |
 | `message` | string | Status message |
+| `mode` | string | `"full"` or `"lite"` |
+| `installed_skills` | list[string] | Bundle names installed |
+
+**Full mode bundles** (six top-level directories): `framework-migration-plan`, `framework-migration-gap-check`, `framework-migration-clarify`, `framework-migration-preview`, `framework-migration-execute`, `framework-migration-feedback`.
+
+**Lite mode bundles** (unchanged): `migration-lite`, `openrewrite-runner`.
 
 **Cypher** — none (filesystem operation)
 
@@ -1438,7 +1455,7 @@ Start a new four-loop migration session for a project.
 **Prompt text (actual):**
 
 ```
-Load skill://framework-migration/main.
+Load skill://framework-migration-plan/main.
 
 Migrate project '{project_id}' from {framework} {current_version} to {framework} {target_version}.
 
@@ -1464,7 +1481,7 @@ Resume a four-loop session from an existing `MigrationContext`.
 **Prompt text (actual):**
 
 ```
-Load skill://framework-migration/main.
+Load skill://framework-migration-plan/main.
 
 Resume migration context '{context_id}'.
 
@@ -1484,7 +1501,7 @@ Zero-parameter fallback for clients that do not support parameterised prompts. P
 **Prompt text (actual):**
 
 ```
-Load skill://framework-migration/main.
+Load skill://framework-migration-plan/main.
 
 I want to migrate this project from [framework] [current_version] to [target_version].
 Project ID: [your-project-id]
@@ -1594,23 +1611,25 @@ Five-step revert procedure invoked from Loop III when a build-and-test gate fail
 
 ## Tool Index
 
-| Tool | Loop | Purpose |
+| Tool | Stage | Purpose |
 |---|---|---|
-| `check_version_availability` | I | Resolve and validate framework versions |
-| `create_migration_context` | I | Create/resume session state |
-| `get_migration_contexts` | I, IV | List prior sessions for resume/supersede |
-| `analyze_upgrade_path` | II | Rules + lifecycle alerts for version range |
-| `get_steps_for_scope_tier` | II | Scope-tier step discovery |
-| `resolve_deprecation` | II | Single-hop deprecation lookup |
-| `entity_evolution` | II | Multi-hop replacement chain |
-| `search_migration_knowledge` | II | Hybrid BM25+vector search fallback |
-| `search_openrewrite_recipes` | II, III | Recipe discovery |
-| `resolve_paysafe_dependency_by_service_name` | II | Internal Paysafe dep resolution |
-| `update_queried_entity` | II | Cache query results on context |
-| `get_pending_steps` | III | Remaining execution queue |
-| `build_recipe_plan` | III | Auto/manual track plan |
-| `update_step_status` | III, IV | Record step outcomes |
-| `close_migration_context` | IV | End session |
+| `check_version_availability` | plan | Resolve and validate framework versions |
+| `create_migration_context` | plan | Create/resume session state; cache diagnostics |
+| `get_migration_contexts` | all | List prior sessions for resume/supersede |
+| `write_gap_check_flags` | gap-check | Persist gap-check findings on context |
+| `add_manual_step` | clarify | Add context-scoped manual migration step |
+| `analyze_upgrade_path` | plan | Rules + lifecycle alerts for version range |
+| `get_steps_for_scope_tier` | plan, gap-check | Scope-tier step discovery |
+| `resolve_deprecation` | plan, execute | Single-hop deprecation lookup |
+| `entity_evolution` | plan, execute | Multi-hop replacement chain |
+| `search_migration_knowledge` | plan, execute | Hybrid BM25+vector search fallback |
+| `search_openrewrite_recipes` | plan, execute | Recipe discovery |
+| `resolve_paysafe_dependency_by_service_name` | plan | Internal Paysafe dep resolution |
+| `update_queried_entity` | plan, clarify | Cache query results; force-include excluded rules |
+| `get_pending_steps` | gap-check, clarify, preview, execute | Remaining execution queue |
+| `build_recipe_plan` | plan, execute | Auto/manual track plan |
+| `update_step_status` | clarify, execute | Record step outcomes (incl. `excluded`) |
+| `close_migration_context` | feedback | End session |
 | `submit_migration_insight` | IV | Write community knowledge back |
 | `get_community_insights` | — | Read community rules |
 | `vote_insight` / `verify_insight` | — | Community moderation |

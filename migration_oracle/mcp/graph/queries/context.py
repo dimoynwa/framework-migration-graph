@@ -29,7 +29,10 @@ ON CREATE SET
   ctx.skippedSteps = [],
   ctx.failedSteps = [],
   ctx.deferredSteps = [],
+  ctx.excludedSteps = [],
   ctx.queriedEntities = '{}',
+  ctx.gapCheckFlags = '[]',
+  ctx.forceIncludedEntities = [],
   ctx.createdAt = datetime(),
   ctx.updatedAt = datetime(),
   ctx.completedAt = null,
@@ -80,7 +83,9 @@ WITH ctx,
      count(CASE WHEN so.status = 'completed' THEN 1 END) AS completed_count,
      count(CASE WHEN so.status = 'failed'    THEN 1 END) AS failed_count,
      count(CASE WHEN so.status = 'skipped'   THEN 1 END) AS skipped_count,
-     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count
+     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count,
+     count(CASE WHEN so.status = 'excluded'  THEN 1 END) AS excluded_count,
+     (ctx.gapCheckFlags IS NOT NULL AND ctx.gapCheckFlags <> '[]') AS has_gap_check_flags
 
 RETURN
   elementId(ctx)          AS id,
@@ -94,9 +99,41 @@ RETURN
   completed_count,
   failed_count,
   skipped_count,
-  deferred_count
+  deferred_count,
+  excluded_count,
+  has_gap_check_flags
 
 ORDER BY ctx.createdAt DESC
+"""
+
+_GET_CONTEXT_BY_ID = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+
+OPTIONAL MATCH (ctx)-[so:STEP_OUTCOME]->(:MigrationStep)
+WITH ctx,
+     count(CASE WHEN so.status = 'completed' THEN 1 END) AS completed_count,
+     count(CASE WHEN so.status = 'failed'    THEN 1 END) AS failed_count,
+     count(CASE WHEN so.status = 'skipped'   THEN 1 END) AS skipped_count,
+     count(CASE WHEN so.status = 'deferred'  THEN 1 END) AS deferred_count,
+     count(CASE WHEN so.status = 'excluded'  THEN 1 END) AS excluded_count,
+     (ctx.gapCheckFlags IS NOT NULL AND ctx.gapCheckFlags <> '[]') AS has_gap_check_flags
+
+RETURN
+  elementId(ctx)          AS id,
+  ctx.projectId           AS projectId,
+  ctx.fromVersion         AS fromVersion,
+  ctx.toVersion           AS toVersion,
+  ctx.framework           AS framework,
+  ctx.status              AS status,
+  toString(ctx.createdAt) AS createdAt,
+  toString(ctx.updatedAt) AS updatedAt,
+  completed_count,
+  failed_count,
+  skipped_count,
+  deferred_count,
+  excluded_count,
+  has_gap_check_flags
+LIMIT 1
 """
 
 _GET_PENDING_STEPS = """
@@ -111,6 +148,7 @@ WHERE NOT elementId(s) IN ctx.completedSteps
   AND NOT elementId(s) IN ctx.skippedSteps
   AND NOT elementId(s) IN coalesce(ctx.failedSteps, [])
   AND NOT elementId(s) IN coalesce(ctx.deferredSteps, [])
+  AND NOT elementId(s) IN coalesce(ctx.excludedSteps, [])
   AND (size($effort_filter) = 0 OR s.effort IN $effort_filter)
 
 OPTIONAL MATCH (r)-[:HAS_SCOPE]->(bs:BreakingScope)
@@ -127,6 +165,7 @@ WITH ctx, r, s, sev_rank, scope, severity,
      coalesce(ctx.scannedDepsGa,       []) AS sc_dga,
      coalesce(ctx.scannedDepArtifacts, []) AS sc_da,
      coalesce(ctx.scannedProps,        []) AS sc_p,
+     coalesce(ctx.forceIncludedEntities, []) AS force_included,
      (size(coalesce(ctx.scannedClasses, [])) > 0
        OR size(coalesce(ctx.scannedClassSimple, [])) > 0
        OR size(coalesce(ctx.scannedDepsGa, [])) > 0
@@ -134,7 +173,7 @@ WITH ctx, r, s, sev_rank, scope, severity,
        OR size(coalesce(ctx.scannedProps, [])) > 0) AS has_filter
 
 OPTIONAL MATCH (r)-[:AFFECTS_CLASS|AFFECTS_PROPERTY|AFFECTS_DEPENDENCY]->(e)
-WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filter, e,
+WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filter, force_included, e,
      CASE
        WHEN e IS NULL THEN false
        WHEN e:Class THEN
@@ -163,14 +202,16 @@ WITH r, s, sev_rank, scope, severity, sc_c, sc_cs, sc_dga, sc_da, sc_p, has_filt
        ELSE false
      END AS entity_match
 
-WITH r, s, sev_rank, scope, severity, has_filter,
+WITH r, s, sev_rank, scope, severity, has_filter, force_included,
      count(DISTINCT e)                             AS affected_count,
-     sum(CASE WHEN entity_match THEN 1 ELSE 0 END) AS match_count
+     sum(CASE WHEN entity_match THEN 1 ELSE 0 END) AS match_count,
+     sum(CASE WHEN e IS NOT NULL AND e.name IN force_included THEN 1 ELSE 0 END) AS force_match_count
 
 WITH r, s, sev_rank, scope, severity,
      CASE WHEN affected_count = 0 THEN 'informational'
           WHEN NOT has_filter     THEN 'universal'
           WHEN match_count > 0    THEN 'matched'
+          WHEN force_match_count > 0 THEN 'matched'
           WHEN sev_rank <= 1      THEN 'uncertain'
           ELSE                         'excluded' END AS applicability
 WHERE applicability <> 'excluded'
@@ -194,6 +235,37 @@ RETURN elementId(s) AS step_id,
 ORDER BY _severity_rank ASC, _step_index ASC
 """
 
+_GET_PENDING_MANUAL_STEPS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+MATCH (ctx)-[:OWNS_STEP]->(s:MigrationStep {origin: "manual"})
+WHERE NOT elementId(s) IN ctx.completedSteps
+  AND NOT elementId(s) IN ctx.skippedSteps
+  AND NOT elementId(s) IN coalesce(ctx.failedSteps, [])
+  AND NOT elementId(s) IN coalesce(ctx.deferredSteps, [])
+  AND NOT elementId(s) IN coalesce(ctx.excludedSteps, [])
+  AND (size($effort_filter) = 0 OR s.effort IN $effort_filter)
+  AND (size($scope_filter) = 0 OR coalesce(s.scope, '') IN $scope_filter)
+RETURN elementId(s) AS step_id,
+       s.stepType    AS step_type,
+       coalesce(s.ruleId, 'manual') AS rule_id,
+       s.summary     AS summary,
+       s.instruction AS instruction,
+       s.verificationHint AS verification_hint,
+       s.effort      AS effort,
+       coalesce(s.automatable, false) AS automatable,
+       coalesce(s.scope, 'config') AS scope,
+       coalesce(s.severity, 'medium') AS severity,
+       'manual' AS applicability,
+       s.origin AS origin,
+       null AS recipe_id,
+       coalesce(s.stepIndex, 9999) AS _step_index,
+       CASE coalesce(s.severity, 'medium')
+         WHEN 'critical' THEN 0 WHEN 'high' THEN 1
+         WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END AS _severity_rank,
+       [] AS requires
+ORDER BY _severity_rank ASC, _step_index ASC
+"""
+
 _RECORD_STEP_OUTCOME = """
 MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
 SET ctx.completedSteps = CASE $outcome WHEN 'completed'
@@ -204,6 +276,8 @@ SET ctx.completedSteps = CASE $outcome WHEN 'completed'
     THEN coalesce(ctx.failedSteps, []) + [$step_id] ELSE coalesce(ctx.failedSteps, []) END,
     ctx.deferredSteps = CASE $outcome WHEN 'deferred'
     THEN coalesce(ctx.deferredSteps, []) + [$step_id] ELSE coalesce(ctx.deferredSteps, []) END,
+    ctx.excludedSteps = CASE $outcome WHEN 'excluded'
+    THEN coalesce(ctx.excludedSteps, []) + [$step_id] ELSE coalesce(ctx.excludedSteps, []) END,
     ctx.updatedAt = datetime()
 WITH ctx
 MATCH (step:MigrationStep) WHERE elementId(step) = $step_id
@@ -215,6 +289,19 @@ RETURN elementId(ctx) AS context_id,
        size(ctx.completedSteps) AS completed_count,
        size(ctx.skippedSteps) AS skipped_count,
        ctx.status AS migration_status
+"""
+
+_CHECK_STEP_ON_PATH = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+OPTIONAL MATCH (ctx)-[:OWNS_STEP]->(owned:MigrationStep)
+  WHERE elementId(owned) = $step_id
+OPTIONAL MATCH (ctx)-[:UPGRADES_FROM]->(from_v:Version)
+OPTIONAL MATCH (ctx)-[:UPGRADES_TO]->(to_v:Version)
+OPTIONAL MATCH (v:Version)-[:INCLUDES_RULE]->(:MigrationRule)-[:REQUIRES_STEP]->(pathStep:MigrationStep)
+  WHERE elementId(pathStep) = $step_id
+    AND v.sortableVersion > from_v.sortableVersion
+    AND v.sortableVersion <= to_v.sortableVersion
+RETURN owned IS NOT NULL OR pathStep IS NOT NULL AS on_path
 """
 
 _AUTO_CLOSE_WRITE = """
@@ -388,24 +475,55 @@ def get_migration_contexts(
     return rows
 
 
+def get_context_by_id(*, context_id: str) -> dict | None:
+    with read_session() as session:
+        record = session.run(_GET_CONTEXT_BY_ID, context_id=context_id).single()
+    if record is None:
+        return None
+    return dict(record)
+
+
 def get_pending_steps(
     *,
     context_id: str,
     effort_filter: list[str] | None = None,
     scope_filter: list[str] | None = None,
 ) -> list[dict]:
+    params = {
+        "context_id": context_id,
+        "effort_filter": effort_filter or [],
+        "scope_filter": scope_filter or [],
+    }
     with read_session() as session:
-        rows = [
+        graph_rows = [
             dict(row)
-            for row in session.run(
-                _GET_PENDING_STEPS,
-                context_id=context_id,
-                effort_filter=effort_filter or [],
-                scope_filter=scope_filter or [],
-            )
+            for row in session.run(_GET_PENDING_STEPS, **params)
+        ]
+        manual_rows = [
+            dict(row)
+            for row in session.run(_GET_PENDING_MANUAL_STEPS, **params)
         ]
     _internal = {"_step_index", "_severity_rank"}
-    return [{k: v for k, v in row.items() if k not in _internal} for row in rows]
+    combined = graph_rows + manual_rows
+    combined.sort(
+        key=lambda r: (
+            r.get("_severity_rank", 4),
+            r.get("_step_index", 9999),
+        )
+    )
+    return [{k: v for k, v in row.items() if k not in _internal} for row in combined]
+
+
+def step_on_path_or_owned(*, context_id: str, step_id: str) -> bool:
+    with read_session() as session:
+        record = session.run(
+            _CHECK_STEP_ON_PATH,
+            context_id=context_id,
+            step_id=step_id,
+        ).single()
+    if record is None:
+        return False
+    return bool(record.get("on_path"))
 
 
 def record_step_outcome(
@@ -415,6 +533,8 @@ def record_step_outcome(
     outcome: str,
     reason: str = "",
 ) -> dict:
+    if not step_on_path_or_owned(context_id=context_id, step_id=step_id):
+        return {"on_path": False}
     with write_session() as session:
         record = session.run(
             _RECORD_STEP_OUTCOME,
@@ -425,7 +545,9 @@ def record_step_outcome(
         ).single()
     if record is None:
         raise ValueError(f"Context not found: {context_id}")
-    return dict(record)
+    result = dict(record)
+    result["on_path"] = True
+    return result
 
 
 def auto_close_write(*, context_id: str) -> dict:
@@ -589,3 +711,190 @@ def close_migration_context(
     if record is None:
         raise ValueError(f"Context not found: {context_id}")
     return dict(record)
+
+
+_CONTEXT_EXISTS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+RETURN elementId(ctx) AS id, ctx.status AS status
+LIMIT 1
+"""
+
+_GET_CONTEXT_METADATA = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+RETURN elementId(ctx) AS context_id,
+       ctx.projectId AS project_id,
+       ctx.fromVersion AS from_version,
+       ctx.toVersion AS to_version,
+       ctx.framework AS framework,
+       ctx.status AS status,
+       ctx.mode AS mode,
+       coalesce(ctx.diagnostics, null) AS diagnostics,
+       coalesce(ctx.gapCheckFlags, '[]') AS gap_check_flags
+"""
+
+_SET_DIAGNOSTICS_ON_CREATE = """
+MATCH (ctx:MigrationContext)
+WHERE elementId(ctx) = $context_id AND ctx.diagnostics IS NULL
+SET ctx.diagnostics = $diagnostics_json
+RETURN 1
+"""
+
+_WRITE_GAP_CHECK_FLAGS = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+SET ctx.gapCheckFlags = $flags_json,
+    ctx.updatedAt = datetime()
+RETURN coalesce(ctx.gapCheckFlags, '[]') AS gap_check_flags
+"""
+
+_CREATE_MANUAL_STEP = """
+MATCH (ctx:MigrationContext)
+WHERE elementId(ctx) = $context_id AND ctx.status = 'in-progress'
+CREATE (s:MigrationStep {
+  origin: 'manual',
+  stepType: 'manual',
+  summary: $summary,
+  instruction: $instruction,
+  verificationHint: '',
+  effort: $effort,
+  automatable: false,
+  scope: coalesce($file_pattern, 'config'),
+  severity: $severity_hint,
+  stepIndex: 9999
+})
+CREATE (ctx)-[:OWNS_STEP]->(s)
+RETURN elementId(s) AS step_id, s.summary AS summary
+"""
+
+_FORCE_INCLUDE_ENTITY = """
+MATCH (ctx:MigrationContext) WHERE elementId(ctx) = $context_id
+SET ctx.forceIncludedEntities = coalesce(ctx.forceIncludedEntities, []) + [$entity_name],
+    ctx.updatedAt = datetime()
+RETURN size(ctx.forceIncludedEntities) AS force_included_count
+"""
+
+_GET_IN_PROGRESS_CONTEXTS = """
+MATCH (ctx:MigrationContext)
+WHERE ($project_id IS NULL OR ctx.projectId = $project_id)
+  AND ctx.status = 'in-progress'
+RETURN elementId(ctx) AS context_id,
+       ctx.projectId AS project_id,
+       ctx.fromVersion AS from_version,
+       ctx.toVersion AS to_version,
+       ctx.framework AS framework
+ORDER BY ctx.updatedAt DESC
+"""
+
+
+def context_exists(*, context_id: str) -> bool:
+    with read_session() as session:
+        record = session.run(_CONTEXT_EXISTS, context_id=context_id).single()
+    return record is not None
+
+
+def get_context_metadata(*, context_id: str) -> dict | None:
+    with read_session() as session:
+        record = session.run(_GET_CONTEXT_METADATA, context_id=context_id).single()
+    if record is None:
+        return None
+    return dict(record)
+
+
+def set_diagnostics_on_create(*, context_id: str, diagnostics: dict) -> None:
+    import json
+
+    with write_session() as session:
+        session.run(
+            _SET_DIAGNOSTICS_ON_CREATE,
+            context_id=context_id,
+            diagnostics_json=json.dumps(diagnostics),
+        ).single()
+
+
+def write_gap_check_flags(
+    *,
+    context_id: str,
+    flags: list[dict],
+    overwrite: bool = False,
+) -> list[dict]:
+    import json
+
+    existing: list[dict] = []
+    if not overwrite:
+        meta = get_context_metadata(context_id=context_id)
+        if meta is not None:
+            raw = meta.get("gap_check_flags") or "[]"
+            try:
+                existing = json.loads(raw)
+            except (ValueError, TypeError):
+                existing = []
+
+    merged = list(existing)
+    seen = {
+        (f.get("type"), f.get("reference"), f.get("message"))
+        for f in existing
+    }
+    for flag in flags:
+        key = (flag.get("type"), flag.get("reference"), flag.get("message"))
+        if key not in seen:
+            merged.append(flag)
+            seen.add(key)
+
+    with write_session() as session:
+        record = session.run(
+            _WRITE_GAP_CHECK_FLAGS,
+            context_id=context_id,
+            flags_json=json.dumps(merged),
+        ).single()
+    if record is None:
+        raise ValueError(f"Context not found: {context_id}")
+    return merged
+
+
+def add_manual_step(
+    *,
+    context_id: str,
+    summary: str,
+    instruction: str,
+    file_pattern: str | None = None,
+    effort: str = "moderate",
+    severity_hint: str = "medium",
+) -> dict:
+    with write_session() as session:
+        record = session.run(
+            _CREATE_MANUAL_STEP,
+            context_id=context_id,
+            summary=summary,
+            instruction=instruction,
+            file_pattern=file_pattern,
+            effort=effort,
+            severity_hint=severity_hint,
+        ).single()
+    if record is None:
+        meta = get_context_metadata(context_id=context_id)
+        if meta is None:
+            raise ValueError(f"Context not found: {context_id}")
+        if meta.get("status") != "in-progress":
+            raise ValueError(f"Context '{context_id}' is not in-progress")
+        raise RuntimeError(f"Failed to add manual step to context '{context_id}'")
+    return dict(record)
+
+
+def force_include_entity(*, context_id: str, entity_name: str) -> int:
+    with write_session() as session:
+        record = session.run(
+            _FORCE_INCLUDE_ENTITY,
+            context_id=context_id,
+            entity_name=entity_name,
+        ).single()
+    if record is None:
+        raise ValueError(f"Context not found: {context_id}")
+    return int(record.get("force_included_count") or 0)
+
+
+def get_in_progress_contexts(*, project_id: str | None = None) -> list[dict]:
+    with read_session() as session:
+        rows = [
+            dict(row)
+            for row in session.run(_GET_IN_PROGRESS_CONTEXTS, project_id=project_id)
+        ]
+    return rows

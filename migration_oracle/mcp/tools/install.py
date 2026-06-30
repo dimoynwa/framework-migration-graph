@@ -13,12 +13,26 @@ _SKILLS_DIR = Path(__file__).resolve().parent.parent / "skills"
 
 # Maps bundle name → list of (source filename under _SKILLS_DIR, relative output path).
 SKILL_BUNDLES: dict[str, list[tuple[str, str]]] = {
-    "framework-migration": [
-        ("framework_migration_main.md", "SKILL.md"),
-        ("framework_migration_scanning.md", "references/scanning.md"),
-        ("framework_migration_plan_format.md", "references/plan-format.md"),
-        ("framework_migration_version_map.md", "references/version-map.md"),
-        ("framework_migration_rollback.md", "references/rollback.md"),
+    "framework-migration-plan": [
+        ("framework_migration_plan.md", "framework-migration-plan/SKILL.md"),
+        ("framework_migration_scanning.md", "framework-migration-plan/references/scanning.md"),
+        ("framework_migration_version_map.md", "framework-migration-plan/references/version-map.md"),
+    ],
+    "framework-migration-gap-check": [
+        ("framework_migration_gap_check.md", "framework-migration-gap-check/SKILL.md"),
+    ],
+    "framework-migration-clarify": [
+        ("framework_migration_clarify.md", "framework-migration-clarify/SKILL.md"),
+    ],
+    "framework-migration-preview": [
+        ("framework_migration_preview.md", "framework-migration-preview/SKILL.md"),
+    ],
+    "framework-migration-execute": [
+        ("framework_migration_execute.md", "framework-migration-execute/SKILL.md"),
+        ("framework_migration_rollback.md", "framework-migration-execute/references/rollback.md"),
+    ],
+    "framework-migration-feedback": [
+        ("framework_migration_feedback.md", "framework-migration-feedback/SKILL.md"),
     ],
     "migration-lite": [
         ("migration_lite_main.md", "migration-lite/SKILL.md"),
@@ -32,24 +46,26 @@ SKILL_BUNDLES: dict[str, list[tuple[str, str]]] = {
 }
 
 MODE_BUNDLES: dict[str, list[str]] = {
-    "full": ["framework-migration"],
+    "full": [
+        "framework-migration-plan",
+        "framework-migration-gap-check",
+        "framework-migration-clarify",
+        "framework-migration-preview",
+        "framework-migration-execute",
+        "framework-migration-feedback",
+    ],
     "lite": ["migration-lite", "openrewrite-runner"],
 }
 
 _CURSOR_DIR = "~/.cursor/skills"
 _CLAUDE_DIR = "~/.claude/skills"
-_CURSOR_FRAMEWORK_DIR = "~/.cursor/skills/framework-migration"
-_CLAUDE_FRAMEWORK_DIR = "~/.claude/skills/framework-migration"
 
 
 def _resolve_target_dir(*, target: str, target_dir: str | None) -> Path:
     resolved = "cursor" if target in ("auto", "cursor") else "claude-code"
     if target_dir:
         return Path(target_dir).expanduser().resolve()
-    if MIGRATION_MODE == "full":
-        base = _CURSOR_FRAMEWORK_DIR if resolved == "cursor" else _CLAUDE_FRAMEWORK_DIR
-    else:
-        base = _CURSOR_DIR if resolved == "cursor" else _CLAUDE_DIR
+    base = _CURSOR_DIR if resolved == "cursor" else _CLAUDE_DIR
     return Path(base).expanduser().resolve()
 
 
@@ -115,7 +131,7 @@ def install_migration_skill(
 
     target: 'auto', 'cursor', or 'claude-code' — used to suggest the install directory.
             'auto' defaults to 'cursor'.
-    target_dir: override the install root directory (parent for lite bundles, bundle root for full).
+    target_dir: override the install root directory (skills parent for all bundles).
 
     Returns:
       status, target, installed_paths, message, mode, installed_skills
