@@ -50,6 +50,8 @@ add_manual_step(context_id, summary, instruction, file_pattern?, effort?, severi
 
 Creates a `MigrationStep` with `origin="manual"` scoped via `OWNS_STEP` to this context only.
 
+*Origin Preservation Rule:* This operation is the explicit, audited point where a relevance-index entry crosses over into a concrete task. The resulting step's `origin="manual"` must NEVER be retroactively rewritten to `origin="graph"` by any stage, even if community insights later formalize the same fix in the graph. This is a hard, irreversible constraint.
+
 ### Exclude steps
 
 ```

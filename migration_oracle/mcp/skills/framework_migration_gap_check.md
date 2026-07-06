@@ -52,6 +52,8 @@ Call `get_pending_steps(context_id)` and flag steps with `applicability="uncerta
 
 Use `get_steps_for_scope_tier` per scope tier. Flag rules with entity hits but no linked `MigrationStep`.
 
+*Plan Rendering Note:* This pre-existing check is the actual enforcement mechanism for surfacing `RELEVANCE-INDEX ENTRY` candidates (the `NEEDS-INVESTIGATION` population) to a human. Do not introduce any new checks or modify the `write_gap_check_flags` payload shape.
+
 ### Bridge-eligibility (full mode only)
 
 Flag rules with `BRIDGED_BY` edges where the required change step is still pending.

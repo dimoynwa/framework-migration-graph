@@ -37,6 +37,8 @@ Group steps by risk label:
 
 Within each group, list: summary, instruction (truncated if long), effort, applicability, origin (`graph` or `manual`).
 
+*Provenance Rendering:* It is **mandatory** to visibly display the `origin` field (`graph` or `manual`) for every rendered step line-item. A manual-origin step must never be visually indistinguishable from a graph-verified one.
+
 ## Gap-check caveats
 
 If `gapCheckFlags` is non-empty, render a **Caveats** section before the plan body.
