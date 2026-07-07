@@ -104,4 +104,15 @@ Call `create_migration_context` with the scanned entity list. Surface `co_migrat
 
 **Skip guard:** Check `ctx.queriedEntities[entity_name]` before any tool call. After each successful query, call `update_queried_entity(context_id, entity_name, result_summary)`.
 
+**Plan Classification:** After each successful query, before calling `update_queried_entity`, classify the matched rule into exactly one of five outcomes based on its `entityClassification`, `steps[]`, `applicability`, and `BRIDGED_BY`:
+1. `CONCRETE TASK`: `entityClassification="actionable"` AND ≥1 step with non-empty instructions AND matched exact entity.
+2. `CONCRETE TASK (NEEDS-DESIGN-REVIEW)`: Same as #1, but `effort="architectural"` OR instruction is generic.
+3. `RELEVANCE-INDEX ENTRY`: `entityClassification="incomplete"`.
+4. `RELEVANCE-INDEX ENTRY (uncertain)`: `applicability="uncertain"`.
+5. `PLACEHOLDER`: Rule has a `BRIDGED_BY` edge and its step is marked deferred.
+
+If a rule has anomalous or missing required fields, default to `UNCLASSIFIED`.
+
+Append a plain-text suffix identifying this classification (e.g., `... → TASK` or `... → NEEDS-INVESTIGATION`) to the `result_summary` argument of `update_queried_entity`. The classification suffix is strictly a non-gating label; it must NOT filter rules from being cached and must NEVER mutate the `applicability` field. No new parameters may be added to `update_queried_entity`.
+
 **Paysafe errors:** On `auth_error` or `transport_error`, log remediation steps, emit backlog items, continue — do not halt Loop II.
