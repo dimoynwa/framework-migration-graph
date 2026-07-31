@@ -50,12 +50,24 @@ MAVEN_KEEP = re.compile(
     r"|org\.flywaydb|org\.liquibase|org\.apache\.tomcat|org\.eclipse\.jetty"
     r"|io\.undertow)\."
 )
-GRADLE_DEP_RE = re.compile(r"['\"]([a-zA-Z][\w.-]+:[a-zA-Z][\w.-]+):[^\s\"']+['\"]")
+PAYSAFE_GROUP_RE = re.compile(r"^com\.paysafe(?:\.|:)")
+GRADLE_DEP_RE = re.compile(
+    r"['\"]([a-zA-Z][\w.-]+):([a-zA-Z][\w.-]+):([^'\")\s]+)['\"]"
+)
+GRADLE_DEP_NO_VERSION_RE = re.compile(
+    r"['\"]([a-zA-Z][\w.-]+):([a-zA-Z][\w.-]+)['\"]"
+)
+GRADLE_VAR_RE = re.compile(r"\b(?:def\s+)?([A-Za-z_][\w.-]*)\s*=\s*['\"]([^'\"]+)['\"]")
+GRADLE_ASSIGN_RE = re.compile(r"^\s*([A-Za-z_][\w.-]*)\s*=", re.MULTILINE)
+GRADLE_GROUP_REF_RE = re.compile(
+    r"details\.requested\.group(?:\.startsWith)?\(['\"]([^'\"]+)['\"]\)"
+)
 
 
 class ScanResult(NamedTuple):
     entities: list[str]
     test_entities: list[str]
+    paysafe_dependencies: list[dict[str, str | None]]
     extractor_path: str  # always "python"
     warnings: list[str]
 
@@ -186,8 +198,38 @@ def _scan_maven(root: Path) -> set[str]:
     return result
 
 
+def _scan_maven_paysafe(root: Path) -> list[dict[str, str | None]]:
+    """Collect com.paysafe dependency coordinates from pom.xml files with versions."""
+    result: dict[tuple[str, str], dict[str, str | None]] = {}
+    for pom in root.rglob("pom.xml"):
+        if "/target/" in str(pom) or "\\target\\" in str(pom):
+            continue
+        try:
+            tree = ET.parse(str(pom)).getroot()
+            for dep in tree.iter(MAVEN_NS + "dependency"):
+                g = dep.find(MAVEN_NS + "groupId")
+                a = dep.find(MAVEN_NS + "artifactId")
+                v = dep.find(MAVEN_NS + "version")
+                if g is None or a is None or not g.text or not a.text:
+                    continue
+                group = g.text.strip()
+                artifact = a.text.strip()
+                if not PAYSAFE_GROUP_RE.match(f"{group}:"):
+                    continue
+                result[(group, artifact)] = {
+                    "group": group,
+                    "artifact": artifact,
+                    "coordinate": f"{group}:{artifact}",
+                    "version": v.text.strip() if v is not None and v.text else None,
+                    "source": str(pom),
+                }
+        except Exception:
+            pass
+    return sorted(result.values(), key=lambda d: d["coordinate"] or "")
+
+
 def _scan_gradle(root: Path) -> set[str]:
-    """Collect groupId:artifactId from build.gradle(.kts) files."""
+    """Collect Gradle dependencies and migration-relevant build DSL tokens."""
     result: set[str] = set()
     for f in root.rglob("build.gradle*"):
         if "/.gradle/" in str(f) or "\\.gradle\\" in str(f):
@@ -197,10 +239,57 @@ def _scan_gradle(root: Path) -> set[str]:
         except OSError:
             continue
         for m in GRADLE_DEP_RE.finditer(text):
-            gav = m.group(1)
+            gav = f"{m.group(1)}:{m.group(2)}"
             if MAVEN_KEEP.match(gav):
                 result.add(gav)
+        for m in GRADLE_DEP_NO_VERSION_RE.finditer(text):
+            gav = f"{m.group(1)}:{m.group(2)}"
+            if MAVEN_KEEP.match(gav):
+                result.add(gav)
+        for m in GRADLE_ASSIGN_RE.finditer(text):
+            result.add(m.group(1))
+        for m in GRADLE_GROUP_REF_RE.finditer(text):
+            group = m.group(1)
+            if ALLOW_LIST.match(group):
+                result.add(group)
     return result
+
+
+def _scan_gradle_paysafe(root: Path) -> list[dict[str, str | None]]:
+    """Collect com.paysafe dependency coordinates from Gradle files with versions."""
+    result: dict[tuple[str, str], dict[str, str | None]] = {}
+    for f in root.rglob("build.gradle*"):
+        if "/.gradle/" in str(f) or "\\.gradle\\" in str(f):
+            continue
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        variables = {m.group(1): m.group(2) for m in GRADLE_VAR_RE.finditer(text)}
+        for m in GRADLE_DEP_RE.finditer(text):
+            group, artifact, version = m.group(1), m.group(2), m.group(3)
+            if not PAYSAFE_GROUP_RE.match(f"{group}:"):
+                continue
+            resolved_version = _resolve_gradle_version(version, variables)
+            result[(group, artifact)] = {
+                "group": group,
+                "artifact": artifact,
+                "coordinate": f"{group}:{artifact}",
+                "version": resolved_version,
+                "source": str(f),
+            }
+    return sorted(result.values(), key=lambda d: d["coordinate"] or "")
+
+
+def _resolve_gradle_version(version: str, variables: dict[str, str]) -> str:
+    """Resolve simple ${var} Gradle version interpolations from the same file."""
+    match = re.fullmatch(r"\$\{([^}]+)\}", version)
+    if match:
+        return variables.get(match.group(1), version)
+    bare_match = re.fullmatch(r"\$([A-Za-z_][\w.-]*)", version)
+    if bare_match:
+        return variables.get(bare_match.group(1), version)
+    return version
 
 
 def scan(project_root: str) -> ScanResult:
@@ -212,12 +301,14 @@ def scan(project_root: str) -> ScanResult:
     properties = _scan_properties(root, warnings)
     maven_deps = _scan_maven(root)
     gradle_deps = _scan_gradle(root)
+    paysafe_dependencies = _scan_maven_paysafe(root) + _scan_gradle_paysafe(root)
 
     entities = sorted(main_imports | annotations | properties | maven_deps | gradle_deps)
     test_entities = sorted(test_imports)
     return ScanResult(
         entities=entities,
         test_entities=test_entities,
+        paysafe_dependencies=paysafe_dependencies,
         extractor_path="python",
         warnings=warnings,
     )
@@ -231,9 +322,11 @@ if __name__ == "__main__":
             {
                 "entities": result.entities,
                 "testEntities": result.test_entities,
+                "paysafeDependencies": result.paysafe_dependencies,
                 "extractorPath": result.extractor_path,
                 "warnings": result.warnings,
                 "count": len(result.entities),
+                "paysafeDependencyCount": len(result.paysafe_dependencies),
             },
             indent=2,
         )

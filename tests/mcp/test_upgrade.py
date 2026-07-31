@@ -144,8 +144,8 @@ def test_build_recipe_plan_action_step_in_rule_card():
 
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
-def test_build_recipe_plan_dependency_bridge_applicability(mock_session_ctx):
-    """Dependency-only rule: Cypher bridge marks matched; matched_entities populated."""
+def test_build_recipe_plan_dependency_only_rule_requires_declared_dependency(mock_session_ctx):
+    """Dependency-only rule without a scanned dependency is not executable work."""
     row = {
         "step_id": "step-bridge-1",
         "rule_id": "pipeline://Spring Boot/4.0.0/Web change",
@@ -188,7 +188,7 @@ def test_build_recipe_plan_dependency_bridge_applicability(mock_session_ctx):
         has_entity_filter=True,
     )
 
-    assert len(result["manual_track"]) == 1
-    step = result["manual_track"][0]
+    assert result["manual_track"] == []
+    step = result["relevance_index"][0]
     assert step["applicability"] == "matched"
-    assert "org.springframework.web.bind.annotation.RestController" in step["matched_entities"]
+    assert step["matched_entities"] == []

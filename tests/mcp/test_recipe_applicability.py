@@ -68,9 +68,8 @@ def test_applicable_steps(mock_session_ctx):
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
 def test_not_applicable_steps(mock_session_ctx):
-    # Excluded rows are filtered in Cypher (WHERE applicability <> 'excluded').
-    # When the mock returns an excluded row it still comes through, so we verify
-    # applicability is passed through as-is and matched_entities is empty.
+    # Excluded rows are normally filtered in Cypher. If a mocked unanchored row reaches
+    # Python while user entities are present, it must not become executable work.
     rows = [_make_row("s1", "Fix Foo", ["com.example.Foo"], applicability="excluded")]
     _configure_build_recipe_plan_mock(mock_session_ctx, rows)
 
@@ -88,8 +87,34 @@ def test_not_applicable_steps(mock_session_ctx):
         has_entity_filter=True,
     )
 
-    assert result["manual_track"][0]["applicability"] == "excluded"
-    assert result["manual_track"][0]["matched_entities"] == []
+    assert result["manual_track"] == []
+    assert result["relevance_index"][0]["applicability"] == "excluded"
+    assert result["relevance_index"][0]["matched_entities"] == []
+
+
+@patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
+def test_informational_steps_go_to_relevance_index_when_scan_present(mock_session_ctx):
+    rows = [_make_row("s1", "Consider new feature", [], applicability="informational")]
+    _configure_build_recipe_plan_mock(mock_session_ctx, rows)
+
+    from migration_oracle.mcp.graph.queries.upgrade import build_recipe_plan
+
+    result = build_recipe_plan(
+        framework="spring-boot",
+        current_version="3.2.0",
+        target_version="3.3.0",
+        scanned_classes=["com.example.Foo"],
+        scanned_class_simple=["Foo"],
+        scanned_deps_ga=[],
+        scanned_dep_artifacts=[],
+        scanned_props=[],
+        has_entity_filter=True,
+    )
+
+    assert result["manual_track"] == []
+    assert result["auto_track"] == []
+    assert result["relevance_index"][0]["summary"] == "Consider new feature"
+    assert result["relevance_index"][0]["applicability"] == "informational"
 
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
@@ -115,8 +140,8 @@ def test_unknown_when_empty_entities(mock_session_ctx):
 
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")
-def test_build_recipe_plan_dependency_bridge_matched_entities(mock_session_ctx):
-    """Bridged Dependency-only rule inherits matched_entities on manual_track step."""
+def test_dependency_only_rule_without_declared_dependency_goes_to_relevance_index(mock_session_ctx):
+    """Dependency-only rules require a declared dependency, not just same-package classes."""
     rows = [
         _make_row(
             "s-web",
@@ -141,10 +166,10 @@ def test_build_recipe_plan_dependency_bridge_matched_entities(mock_session_ctx):
         has_entity_filter=True,
     )
 
-    step = result["manual_track"][0]
+    assert result["manual_track"] == []
+    step = result["relevance_index"][0]
     assert step["applicability"] == "matched"
-    assert step["matched_entities"]
-    assert "org.springframework.web.bind.annotation.RestController" in step["matched_entities"]
+    assert step["matched_entities"] == []
 
 
 @patch("migration_oracle.mcp.graph.queries.upgrade.read_session")

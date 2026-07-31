@@ -6,9 +6,10 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import NamedTuple
+from typing import Annotated, NamedTuple
 
 import requests
+from pydantic import Field
 
 from typing import Literal
 
@@ -27,7 +28,7 @@ def _to_minor_zero(version: str) -> str:
     return f"{parts[0]}.{parts[1]}.0"
 
 
-# Public alias — used by tools/context.py and tests
+# Public alias — used by tests
 to_minor_zero = _to_minor_zero
 
 
@@ -189,18 +190,54 @@ def _build_diagnostics(norm: dict, rules_included: int, excluded_count: int, unc
 
 @mcp.tool()
 def analyze_upgrade_path(
-    framework: str,
-    current_version: str,
-    target_version: str,
-    user_entities: list[str] | None = None,
-    format: str = "json",
-    classification: list[str] | None = None,
-    include_recipes: bool = False,
-    include_lifecycle: bool = True,
-    top_n: int = 50,
-    verbose: bool = False,
-    scope_filter: list[str] | None = None,
-    min_severity: str | None = None,
+    framework: Annotated[
+        str,
+        Field(description="Framework name for the migration range, for example 'Spring Boot'."),
+    ],
+    current_version: Annotated[
+        str,
+        Field(description="Source framework version to migrate from."),
+    ],
+    target_version: Annotated[
+        str,
+        Field(description="Target framework version to migrate to."),
+    ],
+    user_entities: Annotated[
+        list[str] | None,
+        Field(description="Optional scanned codebase entities: FQCNs, simple class names, group:artifact coordinates, artifact IDs, or property keys."),
+    ] = None,
+    format: Annotated[
+        str,
+        Field(description="'json' for structured output or 'markdown' for a concise Markdown summary."),
+    ] = "json",
+    classification: Annotated[
+        list[str] | None,
+        Field(description="Optional entityClassification filters such as 'actionable', 'incomplete', or 'informational'."),
+    ] = None,
+    include_recipes: Annotated[
+        bool,
+        Field(description="Include linked OpenRewrite recipe metadata for each migration rule when true."),
+    ] = False,
+    include_lifecycle: Annotated[
+        bool,
+        Field(description="Include lifecycle alerts for versions in the migration range when true."),
+    ] = True,
+    top_n: Annotated[
+        int,
+        Field(description="Maximum number of migration rules to return after filtering and ranking."),
+    ] = 50,
+    verbose: Annotated[
+        bool,
+        Field(description="Request verbose rule output when supported by downstream formatting."),
+    ] = False,
+    scope_filter: Annotated[
+        list[str] | None,
+        Field(description="Optional scopes: 'api-surface', 'runtime', 'config', 'build', or 'test'."),
+    ] = None,
+    min_severity: Annotated[
+        str | None,
+        Field(description="Optional minimum severity: 'low', 'medium', 'high', or 'critical'."),
+    ] = None,
 ) -> dict:
     """Return migration rules and lifecycle alerts for a framework version range.
 
@@ -287,44 +324,57 @@ if MIGRATION_MODE == "full":
 
     @mcp.tool()
     def build_recipe_plan(
-        current_version: str,
-        target_version: str,
-        framework: str = "Spring Boot",
-        user_entities: list[str] | None = None,
-        auto_only: bool = False,
-        classification: list[str] | None = None,
-        scope_filter: list[str] | None = None,
-        min_severity: str | None = None,
-        context_id: str | None = None,
+        current_version: Annotated[
+            str,
+            Field(description="Source framework version to migrate from."),
+        ],
+        target_version: Annotated[
+            str,
+            Field(description="Target framework version to migrate to."),
+        ],
+        framework: Annotated[
+            str,
+            Field(description="Framework name for the migration plan, for example 'Spring Boot'."),
+        ] = "Spring Boot",
+        user_entities: Annotated[
+            list[str] | None,
+            Field(description="Optional scanned codebase entities used to classify plan steps as matched, uncertain, excluded, informational, or universal."),
+        ] = None,
+        auto_only: Annotated[
+            bool,
+            Field(description="When true, omit the manual track and return only automatable recipe-backed work."),
+        ] = False,
+        classification: Annotated[
+            list[str] | None,
+            Field(description="Optional entityClassification filters such as 'actionable', 'incomplete', or 'informational'."),
+        ] = None,
+        scope_filter: Annotated[
+            list[str] | None,
+            Field(description="Optional scopes: 'api-surface', 'runtime', 'config', 'build', or 'test'."),
+        ] = None,
+        min_severity: Annotated[
+            str | None,
+            Field(description="Optional minimum severity: 'low', 'medium', 'high', or 'critical'."),
+        ] = None,
     ) -> dict:
         """Produce a two-track migration plan: auto (scriptable) and manual (human review required).
 
         Auto track: steps with automatable=true, effort=mechanical, and a linked OpenRewrite recipe.
         Manual track: all other steps. Falls back to rule-level cards when no MigrationStep nodes exist.
 
-        Returns: auto_track list, manual_track list, fallback_to_rule_cards bool.
+        Returns: auto_track list, manual_track list, relevance_index list,
+        fallback_to_rule_cards bool.
         An empty auto_track is expected in the first release (no AUTOMATED_BY edges yet).
+        When user_entities are provided, only direct matched rules are returned as executable
+        tracks; informational/uncertain graph rules stay in relevance_index for clarification.
         """
         norm = normalize_entities(user_entities or [])
         has_filter = _has_entity_filter(norm)
 
-        if context_id is not None:
-            from migration_oracle.mcp.graph.queries.context import get_context_version_bounds
-            bounds = get_context_version_bounds(context_id=context_id)
-            if bounds is not None:
-                from_ver = bounds["from_version"]
-                to_ver = bounds["to_version"]
-                framework = bounds.get("framework") or framework
-            else:
-                resolved_from = resolve_version(framework, current_version, mode="floor")
-                resolved_to = resolve_version(framework, target_version, mode="ceil")
-                from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
-                to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
-        else:
-            resolved_from = resolve_version(framework, current_version, mode="floor")
-            resolved_to = resolve_version(framework, target_version, mode="ceil")
-            from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
-            to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
+        resolved_from = resolve_version(framework, current_version, mode="floor")
+        resolved_to = resolve_version(framework, target_version, mode="ceil")
+        from_ver = resolved_from.resolvedVersion if not isinstance(resolved_from, VersionResolutionFailure) else _to_minor_zero(current_version)
+        to_ver = resolved_to.resolvedVersion if not isinstance(resolved_to, VersionResolutionFailure) else _to_minor_zero(target_version)
 
         plan = upgrade_queries.build_recipe_plan(
             framework=framework,
@@ -359,6 +409,7 @@ if MIGRATION_MODE == "full":
             "status": "ok",
             "auto_track": plan["auto_track"],
             "manual_track": manual_track,
+            "relevance_index": plan.get("relevance_index", []),
             "fallback_to_rule_cards": plan["fallback_to_rule_cards"],
         }
         recipe_diag = {
@@ -375,9 +426,18 @@ if MIGRATION_MODE == "full":
 
     @mcp.tool()
     def check_version_availability(
-        framework: str,
-        version: str,
-        direction: Literal["floor", "ceil"] = "floor",
+        framework: Annotated[
+            str,
+            Field(description="Framework name or accepted alias, for example 'Spring Boot', 'spring-boot', or 'springboot'."),
+        ],
+        version: Annotated[
+            str,
+            Field(description="Requested framework version to resolve in the graph and check on Maven Central."),
+        ],
+        direction: Annotated[
+            Literal["floor", "ceil"],
+            Field(description="'floor' resolves to the highest graph version <= requested; 'ceil' resolves to the lowest graph version >= requested."),
+        ] = "floor",
     ) -> dict:
         """Check whether a framework version exists in the graph and on Maven Central.
 

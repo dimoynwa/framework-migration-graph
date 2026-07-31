@@ -1,7 +1,4 @@
-"""Shared entity-match projection helpers.
-
-Mirrors entity-match CASE semantics in ``_GET_PENDING_STEPS`` (context.py L148-162).
-"""
+"""Shared entity-match projection helpers."""
 
 from __future__ import annotations
 
@@ -18,10 +15,6 @@ def _is_class_fqcn(name: str) -> bool:
     return ":" not in name and "." in name and name.rsplit(".", 1)[-1][:1].isupper()
 
 
-def _has_class_anchor(affected: list[str]) -> bool:
-    return any(_is_class_fqcn(a) for a in affected)
-
-
 def _all_scanned(norm: dict) -> set[str]:
     return set(
         (norm.get("scanned_classes") or [])
@@ -30,14 +23,6 @@ def _all_scanned(norm: dict) -> set[str]:
         + (norm.get("scanned_dep_artifacts") or [])
         + (norm.get("scanned_props") or [])
     )
-
-
-def _truncated_group_id_prefix(group_id: str) -> str:
-    """Strip last dot-segment of groupId — ``com.fasterxml.jackson.core`` → ``com.fasterxml.jackson.``."""
-    parts = group_id.split(".")
-    if len(parts) <= 1:
-        return group_id + "."
-    return ".".join(parts[:-1]) + "."
 
 
 def compute_matched_entities(rule: dict, norm: dict) -> list[str]:
@@ -98,7 +83,10 @@ def compute_matched_entities(rule: dict, norm: dict) -> list[str]:
     if match_count <= 0:
         return matched
 
-    # 2. Package-prefix bridges — align serializer with Cypher ``entity_match``
+    # 2. Class package-prefix bridge — align serializer with Cypher ``entity_match``.
+    # Dependency nodes only match explicit scanned build dependencies. Bridging a
+    # dependency groupId to arbitrary classes is too broad for project-specific plans
+    # (for example, any org.springframework.boot import would match any Boot starter).
     class_fqcns = [a for a in affected if _is_class_fqcn(a)]
 
     # Primary: derive prefix from Class anchor FQCNs in affected_entities
@@ -107,22 +95,5 @@ def compute_matched_entities(rule: dict, norm: dict) -> list[str]:
         for cls in scanned_classes:
             if cls.startswith(prefix):
                 _add(cls)
-
-    # Fallback: Dependency-only rules — groupId prefix (see _GET_PENDING_STEPS L155-161)
-    if not _has_class_anchor(affected):
-        for ae in affected:
-            if ":" not in ae or len(ae.split(":")) < 2:
-                continue
-            gid = ae.split(":")[0]
-            gid_prefix = gid + "."
-            for cls in scanned_classes:
-                if cls.startswith(gid_prefix):
-                    _add(cls)
-            # Truncated groupId (T046 / ISSUE-027): e.g. jackson.core → com.fasterxml.jackson.
-            if not any(cls.startswith(gid_prefix) for cls in scanned_classes):
-                truncated = _truncated_group_id_prefix(gid)
-                for cls in scanned_classes:
-                    if cls.startswith(truncated):
-                        _add(cls)
 
     return matched
