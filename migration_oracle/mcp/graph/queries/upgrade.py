@@ -217,13 +217,6 @@ WITH v, rule, sev_rank, scopes, e,
             (size(split(e.name, ':')) >= 2
                AND (split(e.name, ':')[0] + ':' + split(e.name, ':')[1]) IN $scanned_deps_ga)
          OR last(split(e.name, ':')) IN $scanned_dep_artifacts
-         OR (
-              NOT (rule)-[:AFFECTS_CLASS]->(:Class)
-              AND size(split(e.name, ':')) >= 2
-              AND any(cls IN $scanned_classes WHERE
-                cls STARTS WITH (split(e.name, ':')[0] + '.')
-              )
-            )
        ELSE false
      END AS entity_match
 
@@ -327,20 +320,6 @@ WITH v, rule, sev_rank, scope, severity, e,
             (size(split(e.name, ':')) >= 2
                AND (split(e.name, ':')[0]+':'+split(e.name, ':')[1]) IN $scanned_deps_ga)
          OR last(split(e.name, ':')) IN $scanned_dep_artifacts
-         // Package-prefix bridge: mirrored from _GET_PENDING_STEPS (context.py L148-162)
-         OR any(cls IN $scanned_classes WHERE
-              any(ruleClass IN [(rule)-[:AFFECTS_CLASS]->(rc:Class) | rc.name] WHERE
-                cls STARTS WITH (left(ruleClass,
-                  size(ruleClass) - size(split(ruleClass, '.')[size(split(ruleClass, '.'))-1]) - 1) + '.')
-              )
-            )
-         OR (
-              NOT (rule)-[:AFFECTS_CLASS]->(:Class)
-              AND size(split(e.name, ':')) >= 2
-              AND any(cls IN $scanned_classes WHERE
-                cls STARTS WITH (split(e.name, ':')[0] + '.')
-              )
-            )
        ELSE false
      END AS entity_match
 
@@ -481,6 +460,7 @@ def build_recipe_plan(
 
     auto_track: list[dict] = []
     manual_track: list[dict] = []
+    relevance_index: list[dict] = []
     has_steps = any(row.get("step_id") for row in rows)
     fallback_to_rule_cards = not has_steps
 
@@ -514,6 +494,26 @@ def build_recipe_plan(
             uncertain_count += 1
 
         matched_entities = compute_matched_entities(row, norm)
+        if has_entity_filter and (applicability != "matched" or not matched_entities):
+            rule_id = row.get("rule_id")
+            step_id = row.get("step_id") or ""
+            ri_key = f"{rule_id}:{step_id}"
+            if ri_key not in seen_step_ids:
+                seen_step_ids.add(ri_key)
+                relevance_index.append(
+                    {
+                        "step_id": step_id,
+                        "rule_id": rule_id,
+                        "summary": row.get("summary") or row.get("statement") or "",
+                        "instruction": row.get("instruction") or row.get("action_step") or "",
+                        "verification_hint": row.get("verification_hint") or "",
+                        "effort": row.get("effort") or "",
+                        "applicability": applicability,
+                        "matched_entities": matched_entities,
+                        "reason": "No direct scanned project entity matched this graph rule.",
+                    }
+                )
+            continue
 
         step_id = row.get("step_id")
         rule_id = row.get("rule_id")
@@ -583,6 +583,7 @@ def build_recipe_plan(
     return {
         "auto_track": auto_track,
         "manual_track": manual_track,
+        "relevance_index": relevance_index,
         "fallback_to_rule_cards": fallback_to_rule_cards,
         "rules_included": total_included,
         "excluded_count": excluded_count,
