@@ -2,7 +2,7 @@
 name: framework-migration-plan
 description: >
   Plan stage — scan codebase, query graph knowledge via the full escalation chain,
-  and emit ps-migration/ files (plan.md, tasks.md, verification.md skeleton).
+  and emit ps-migration/ files (plan.md, tasks.md, ignored-rules.md, verification.md skeleton).
 compatibility:
   tools:
     - analyze_upgrade_path
@@ -31,7 +31,8 @@ Invoked via `/migration-plan`. After plan completes, proceed to `/migration-gap-
 $PROJECT_ROOT/ps-migration/{framework}-{from}-to-{to}/
 ```
 
-Canonical schemas: Step 6 below (`plan.md`, `tasks.md`, `verification.md` emission sections).
+Canonical schemas: Step 6 below (`plan.md`, `tasks.md`, `ignored-rules.md`,
+`verification.md` emission sections).
 
 ## Graph boundary
 
@@ -297,7 +298,7 @@ before — no change to inline behaviour.
 Rules with `BRIDGED_BY` edges are rendered as ordinary TASK blocks with bridge context in
 the task instructions — there is no separate BRIDGE-NOTE render outcome.
 
-Write all three files conforming to Step 6 below:
+Write all four files conforming to Step 6 below:
 
 ### plan.md
 
@@ -343,6 +344,33 @@ When inline: `Research: inline` and no `Research-generated:` line.
 - Dependency TASK blocks for every unresolved or unverified `paysafeDependencies` entry,
   even when the graph returned zero migration rules.
 
+### ignored-rules.md
+
+Debug ledger for graph candidates that the skill intentionally did not render as tasks.
+Create this file on every plan run, even when it contains only the header and an empty
+table.
+
+- Header: Generated (ISO date), Project (absolute path), Framework, From/To, Source
+  (`inline` or accepted `research.md` path), Total ignored
+- Summary counts by reason, including at least: `legacy residue not found`,
+  `framework-generic anchor only`, `informational only`, `dependency coordinate absent`,
+  `no concrete migration step`, and `superseded by exact task`.
+- Candidate table with columns:
+  RuleID, Scope, Entity/Pattern, Source bucket (`manual_track`, `auto_track`, or
+  `relevance_index`), Entity classification, Applicability, Matched entities, Evidence
+  checked, Reason ignored, Reconsider when
+- `Evidence checked` MUST name the exact symbol/property/dependency/file-pattern test the
+  skill performed, for example `searched for addIfAbsent(`,
+  `searched imports for org.junit.Test`, or `checked build files for spring-boot-starter-webflux`.
+- `Reason ignored` MUST be project-specific, not generic. Prefer concrete reasons such as
+  `legacy residue not found in current scan/source`, `only @SpringBootApplication matched
+  but WebFlux client residue is absent`, or `rule is informational and has no
+  MigrationStep`.
+- Do not include Paysafe dependency resolver failures here; those are rendered as
+  dependency tasks in tasks.md.
+- Do not include RELEVANCE-INDEX (clarify) entries here unless the final render decision is
+  **IGNORED**. Ambiguous but plausible candidates remain in tasks.md's Relevance Index.
+
 ### verification.md
 
 - Levels 0–5 skeleton with exact placeholders: `{build command}`,
@@ -350,6 +378,7 @@ When inline: `Research: inline` and no `Research-generated:` line.
 - Level 0 populated from per-task Verify fields
 - Level 5-A/B/C derived from the Rule Ledger
 
-**Gate:** Do not proceed to `/migration-gap-check` until all three files exist, the Rule
-Ledger has classification and applicability columns fully populated, and every TASK block
-includes all required fields (including Applicability).
+**Gate:** Do not proceed to `/migration-gap-check` until all four files exist, the Rule
+Ledger has classification and applicability columns fully populated, every ignored graph
+candidate is recorded in ignored-rules.md with a project-specific reason, and every TASK
+block includes all required fields (including Applicability).

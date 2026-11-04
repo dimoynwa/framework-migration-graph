@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Annotated
+
+from pydantic import Field
 
 from migration_oracle.mcp.graph.queries import artifacts as artifact_queries
 from migration_oracle.mcp.instance import mcp
@@ -55,10 +58,22 @@ def list_pipeline_runs() -> dict:
 
 @mcp.tool()
 def get_artifact_content(
-    framework: str,
-    from_version: str,
-    to_version: str,
-    artifact_type: str,
+    framework: Annotated[
+        str,
+        Field(description="Framework name for the pipeline artifact, for example 'Spring Boot'."),
+    ],
+    from_version: Annotated[
+        str,
+        Field(description="Source version for the migration run; used for response metadata and artifact identity."),
+    ],
+    to_version: Annotated[
+        str,
+        Field(description="Target version whose Version node stores the artifact path."),
+    ],
+    artifact_type: Annotated[
+        str,
+        Field(description="'raw_md', 'filtered_md', or 'entities_json'. Paths are graph-resolved; callers cannot pass filesystem paths."),
+    ],
 ) -> dict:
     """Read a pipeline artifact by type. The file path is resolved from the graph — no direct path accepted.
 

@@ -30,3 +30,8 @@ artifacts/
 
 # Logs
 *.log
+
+# Scratch / generated artifacts
+probe-results/
+.agents/
+.claude/worktrees/

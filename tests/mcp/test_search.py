@@ -71,7 +71,7 @@ def test_embedding_model_loaded_once():
     mock_cls = MagicMock()
     mock_instance = MagicMock()
     mock_cls.return_value = mock_instance
-    with patch("migration_oracle.mcp.tools.search.SentenceTransformer", mock_cls):
+    with patch("sentence_transformers.SentenceTransformer", mock_cls):
         search_tools._model = None
         first = search_tools.get_embedding_model()
         second = search_tools.get_embedding_model()

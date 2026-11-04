@@ -2,10 +2,9 @@
 
 Full patterns for extracting entities in the exact formats the knowledge graph expects.
 
-This file feeds Loop I (Context) of the migration harness. Its single job is to produce a
+This file feeds the **plan** stage of the file-state migration harness. Its single job is to produce a
 list of codebase entities in the *exact string form the graph stores them as*, so the
-entity-matching logic in `analyze_upgrade_path`, `get_pending_steps`, and
-`get_steps_for_scope_tier` can do clean equality comparison. Matching is exact-string, not
+entity-matching logic in `analyze_upgrade_path` and `build_recipe_plan` can do clean equality comparison. Matching is exact-string, not
 fuzzy — every rule below exists to align the scan output with the stored form.
 
 ---
@@ -20,7 +19,7 @@ The scan result always includes an `extractorPath` field:
 | `"grep-gnu"` | GNU grep fast path used (Python unavailable) |
 | `"grep-bsd"` | BSD grep fast path used (Python unavailable, macOS) |
 
-**Primary extractor**: Python canonical (uses `pathlib.rglob`, `re`, `xml.etree.ElementTree`, `json`). Available on Python 3.8+. Run after Loop I Step 0 preflight confirms Python 3 is present.
+**Primary extractor**: Python canonical (uses `pathlib.rglob`, `re`, `xml.etree.ElementTree`, `json`). Available on Python 3.8+. Run after plan-stage preflight confirms Python 3 is present.
 
 **Optional fast path**: `grep -E` patterns documented below each section. Use only when Python is absent. BSD (macOS) and GNU (Linux) use identical `-E` flag — do **not** use `-P` (PCRE), which is GNU-only and absent on macOS.
 
@@ -28,17 +27,22 @@ The scan result always includes an `extractorPath` field:
 
 ## Python-Canonical Extractor (FR-E01, T041)
 
-The canonical extractor lives at `migration_oracle/mcp/skills/framework_scanner.py`. Run it directly:
+After full-mode install, the canonical extractor is available next to this file as
+`references/framework_scanner.py` (copied into `framework-migration-plan/references/`).
+From the installed plan bundle directory, run:
 
 ```bash
-python3 migration_oracle/mcp/skills/framework_scanner.py /path/to/project
+python3 references/framework_scanner.py /path/to/project
 ```
 
 It runs all entity-type passes and returns a structured scan result. When PyYAML is missing, the module installs it via `python -m pip install pyyaml` and continues YAML scanning.
 
+Development source (Migration Oracle checkout only — not the consumer-repo command):
+`migration_oracle/mcp/skills/framework-migration/framework_scanner.py`.
+
 ```python
-"""See migration_oracle/mcp/skills/framework_scanner.py for the full implementation."""
-from migration_oracle.mcp.skills.framework_scanner import scan, ScanResult
+"""See references/framework_scanner.py for the full implementation."""
+# Load via path: python3 references/framework_scanner.py <project>
 
 result = scan("/path/to/project")
 # result.entities, result.test_entities, result.extractor_path, result.warnings
@@ -82,12 +86,14 @@ MAVEN_KEEP = re.compile(
     r'|org\.flywaydb|org\.liquibase|org\.apache\.tomcat|org\.eclipse\.jetty'
     r'|io\.undertow)\.'
 )
-GRADLE_DEP_RE = re.compile(r'["\']([a-zA-Z][\w.-]+:[a-zA-Z][\w.-]+):[^\s"\']+["\']')
+GRADLE_DEP_RE = re.compile(r'["\']([a-zA-Z][\w.-]+):([a-zA-Z][\w.-]+):([^\'")\s]+)["\']')
+GRADLE_VAR_RE = re.compile(r'\b(?:def\s+)?([A-Za-z_][\w.-]*)\s*=\s*["\']([^"\']+)["\']')
 
 
 class ScanResult(NamedTuple):
     entities: list[str]
     test_entities: list[str]
+    paysafe_dependencies: list[dict[str, str | None]]
     extractor_path: str  # always "python"
 
 
@@ -170,6 +176,34 @@ def _scan_maven(root: Path) -> set[str]:
     return result
 
 
+def _scan_maven_paysafe(root: Path) -> list[dict[str, str | None]]:
+    """Collect com.paysafe dependency coordinates from pom.xml files with versions."""
+    result = {}
+    for pom in root.rglob('pom.xml'):
+        if '/target/' in str(pom) or '\\target\\' in str(pom):
+            continue
+        try:
+            tree = ET.parse(str(pom)).getroot()
+            for dep in tree.iter(MAVEN_NS + 'dependency'):
+                g = dep.find(MAVEN_NS + 'groupId')
+                a = dep.find(MAVEN_NS + 'artifactId')
+                v = dep.find(MAVEN_NS + 'version')
+                if g is not None and a is not None:
+                    group = g.text.strip()
+                    artifact = a.text.strip()
+                    if group.startswith('com.paysafe.'):
+                        result[(group, artifact)] = {
+                            'group': group,
+                            'artifact': artifact,
+                            'coordinate': f'{group}:{artifact}',
+                            'version': v.text.strip() if v is not None and v.text else None,
+                            'source': str(pom),
+                        }
+        except Exception:
+            pass
+    return sorted(result.values(), key=lambda d: d['coordinate'])
+
+
 def _scan_gradle(root: Path) -> set[str]:
     """Collect groupId:artifactId from build.gradle(.kts) files."""
     result: set[str] = set()
@@ -181,10 +215,37 @@ def _scan_gradle(root: Path) -> set[str]:
         except OSError:
             continue
         for m in GRADLE_DEP_RE.finditer(text):
-            gav = m.group(1)
+            gav = f'{m.group(1)}:{m.group(2)}'
             if MAVEN_KEEP.match(gav):
                 result.add(gav)
     return result
+
+
+def _scan_gradle_paysafe(root: Path) -> list[dict[str, str | None]]:
+    """Collect com.paysafe dependency coordinates from build.gradle(.kts) files with versions."""
+    result = {}
+    dep_re = re.compile(r"['\"]([a-zA-Z][\w.-]+):([a-zA-Z][\w.-]+):([^'\")\s]+)['\"]")
+    for f in root.rglob('build.gradle*'):
+        if '/.gradle/' in str(f) or '\\.gradle\\' in str(f):
+            continue
+        try:
+            text = f.read_text(encoding='utf-8', errors='replace')
+        except OSError:
+            continue
+        variables = {m.group(1): m.group(2) for m in GRADLE_VAR_RE.finditer(text)}
+        for m in dep_re.finditer(text):
+            group, artifact, version = m.group(1), m.group(2), m.group(3)
+            if group.startswith('com.paysafe.'):
+                var_match = re.fullmatch(r'\$\{([^}]+)\}', version)
+                version = variables.get(var_match.group(1), version) if var_match else version
+                result[(group, artifact)] = {
+                    'group': group,
+                    'artifact': artifact,
+                    'coordinate': f'{group}:{artifact}',
+                    'version': version,
+                    'source': str(f),
+                }
+    return sorted(result.values(), key=lambda d: d['coordinate'])
 
 
 def scan(project_root: str) -> ScanResult:
@@ -195,10 +256,16 @@ def scan(project_root: str) -> ScanResult:
     properties = _scan_properties(root)
     maven_deps = _scan_maven(root)
     gradle_deps = _scan_gradle(root)
+    paysafe_dependencies = _scan_maven_paysafe(root) + _scan_gradle_paysafe(root)
 
     entities = sorted(main_imports | annotations | properties | maven_deps | gradle_deps)
     test_entities = sorted(test_imports)
-    return ScanResult(entities=entities, test_entities=test_entities, extractor_path='python')
+    return ScanResult(
+        entities=entities,
+        test_entities=test_entities,
+        paysafe_dependencies=paysafe_dependencies,
+        extractor_path='python',
+    )
 
 
 if __name__ == '__main__':
@@ -207,8 +274,10 @@ if __name__ == '__main__':
     print(json.dumps({
         'entities': result.entities,
         'testEntities': result.test_entities,
+        'paysafeDependencies': result.paysafe_dependencies,
         'extractorPath': result.extractor_path,
         'count': len(result.entities),
+        'paysafeDependencyCount': len(result.paysafe_dependencies),
     }, indent=2))
 ```
 
@@ -238,7 +307,7 @@ def _ensure_pyyaml():
 - Java class/dependency extraction is **unaffected** — it uses `re` + `pathlib` only.
 - `.properties` files are still parsed via `re.match`.
 - `extractorPath` remains `"python"` — install failure affects only YAML keys, not the overall extractor choice.
-- Loop I Step 0 preflight should also attempt `pip install pyyaml` before scanning starts.
+- Plan-stage preflight should also attempt `pip install pyyaml` before scanning starts.
 
 ---
 
@@ -265,7 +334,7 @@ allow-list per framework is defined inline and reused by the prioritization step
 > The prefix lists are a manual reflection of each framework's managed dependency set; they
 > are **not** auto-synced to upstream. Validate them against `spring-boot-dependencies` (the
 > Spring Boot BOM) and the Angular update guide when the prefix set is revised — and treat the
-> version-map status fields as advisory, per the staleness caveat in that file.
+> version-map status fields as advisory, per the staleness caveat in `references/version-map.md`.
 
 ---
 
@@ -276,8 +345,18 @@ The scan result returned by the Python canonical extractor (`scan()`) always has
 {
   "entities": ["org.springframework..."],
   "testEntities": ["org.junit..."],
+  "paysafeDependencies": [
+    {
+      "group": "com.paysafe.op",
+      "artifact": "paysafe-op-commons-framework",
+      "coordinate": "com.paysafe.op:paysafe-op-commons-framework",
+      "version": "5.0.4",
+      "source": "build.gradle"
+    }
+  ],
   "extractorPath": "python",
-  "count": 42
+  "count": 42,
+  "paysafeDependencyCount": 1
 }
 ```
 `extractorPath` is `"python"`, `"grep-gnu"`, or `"grep-bsd"`. Always present.
@@ -292,6 +371,7 @@ The scan result returned by the Python canonical extractor (`scan()`) always has
 | Spring property | `spring.datasource.url` | Full dotted key, no truncation |
 | Maven dep | `org.springframework.boot:spring-boot-starter-security` | `groupId:artifactId`, drop version |
 | Gradle dep | `org.springframework.boot:spring-boot-starter-security` | `groupId:artifactId`, drop version |
+| Paysafe Maven/Gradle dep | `{"coordinate":"com.paysafe.op:paysafe-op-commons-framework","version":"5.0.4"}` | Separate `paysafeDependencies` list, preserve version/source |
 | npm package | `@angular/common` | Exact package name from import/package.json |
 | WildFly subsystem config | `subsystem.infinispan.cache-container.*.distributed-cache` | Flattened from `standalone.xml`/`domain.xml`; named instances → `*` (see WildFly section) |
 | WildFly extension module | `org.wildfly.extension.picketlink` | From `<extension module="…"/>`; stored as `ApplicationProperty`, **not** `Class` |
@@ -335,7 +415,7 @@ grep -rh --include="*.java" \
 ### Import extraction — Java (test scope, tagged separately)
 
 Test-framework imports are noise in the main set and, where relevant at all, belong to Loop
-II's tier 4 (`test`, deferred). Scan test scope **separately** and tag the results so the
+II's tier 4 (`test`, last in queue). Scan test scope **separately** and tag the results so the
 harness can route them to tier 4 rather than mixing them into the api-surface/runtime tiers.
 
 ```bash
@@ -346,7 +426,7 @@ grep -rh --include="*.java" --include="*.kt" \
   | sed 's/^static //' \
   | grep -E '^(org\.springframework|jakarta\.|javax\.|org\.junit|org\.mockito|org\.assertj|io\.rest_assured|org\.testcontainers)\.' \
   | sort -u
-# Example output: org.junit.jupiter.api.Test  (→ tier 4, deferred)
+# Example output: org.junit.jupiter.api.Test  (→ tier 4, last in queue)
 ```
 
 ### Import extraction — Kotlin (produces FQCN, main scope)
@@ -677,7 +757,7 @@ grep -rhoP '(?<=<property name=")[^"]+' \
 
 > Detection of WildFly/JBoss as the active framework (presence of
 > `jboss-deployment-structure.xml`, `standalone.xml`, or an `org.wildfly.bom` import) and the
-> WildFly/JBoss version catalogue belong in the version-map file, not here.
+> WildFly/JBoss version catalogue belong in `references/version-map.md`, not here.
 
 ---
 
@@ -704,7 +784,7 @@ stable-sort by tier → keep the top `N` (default `N = 200`, configurable) → l
 
 If even the filtered set exceeds `N`, trim from the lowest occupied tier, alphabetically, and
 log: `"Trimmed M entities — kept tiers 1–K (cap N)."` Test-scope entities are tracked in a
-separate list (tier 4 / deferred) and do not consume the main cap.
+separate list (tier 4 / test-scope) and do not consume the main cap.
 
 ---
 

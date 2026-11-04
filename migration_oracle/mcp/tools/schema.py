@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field
+
 from migration_oracle.mcp import server
 from migration_oracle.mcp.graph.queries import schema as schema_queries
 from migration_oracle.mcp.instance import mcp
@@ -27,7 +31,12 @@ def get_graph_schema() -> dict:
 
 
 @mcp.tool()
-def execute_custom_cypher(query: str) -> dict:
+def execute_custom_cypher(
+    query: Annotated[
+        str,
+        Field(description="Read-only Cypher query. Mutation/admin keywords such as CREATE, MERGE, SET, DELETE, REMOVE, DROP, and CALL db are blocked."),
+    ],
+) -> dict:
     """Execute a read-only Cypher query against the graph and return rows.
 
     Blocked keywords (returns status='blocked'): CREATE, MERGE, SET, DELETE, REMOVE, DROP, CALL db.

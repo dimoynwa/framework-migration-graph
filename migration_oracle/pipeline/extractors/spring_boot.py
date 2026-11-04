@@ -11,7 +11,14 @@ from migration_oracle import config
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
 from migration_oracle.pipeline.extractors.base import (
     BaseExtractor,
+    HopContext,
     is_spring_boot_ga_version,
+)
+from migration_oracle.pipeline.extractors.github_enrichment import (
+    GitHubIssue,
+    backport_target,
+    build_issue_change,
+    extract_issue_numbers,
 )
 from migration_oracle.pipeline.extractors.parsing import (
     bom_diff,
@@ -26,6 +33,8 @@ from migration_oracle.pipeline.extractors.parsing import (
 )
 
 logger = logging.getLogger(__name__)
+
+SPRING_BOOT_REPO = "spring-projects/spring-boot"
 
 MAVEN_METADATA_URL = (
     "https://repo1.maven.org/maven2/org/springframework/boot/"
@@ -181,14 +190,37 @@ class SpringBootExtractor(BaseExtractor):
         prose_changes = parse_wiki_upgrade_section(wiki_text, url)
         return wiki_text, prose_changes
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         tag_candidates = [f"v{to_version}", to_version]
         source_url, body = await self.fetch_github_release(
-            "spring-projects/spring-boot", to_version, tag_candidates
+            SPRING_BOOT_REPO, to_version, tag_candidates
         )
-        wiki_text, wiki_prose_changes = await self._fetch_wiki_release_notes(to_version)
+        # The wiki page is a whole minor line ("Spring-Boot-3.3-Release-Notes"), so
+        # it belongs to the hop that enters that line. Attaching it to every patch
+        # hop duplicates the same breaking changes across the whole line and
+        # misattributes them to patch releases.
+        include_line_docs = hop_context is None or hop_context.enters_minor_line
+        if not include_line_docs:
+            major, minor, _, _ = parse_version(to_version)
+            logger.debug(
+                "Spring Boot: skipping %s minor-line wiki for patch hop %s → %s",
+                _WIKI_URL_TEMPLATE.format(major=major, minor=minor),
+                from_version,
+                to_version,
+            )
+        wiki_text, wiki_prose_changes = (
+            await self._fetch_wiki_release_notes(to_version)
+            if include_line_docs
+            else ("", [])
+        )
 
         changes = self.parse_github_release_text(body, source_url)
+        try:
+            changes = await self._enrich_release_changes(changes)
+        except Exception as exc:
+            logger.warning("Spring Boot GitHub issue enrichment skipped: %s", exc)
 
         if wiki_text:
             major, minor, _, _ = parse_version(to_version)
@@ -213,3 +245,67 @@ class SpringBootExtractor(BaseExtractor):
             parse_pom_dependencies(from_pom), parse_pom_dependencies(to_pom)
         )
         return {"bom_diff": diff}
+
+    async def _enrich_release_changes(
+        self, changes: list[DocumentedChange]
+    ) -> list[DocumentedChange]:
+        """Attach GitHub issue title, body, and labels to release-note rows.
+
+        Wiki rows are not passed here. Missing ``GITHUB_TOKEN`` or
+        ``SPRING_BOOT_GITHUB_ENRICHMENT=false`` leaves rows unchanged.
+        """
+        if not config.SPRING_BOOT_GITHUB_ENRICHMENT:
+            return changes
+        if not self._github_token:
+            if not getattr(self, "_github_enrichment_skip_logged", False):
+                logger.info(
+                    "Spring Boot GitHub issue enrichment skipped: GITHUB_TOKEN is not set"
+                )
+                self._github_enrichment_skip_logged = True
+            return changes
+
+        row_numbers = [extract_issue_numbers(change.statement) for change in changes]
+        numbers = [number for row in row_numbers for number in row]
+        if not numbers:
+            return changes
+
+        issues = await self.fetch_github_issues(SPRING_BOOT_REPO, numbers)
+        backport_numbers: list[int] = []
+        for row in row_numbers:
+            chosen = next((number for number in row if number in issues), None)
+            if chosen is None:
+                continue
+            target = backport_target(issues[chosen]["body"])
+            if target is not None and target != chosen and target not in issues:
+                backport_numbers.append(target)
+        if backport_numbers:
+            issues.update(
+                await self.fetch_github_issues(SPRING_BOOT_REPO, backport_numbers)
+            )
+        return self._apply_github_issues(changes, issues)
+
+    def _apply_github_issues(
+        self,
+        changes: list[DocumentedChange],
+        issues: dict[int, GitHubIssue],
+    ) -> list[DocumentedChange]:
+        enriched: list[DocumentedChange] = []
+        for change in changes:
+            numbers = extract_issue_numbers(change.statement)
+            chosen = next((number for number in numbers if number in issues), None)
+            if chosen is None:
+                enriched.append(change)
+                continue
+            issue = issues[chosen]
+            body = issue["body"]
+            backport_of: int | None = None
+            target = backport_target(body)
+            if target is not None and target != chosen:
+                upstream = issues.get(target)
+                if upstream is not None:
+                    body = upstream["body"]
+                    backport_of = target
+            enriched.append(
+                build_issue_change(change, issue, body, backport_of=backport_of)
+            )
+        return enriched

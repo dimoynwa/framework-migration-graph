@@ -1,4 +1,4 @@
-"""E2E-style tests for 015a skill bundle split (no live DB required)."""
+"""E2E-style tests for file-state skill bundles (017)."""
 
 from __future__ import annotations
 
@@ -6,9 +6,6 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
-
-import pytest
 
 from migration_oracle.mcp.server import resume_migration, start_migration
 
@@ -26,7 +23,7 @@ def test_e2e_install_then_start_migration_loads_plan():
 
     with tempfile.TemporaryDirectory() as tmp:
         result = install_migration_skill(target="cursor", target_dir=tmp)
-        assert len(result["installed_skills"]) == 6
+        assert len(result["installed_skills"]) == 5
         text = start_migration(
             framework="Spring Boot",
             current_version="3.3.0",
@@ -37,31 +34,10 @@ def test_e2e_install_then_start_migration_loads_plan():
         assert (Path(tmp) / "framework-migration-plan" / "SKILL.md").is_file()
 
 
-@patch("migration_oracle.mcp.server._resolve_context_for_resume")
-def test_e2e_resume_branches(mock_resolve):
-    branches = [
-        (
-            {"status": "in-progress", "outcome_counts": {"completed": 0, "failed": 0, "skipped": 0, "deferred": 0, "excluded": 0}, "has_gap_check_flags": False},
-            "framework-migration-gap-check",
-            4,
-        ),
-        (
-            {"status": "in-progress", "outcome_counts": {"completed": 0, "failed": 0, "skipped": 0, "deferred": 0, "excluded": 0}, "has_gap_check_flags": True},
-            "framework-migration-clarify",
-            4,
-        ),
-        (
-            {"status": "in-progress", "outcome_counts": {"completed": 1, "failed": 1, "skipped": 0, "deferred": 0, "excluded": 0}, "has_gap_check_flags": True},
-            "framework-migration-execute",
-            2,
-        ),
-        (
-            {"status": "in-progress", "outcome_counts": {"completed": 2, "failed": 0, "skipped": 1, "deferred": 0, "excluded": 0}, "has_gap_check_flags": True},
-            "framework-migration-feedback",
-            0,
-        ),
-    ]
-    for ctx, expected_bundle, pending in branches:
-        mock_resolve.return_value = (ctx, pending, None)
-        text = resume_migration(context_id="ctx-e2e")
-        assert f"skill://{expected_bundle}/main" in text, f"Expected {expected_bundle} for {ctx}"
+def test_e2e_resume_migration_file_folder():
+    text = resume_migration(
+        migration_folder="ps-migration/spring-boot-3.3.0-to-3.4.0",
+        stage="execute",
+    )
+    assert "skill://framework-migration-execute/main" in text
+    assert "tasks.md" in text

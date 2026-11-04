@@ -1,7 +1,7 @@
 # Spring Boot 4.0.0 → 4.1.0 — Filtered Migration Guide
 
 - **Framework:** `spring-boot`
-- **Range:** `4.0.0` → `4.1.0-RC1`
+- **Range:** `4.0.0` → `4.1.0`
 - **Filtered:** 2026-06-05
 
 ---

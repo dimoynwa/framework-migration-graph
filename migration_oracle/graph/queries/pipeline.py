@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from migration_oracle.graph.driver import read_session, write_session
-from migration_oracle.models.graph import sortable_version
+from migration_oracle.models.graph import (
+    is_prerelease,
+    prerelease_suffix,
+    sortable_version,
+)
 
 
 @dataclass(frozen=True)
@@ -17,11 +21,29 @@ class PipelineRunRecord:
     entities_json_path: str | None
 
 
-def merge_version(*, framework: str, version: str, sortable_version: int) -> None:
+def merge_version(
+    *,
+    framework: str,
+    version: str,
+    sortable_version: int,
+    pre_release: bool | None = None,
+) -> None:
+    """MERGE a Version node, flagging milestone/RC builds.
+
+    ``pre_release`` is derived from the version string when not supplied, so a
+    build such as ``4.1.0-RC1`` is always recorded as a prerelease node whose
+    ``sortableVersion`` sits below the ``4.1.0`` GA release it precedes.
+    """
+    if pre_release is None:
+        pre_release = is_prerelease(version)
     query = """
     MERGE (v:Version {framework: $framework, version: $version})
-    ON CREATE SET v.sortableVersion = $sortable_version
-    ON MATCH SET v.sortableVersion = $sortable_version
+    ON CREATE SET v.sortableVersion = $sortable_version,
+                  v.preRelease = $pre_release,
+                  v.preReleaseLabel = $pre_release_label
+    ON MATCH SET v.sortableVersion = $sortable_version,
+                 v.preRelease = $pre_release,
+                 v.preReleaseLabel = $pre_release_label
     """
     with write_session() as session:
         session.run(
@@ -29,6 +51,8 @@ def merge_version(*, framework: str, version: str, sortable_version: int) -> Non
             framework=framework,
             version=version,
             sortable_version=sortable_version,
+            pre_release=pre_release,
+            pre_release_label=prerelease_suffix(version),
         )
 
 

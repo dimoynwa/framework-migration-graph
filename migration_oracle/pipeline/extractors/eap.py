@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext
 from migration_oracle.pipeline.extractors.parsing import (
     apply_cli_hints,
     html_to_text,
@@ -53,7 +53,9 @@ class EAPExtractor(BaseExtractor):
                 return entry
         raise ValueError(f"EAP version {version!r} not in fixed version table")
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         entry = self._entry_for(to_version)
         sources: list[tuple[str, str]] = []
         for template in (MIGRATION_GUIDE_URL, RELEASE_NOTES_URL):

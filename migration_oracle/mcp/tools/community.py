@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field
+
 from migration_oracle.mcp.graph.queries import community as community_queries
 from migration_oracle.mcp.graph.queries.upgrade import resolve_version
 from migration_oracle.mcp.instance import mcp
@@ -11,15 +15,42 @@ from migration_oracle.models.graph import VersionResolutionFailure, sortable_ver
 
 @mcp.tool()
 def submit_migration_insight(
-    statement: str,
-    spring_boot_version: str,
-    solution: str | None = None,
-    affected_properties: list[str] | None = None,
-    affected_classes: list[str] | None = None,
-    affected_dependencies: list[str] | None = None,
-    evidence_url: str | None = None,
-    confidence: float | None = None,
-    framework: str = "Spring Boot",
+    statement: Annotated[
+        str,
+        Field(description="Developer-contributed migration finding or workaround to store as a community insight."),
+    ],
+    spring_boot_version: Annotated[
+        str,
+        Field(description="Framework version string to attach the insight to; name is legacy and applies to any framework."),
+    ],
+    solution: Annotated[
+        str | None,
+        Field(description="Optional recommended remediation or workaround text."),
+    ] = None,
+    affected_properties: Annotated[
+        list[str] | None,
+        Field(description="Optional affected application property keys."),
+    ] = None,
+    affected_classes: Annotated[
+        list[str] | None,
+        Field(description="Optional affected fully-qualified class names or simple class names."),
+    ] = None,
+    affected_dependencies: Annotated[
+        list[str] | None,
+        Field(description="Optional affected dependency coordinates or artifact IDs."),
+    ] = None,
+    evidence_url: Annotated[
+        str | None,
+        Field(description="Optional source URL supporting the submitted insight."),
+    ] = None,
+    confidence: Annotated[
+        float | None,
+        Field(description="Optional confidence score for the insight, typically between 0 and 1."),
+    ] = None,
+    framework: Annotated[
+        str,
+        Field(description="Framework name whose Version node should receive the community insight."),
+    ] = "Spring Boot",
 ) -> dict:
     """Submit a developer-contributed migration insight. Writes a MigrationRule node with ruleType='community_insight'.
 
@@ -91,12 +122,30 @@ def submit_migration_insight(
 
 @mcp.tool()
 def get_community_insights(
-    from_version: str | None = None,
-    to_version: str | None = None,
-    entity_name: str | None = None,
-    entity_type: str | None = None,
-    verified_only: bool = False,
-    framework: str = "Spring Boot",
+    from_version: Annotated[
+        str | None,
+        Field(description="Optional lower bound framework version for insight lookup."),
+    ] = None,
+    to_version: Annotated[
+        str | None,
+        Field(description="Optional upper bound framework version for insight lookup."),
+    ] = None,
+    entity_name: Annotated[
+        str | None,
+        Field(description="Optional affected entity name to filter insights by."),
+    ] = None,
+    entity_type: Annotated[
+        str | None,
+        Field(description="Accepted for compatibility but not currently applied; all entity types are returned."),
+    ] = None,
+    verified_only: Annotated[
+        bool,
+        Field(description="When true, return only moderator-verified community insights."),
+    ] = False,
+    framework: Annotated[
+        str,
+        Field(description="Framework name for the insight query, for example 'Spring Boot'."),
+    ] = "Spring Boot",
 ) -> dict:
     """Query MigrationRule nodes (ruleType='community_insight') by version range, entity name, or verified status. Read-only.
 
@@ -133,7 +182,16 @@ def get_community_insights(
 
 
 @mcp.tool()
-def vote_insight(insight_id: str, delta: int = 1) -> dict:
+def vote_insight(
+    insight_id: Annotated[
+        str,
+        Field(description="Community insight identifier to vote on."),
+    ],
+    delta: Annotated[
+        int,
+        Field(description="Vote delta: 1 for upvote, -1 for downvote. The operation is not idempotent."),
+    ] = 1,
+) -> dict:
     """Increment or decrement the votes count on a community insight. Not idempotent.
 
     delta=1 for upvote, delta=-1 for downvote. Calling twice with delta=1 adds 2 votes.
@@ -148,7 +206,12 @@ def vote_insight(insight_id: str, delta: int = 1) -> dict:
 
 
 @mcp.tool()
-def verify_insight(insight_id: str) -> dict:
+def verify_insight(
+    insight_id: Annotated[
+        str,
+        Field(description="Community insight identifier to mark as verified. Moderator/trusted-operator write operation."),
+    ],
+) -> dict:
     """Mark a community insight as verified (moderator operation). Sets verified=true.
 
     This is a write operation and is not reversible via this tool.

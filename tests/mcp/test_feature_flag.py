@@ -12,7 +12,6 @@ TOOL_MODULES = [
     "migration_oracle.mcp.tools.search",
     "migration_oracle.mcp.tools.paysafe",
     "migration_oracle.mcp.tools.install",
-    "migration_oracle.mcp.tools.context",
     "migration_oracle.mcp.tools.deprecation",
     "migration_oracle.mcp.tools.community",
     "migration_oracle.mcp.tools.artifacts",
@@ -63,10 +62,10 @@ async def test_lite_registers_4_tools():
 
 
 @pytest.mark.asyncio
-async def test_full_registers_26_tools():
+async def test_full_registers_17_tools():
     mcp = _fresh_server("full")
     tools = await mcp.list_tools()
-    assert len(tools) == 26
+    assert len(tools) == 17
 
 
 @pytest.mark.asyncio
@@ -105,5 +104,27 @@ def test_default_mode_is_lite_when_unset():
 async def test_full_only_tool_call_raises_protocol_error_in_lite():
     mcp = _fresh_server("lite")
     with pytest.raises(Exception) as exc_info:
-        await mcp.call_tool("create_migration_context", {})
+        await mcp.call_tool("analyze_upgrade_path", {})
     assert type(exc_info.value).__name__ not in {"AttributeError", "KeyError"}
+
+
+@pytest.mark.asyncio
+async def test_research_stage_gating_exposes_research_tools():
+    from migration_oracle.mcp.stage_gating import STAGE_TOOL_ALLOWLIST
+
+    mcp = _fresh_server("full", stage="research")
+    names = await _tool_names(mcp)
+    assert names == set(STAGE_TOOL_ALLOWLIST["research"])
+    assert "check_version_availability" not in names
+    assert "analyze_upgrade_path" in names
+    assert "install_migration_skill" in names
+
+
+@pytest.mark.asyncio
+async def test_plan_stage_gating_includes_check_version_availability():
+    from migration_oracle.mcp.stage_gating import STAGE_TOOL_ALLOWLIST
+
+    mcp = _fresh_server("full", stage="plan")
+    names = await _tool_names(mcp)
+    assert names == set(STAGE_TOOL_ALLOWLIST["plan"])
+    assert "check_version_availability" in names

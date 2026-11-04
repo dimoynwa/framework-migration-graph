@@ -10,14 +10,14 @@ revert the change safely.
 
 ### Step 1 — IDENTIFY
 
-Confirm which migration step caused the build failure. Note the `step_id` and the exact error from the build output.
+Confirm which task caused the build failure. Note the TASK-ID and the exact error from the build output.
 
 ### Step 2 — STASH
 
-Stash all uncommitted changes introduced by the failed step:
+Stash all uncommitted changes introduced by the failed task:
 
 ```bash
-git stash push -m "rollback: failed migration step <step_id>"
+git stash push -m "rollback: failed migration task TASK-NNN"
 ```
 
 Verify the stash was created:
@@ -36,36 +36,33 @@ Run the build and tests to confirm the project is back to a passing state:
 npm test        # Angular
 ```
 
-If the build still fails, a prior step may also be involved — escalate to the user.
+If the build still fails, a prior task may also be involved — escalate to the user.
 
 ### Step 4 — DECIDE
 
 Choose one of the following options:
 
-**Option A — Skip and continue:** Mark the step as skipped and proceed with the remaining queue.
+**Option A — Mark failed and continue:** Set Status to failed in tasks.md and proceed with the remaining queue.
 
 ```
-Call: update_step_status(context_id, step_id, outcome="skipped", reason="build failed: <error>")
+Edit tasks.md: **Status**: failed
+Add reason inline: **Failure**: build failed: {error}
 ```
 
-**Option B — Retry with a fix:** Apply a corrected version of the step manually, then mark completed.
+**Option B — Retry with a fix:** Apply a corrected version of the task manually, then mark done.
 
 ```
-Call: update_step_status(context_id, step_id, outcome="completed", reason="manual fix applied")
+Edit tasks.md: **Status**: done
 ```
 
-**Option C — Abandon session:** End the session and leave the context for a future attempt.
-
-```
-Call: close_migration_context(context_id, final_status="abandoned", notes="build failed on step <step_id>: <error>")
-```
+**Option C — Pause migration:** Stop execution and leave tasks.md for a future attempt.
 
 ### Step 5 — RECORD
 
-Whichever option you chose in Step 4, always record the outcome:
+Whichever option you chose in Step 4, ensure tasks.md reflects the outcome:
 
 ```
-Call: update_step_status(context_id, step_id, outcome="failed", reason="build failed: <error>")
+Edit tasks.md: **Status**: failed (or done for Option B)
 ```
 
-(Skip Step 5 if you already called `update_step_status` in Option A or B above.)
+(Skip Step 5 if you already updated Status in Option A or B above.)

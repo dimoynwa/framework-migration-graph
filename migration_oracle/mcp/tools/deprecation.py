@@ -2,12 +2,25 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field
+
 from migration_oracle.mcp.graph.queries import deprecation as deprecation_queries
 from migration_oracle.mcp.instance import mcp
 
 
 @mcp.tool()
-def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dict:
+def resolve_deprecation(
+    entity_name: Annotated[
+        str,
+        Field(description="Fully-qualified entity name stored in the graph; partial or short names return not_found."),
+    ],
+    framework: Annotated[
+        str,
+        Field(description="Framework name to search, for example 'Spring Boot'."),
+    ] = "Spring Boot",
+) -> dict:
     """Return deprecation metadata and replacement for a single entity name (one hop only).
 
     entity_name must be the fully-qualified name as stored in the graph
@@ -56,7 +69,16 @@ def resolve_deprecation(entity_name: str, framework: str = "Spring Boot") -> dic
 
 
 @mcp.tool()
-def entity_evolution(entity_name: str, framework: str = "Spring Boot") -> dict:
+def entity_evolution(
+    entity_name: Annotated[
+        str,
+        Field(description="Fully-qualified origin entity name stored in the graph for replacement-chain traversal."),
+    ],
+    framework: Annotated[
+        str,
+        Field(description="Framework name to search, for example 'Spring Boot'."),
+    ] = "Spring Boot",
+) -> dict:
     """Trace the full REPLACED_BY replacement chain for an entity, up to 5 hops.
 
     entity_name must be the fully-qualified name as stored in the graph

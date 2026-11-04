@@ -99,10 +99,10 @@ async def test_all_tools_have_descriptions():
 
 @pytest.mark.asyncio
 async def test_tool_count():
-    """Exactly 24 tools must be registered."""
+    """Exactly 17 tools must be registered in full mode."""
     tools = await mcp.list_tools()
-    assert len(tools) == 24, (
-        f"Expected 24 tools, got {len(tools)}: {[t.name for t in tools]}"
+    assert len(tools) == 17, (
+        f"Expected 17 tools, got {len(tools)}: {[t.name for t in tools]}"
     )
 
 
@@ -126,6 +126,21 @@ async def test_start_migration_prompt_has_required_args():
     assert required.issubset(arg_names), (
         f"start_migration prompt is missing arguments: {required - arg_names}"
     )
+
+
+@pytest.mark.asyncio
+async def test_all_tool_parameters_have_descriptions():
+    """Every tool input parameter must expose schema-level help for MCP clients."""
+    tools = await mcp.list_tools()
+    missing: list[str] = []
+    for tool in tools:
+        schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None) or {}
+        properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
+        for param_name, param_schema in properties.items():
+            if not isinstance(param_schema, dict) or not param_schema.get("description"):
+                missing.append(f"{tool.name}.{param_name}")
+
+    assert not missing, "Tool parameters missing schema descriptions: " + ", ".join(missing)
 
 
 @pytest.mark.asyncio

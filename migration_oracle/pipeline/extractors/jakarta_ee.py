@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext
 from migration_oracle.pipeline.extractors.parsing import compare_versions
 
 PIPELINE_DOC = "export-extract-populate-framework-pipeline.md"
@@ -59,7 +59,9 @@ class JakartaEEExtractor(BaseExtractor):
     async def discover_versions(self) -> list[str]:
         return list(JAKARTA_EE_SPEC_VERSIONS)
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         if compare_versions(from_version, "9.0.0") >= 0:
             return ExtractionResult(changes=[], metadata={})
         if compare_versions(to_version, "9.0.0") < 0:

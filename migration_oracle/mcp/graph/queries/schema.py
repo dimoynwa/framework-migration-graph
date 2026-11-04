@@ -15,7 +15,6 @@ GRAPH_SCHEMA_MD = """# Migration Knowledge Graph Schema
 - **MigrationRule**: `statement`, `ruleType`, `actionStep`, `sourceUrl`, `entityClassification`
 - **MigrationStep**: `stepType`, `summary`, `instruction`, `effort`, `automatable`, `verificationHint`
 - **BreakingScope**: `scope`, `severity`
-- **MigrationContext**: `projectId`, `fromVersion`, `toVersion`, `status`, `completedSteps`, `skippedSteps`, `failedSteps`
 - **Class**, **ApplicationProperty**, **Dependency**, **OpenRewriteRecipe**
 
 ## Key relationships
@@ -23,7 +22,7 @@ GRAPH_SCHEMA_MD = """# Migration Knowledge Graph Schema
 - MigrationRule -[:REQUIRES_STEP]-> MigrationStep
 - MigrationRule -[:HAS_SCOPE]-> BreakingScope
 - MigrationStep -[:AUTOMATED_BY]-> OpenRewriteRecipe
-- MigrationContext -[:UPGRADES_FROM|UPGRADES_TO]-> Version
+- MigrationRule -[:BRIDGED_BY]-> Dependency
 - Entity -[:DEPRECATED_IN|REMOVED_IN|REPLACED_BY]-> ...
 
 ## Indexes

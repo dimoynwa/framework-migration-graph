@@ -43,6 +43,10 @@ def _write_pom(tmp_path: Path, content: str) -> None:
     (tmp_path / "pom.xml").write_text(textwrap.dedent(content))
 
 
+def _write_gradle(tmp_path: Path, content: str) -> None:
+    (tmp_path / "build.gradle").write_text(textwrap.dedent(content))
+
+
 def _load_scanner() -> ModuleType:
     """Import the framework_scanner module from the skills directory."""
     skills_dir = (
@@ -51,7 +55,7 @@ def _load_scanner() -> ModuleType:
         / "mcp"
         / "skills"
     )
-    skill_file = skills_dir / "framework_scanner.py"
+    skill_file = skills_dir / "framework-migration" / "framework_scanner.py"
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("framework_scanner", skill_file)
@@ -66,6 +70,7 @@ def _scan(project_root: str) -> dict:
     return {
         "entities": result.entities,
         "testEntities": result.test_entities,
+        "paysafeDependencies": result.paysafe_dependencies,
         "extractorPath": result.extractor_path,
         "warnings": result.warnings,
     }
@@ -174,6 +179,61 @@ class TestMavenDependencyExtraction:
         """)
         result = _scan(str(tmp_path))
         assert 'org.springframework.boot:spring-boot-autoconfigure' not in result['entities']
+
+    def test_paysafe_maven_dep_captured_separately_with_version(self, tmp_path):
+        _write_pom(tmp_path, """\
+            <project xmlns="http://maven.apache.org/POM/4.0.0">
+              <dependencies>
+                <dependency>
+                  <groupId>com.paysafe.op</groupId>
+                  <artifactId>paysafe-op-commons-framework</artifactId>
+                  <version>5.0.4</version>
+                </dependency>
+              </dependencies>
+            </project>
+        """)
+        result = _scan(str(tmp_path))
+        assert result["paysafeDependencies"] == [
+            {
+                "group": "com.paysafe.op",
+                "artifact": "paysafe-op-commons-framework",
+                "coordinate": "com.paysafe.op:paysafe-op-commons-framework",
+                "version": "5.0.4",
+                "source": str(tmp_path / "pom.xml"),
+            }
+        ]
+
+    def test_paysafe_gradle_deps_captured_from_dependencies_and_buildscript(self, tmp_path):
+        _write_gradle(tmp_path, """\
+            buildscript {
+              ext {
+                paysafeBomVersion = "3.5.11"
+              }
+              dependencies {
+                classpath "com.paysafe.op.plugins:paysafe-op-plugin-release:5.0.2"
+              }
+            }
+            dependencyManagement {
+              imports {
+                mavenBom "com.paysafe.op:paysafe-op-dependencies:${paysafeBomVersion}"
+              }
+            }
+            dependencies {
+              def commons = 'com.paysafe.op:paysafe-op-commons-framework:5.0.4'
+              implementation (commons)
+              implementation "com.paysafe.ss:paysafe-ss-logging:10.2.0"
+              implementation "org.springframework.boot:spring-boot-starter-web:3.5.0"
+            }
+        """)
+        result = _scan(str(tmp_path))
+        coords = {d["coordinate"]: d["version"] for d in result["paysafeDependencies"]}
+        assert coords == {
+            "com.paysafe.op.plugins:paysafe-op-plugin-release": "5.0.2",
+            "com.paysafe.op:paysafe-op-commons-framework": "5.0.4",
+            "com.paysafe.op:paysafe-op-dependencies": "3.5.11",
+            "com.paysafe.ss:paysafe-ss-logging": "10.2.0",
+        }
+        assert "org.springframework.boot:spring-boot-starter-web" in result["entities"]
 
 
 class TestPyYamlDegrade:

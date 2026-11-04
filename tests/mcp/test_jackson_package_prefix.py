@@ -7,7 +7,7 @@ that dependency's package namespace.
 This is a UNIT test targeting the entity-match CASE logic indirectly through
 the routing.py is_concrete_instruction + the Cypher CASE semantics.
 
-For a live-Neo4j version of this test, see the integration test in test_context.py.
+For file-state migration tests, see specs/017-linear-file-migration-state/quickstart.md.
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext
 
 PIPELINE_DOC = "docs/export-extract-populate-framework-pipeline.md"
 
@@ -20,10 +20,12 @@ class StubExtractor(BaseExtractor):
     async def discover_versions(self) -> list[str]:
         self._raise_not_implemented()
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         self._raise_not_implemented()
 
     async def extract_range(
-        self, from_version: str, to_version: str
+        self, from_version: str, to_version: str, granularity: str = "patch"
     ) -> tuple[ExtractionResult, list[tuple[str, str, list]]]:
         self._raise_not_implemented()

@@ -22,6 +22,8 @@ from migration_oracle.models.graph import (
     MigrationRuleNode,
     MigrationStepNode,
     VersionNode,
+    is_prerelease,
+    prerelease_suffix,
     sortable_version,
 )
 
