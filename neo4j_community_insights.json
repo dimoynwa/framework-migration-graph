@@ -5,7 +5,7 @@
     "confidence": 0.85,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "spring-data-redis",
       "jackson-databind"
@@ -24,7 +24,7 @@
     "confidence": 0.8,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -41,7 +41,7 @@
     "confidence": 0.95,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "net.javacrumbs.shedlock:shedlock-spring"
     ],
@@ -58,7 +58,7 @@
     "confidence": 0.9,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -75,7 +75,7 @@
     "confidence": 0.8,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.springframework.cloud:spring-cloud-contract-wiremock",
       "org.springframework.boot:spring-boot-webmvc-test"
@@ -93,7 +93,7 @@
     "confidence": 0.9,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -110,7 +110,7 @@
     "confidence": 0.85,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -127,7 +127,7 @@
     "confidence": 0.9,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -144,7 +144,7 @@
     "confidence": 0.85,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -161,7 +161,7 @@
     "confidence": 0.9,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.wiremock.integrations:wiremock-spring-boot-standalone",
       "org.springframework.cloud:spring-cloud-contract-wiremock"
@@ -179,7 +179,7 @@
     "confidence": 0.92,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.redisson:redisson-spring-boot-starter"
     ],
@@ -196,7 +196,7 @@
     "confidence": 0.98,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -213,7 +213,7 @@
     "confidence": 0.98,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
 
     ],
@@ -230,7 +230,7 @@
     "confidence": 0.88,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.apache.kafka:kafka-streams-test-utils",
       "org.apache.kafka:kafka-server-common",
@@ -249,7 +249,7 @@
     "confidence": 0.9,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.junit.jupiter:junit-jupiter-params",
       "org.junit.jupiter:junit-jupiter"
@@ -267,7 +267,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.op:paysafe-op-dependencies"
     ],
@@ -284,7 +284,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.op:paysafe-op-commons-framework"
     ],
@@ -301,7 +301,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.op:paysafe-op-commons-test"
     ],
@@ -318,7 +318,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.ss:paysafe-ss-logging"
     ],
@@ -335,7 +335,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.op:paysafe-op-flowable"
     ],
@@ -352,7 +352,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.operations:paysafe-op-http-interfaces-spring-boot-starter"
     ],
@@ -369,7 +369,7 @@
     "confidence": 0.5,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.2",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "com.paysafe.wal:paysafe-wallet-usage-kafka-producer-spring3"
     ],
@@ -386,7 +386,7 @@
     "confidence": 0.88,
     "sourceUrl": "https://github.com/wiremock/wiremock-spring-boot/issues/65",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.5",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.wiremock.integrations:wiremock-spring-boot",
       "org.springframework.cloud:spring-cloud-contract-wiremock",
@@ -406,7 +406,7 @@
     "confidence": 0.86,
     "sourceUrl": "",
     "framework": "Spring Boot",
-    "frameworkVersion": "4.0.5",
+    "frameworkVersion": "4.1.0",
     "affectedDependencies": [
       "org.springframework.security:spring-security-test",
       "org.springframework.boot:spring-boot-starter-security",

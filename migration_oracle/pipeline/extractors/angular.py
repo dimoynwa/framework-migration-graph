@@ -7,8 +7,17 @@ import re
 
 from bs4 import BeautifulSoup
 
+from migration_oracle import config
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext
+from migration_oracle.pipeline.extractors.github_enrichment import (
+    GitHubCommit,
+    GitHubIssue,
+    build_commit_change,
+    build_issue_change,
+    extract_angular_issue_numbers,
+    extract_commit_shas,
+)
 from migration_oracle.pipeline.extractors.parsing import (
     filter_release_versions,
     parse_github_release_text,
@@ -16,6 +25,7 @@ from migration_oracle.pipeline.extractors.parsing import (
 
 logger = logging.getLogger(__name__)
 
+ANGULAR_REPO = "angular/angular"
 NPM_REGISTRY_URL = "https://registry.npmjs.org/@angular/core"
 CHANGELOG_URL = (
     "https://raw.githubusercontent.com/angular/angular/main/CHANGELOG.md"
@@ -141,10 +151,12 @@ class AngularExtractor(BaseExtractor):
         except Exception:
             return ""
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         tag_candidates = [f"v{to_version}", to_version]
         source_url, body = await self.fetch_github_release(
-            "angular/angular", to_version, tag_candidates
+            ANGULAR_REPO, to_version, tag_candidates
         )
         changelog_text = await self._get_changelog()
         changelog_section = _extract_changelog_section(changelog_text, to_version)
@@ -155,6 +167,10 @@ class AngularExtractor(BaseExtractor):
                 changelog_section, CHANGELOG_URL
             )
             changes = _deduplicate_against_changelog(changes, changelog_changes)
+        try:
+            changes = await self._enrich_github_changes(changes)
+        except Exception as exc:
+            logger.warning("Angular GitHub enrichment skipped: %s", exc)
         raw_blog_urls = sorted(set(_BLOG_LINK_RE.findall(body)))
         blog_insights = [
             {"url": url, "summary": self._fetch_blog_summary(url)}
@@ -167,3 +183,74 @@ class AngularExtractor(BaseExtractor):
             )
         metadata = {"blog_insights": blog_insights}
         return ExtractionResult(changes=changes, metadata=metadata)
+
+    async def _enrich_github_changes(
+        self, changes: list[DocumentedChange]
+    ) -> list[DocumentedChange]:
+        """Attach commit messages, and issue bodies when a row has no commit.
+
+        Runs after changelog dedup. Blog insights are not rows and are left alone.
+        """
+        if not config.ANGULAR_GITHUB_ENRICHMENT:
+            return changes
+        if not self._github_token:
+            if not getattr(self, "_github_enrichment_skip_logged", False):
+                logger.info(
+                    "Angular GitHub enrichment skipped: GITHUB_TOKEN is not set"
+                )
+                self._github_enrichment_skip_logged = True
+            return changes
+
+        row_shas = [extract_commit_shas(change.statement) for change in changes]
+        fallback_numbers: list[int] = []
+        for change, shas in zip(changes, row_shas, strict=True):
+            if shas:
+                continue
+            fallback_numbers.extend(extract_angular_issue_numbers(change.statement))
+        shas = [sha for row in row_shas for sha in row]
+        if not shas and not fallback_numbers:
+            return changes
+
+        commits = (
+            await self.fetch_github_commits(ANGULAR_REPO, shas) if shas else {}
+        )
+        linked_numbers: list[int] = []
+        for row in row_shas:
+            chosen = next((sha for sha in row if sha in commits), None)
+            if chosen is None:
+                continue
+            fixes = commits[chosen]["fixes"]
+            if fixes:
+                linked_numbers.append(fixes[0])
+        issue_numbers = fallback_numbers + linked_numbers
+        issues = (
+            await self.fetch_github_issues(ANGULAR_REPO, issue_numbers)
+            if issue_numbers
+            else {}
+        )
+        return _apply_angular_enrichment(changes, commits, issues)
+
+
+def _apply_angular_enrichment(
+    changes: list[DocumentedChange],
+    commits: dict[str, GitHubCommit],
+    issues: dict[int, GitHubIssue],
+) -> list[DocumentedChange]:
+    enriched: list[DocumentedChange] = []
+    for change in changes:
+        shas = extract_commit_shas(change.statement)
+        chosen_sha = next((sha for sha in shas if sha in commits), None)
+        if chosen_sha is not None:
+            commit = commits[chosen_sha]
+            issue = issues.get(commit["fixes"][0]) if commit["fixes"] else None
+            enriched.append(build_commit_change(change, commit, issue))
+            continue
+        if not shas:
+            numbers = extract_angular_issue_numbers(change.statement)
+            chosen = next((number for number in numbers if number in issues), None)
+            if chosen is not None:
+                issue = issues[chosen]
+                enriched.append(build_issue_change(change, issue, issue["body"]))
+                continue
+        enriched.append(change)
+    return enriched

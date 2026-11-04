@@ -3,30 +3,103 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from abc import ABC, abstractmethod
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
 
 from migration_oracle import config
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
+from migration_oracle.pipeline.extractors.github_enrichment import (
+    GitHubCommit,
+    GitHubIssue,
+    commit_api_url,
+    issue_api_url,
+    parse_github_commit,
+    parse_github_issue,
+)
 
 __all__ = [
     "BaseExtractor",
     "DocumentedChange",
     "ExtractionResult",
+    "HopContext",
+    "HopResult",
     "is_jboss_ga_version",
     "is_infinispan_ga_version",
     "is_spring_boot_ga_version",
 ]
 from migration_oracle.pipeline.extractors.parsing import (
     compute_hops,
-    versions_in_range,
+    enters_new_minor_line,
+    select_hop_versions,
+    validate_hop_granularity,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _unique(items: Iterable) -> list:
+    ordered: list = []
+    seen: set = set()
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        ordered.append(item)
+    return ordered
+
+
+class _GitHubRateLimit(Exception):
+    """Primary GitHub rate limit (403/429 with ``X-RateLimit-Remaining: 0``)."""
+
+    def __init__(self, status_code: int) -> None:
+        super().__init__(f"GitHub enrichment API rate limit HTTP {status_code}")
+        self.status_code = status_code
+
+
+@dataclass(frozen=True)
+class HopContext:
+    """Planning metadata for one version hop passed to :meth:`BaseExtractor.extract`."""
+
+    from_version: str
+    to_version: str
+    granularity: str = "patch"
+
+    @property
+    def enters_minor_line(self) -> bool:
+        """True when this hop crosses into a new ``major.minor`` line."""
+        return enters_new_minor_line(self.from_version, self.to_version)
+
+    @property
+    def is_patch_step(self) -> bool:
+        """True when the hop stays inside one minor line (``3.3.1 → 3.3.2``)."""
+        return not self.enters_minor_line
+
+
+@dataclass
+class HopResult:
+    """Extraction output for a single planned version hop."""
+
+    context: HopContext
+    result: ExtractionResult
+
+    @property
+    def from_version(self) -> str:
+        return self.context.from_version
+
+    @property
+    def to_version(self) -> str:
+        return self.context.to_version
+
+    @property
+    def changes(self) -> list[DocumentedChange]:
+        return self.result.changes
 
 # Matches GA releases for the JBoss/Red Hat Maven ecosystem: X.Y.Z.Final
 _JBOSS_GA_PATTERN = re.compile(r"^\d+\.\d+\.\d+\.Final$")
@@ -94,6 +167,9 @@ class BaseExtractor(ABC):
         self._github_token = config.GITHUB_TOKEN
         self._ssl_verify = config.SSL_VERIFY
         self._jira_max_concurrent = config.JIRA_MAX_CONCURRENT
+        self._github_enrich_max_concurrent = max(1, config.GITHUB_ENRICH_MAX_CONCURRENT)
+        self._github_enrich_rate_limited = False
+        self._github_enrich_misses: set[str] = set()
         self._redhat_delay = config.REDHAT_DOCS_DELAY_SEC
         self._cache: dict[str, str | bytes] = {}
         headers = dict(GITHUB_HEADERS)
@@ -277,41 +353,236 @@ class BaseExtractor(ABC):
             f"(tags tried: {tag_candidates!r})"
         )
 
+    async def fetch_github_issues(
+        self, repo: str, numbers: Iterable[int]
+    ) -> dict[int, GitHubIssue]:
+        """Fetch GitHub issues and pull requests by number.
+
+        Per-item failures (404, 410, 422, timeout, bad JSON) are logged at DEBUG
+        and omitted. A primary rate-limit response stops further issue and commit
+        requests for the rest of this extractor's run.
+        """
+        ordered = _unique(numbers)
+        return await self._fetch_github_map(
+            ordered,
+            url_for=lambda number: issue_api_url(repo, number),
+            parse=lambda payload, number: parse_github_issue(payload, number=number),
+        )
+
+    async def fetch_github_commits(
+        self, repo: str, shas: Iterable[str]
+    ) -> dict[str, GitHubCommit]:
+        """Fetch GitHub commits by SHA. Same failure and rate-limit rules as issues."""
+        ordered = _unique(sha.lower() for sha in shas)
+        return await self._fetch_github_map(
+            ordered,
+            url_for=lambda sha: commit_api_url(repo, sha),
+            parse=lambda payload, sha: parse_github_commit(payload, sha=sha, repo=repo),
+        )
+
+    async def _fetch_github_map(self, keys: list, *, url_for, parse) -> dict:
+        if not keys:
+            return {}
+        results: dict = {}
+        semaphore = asyncio.Semaphore(self._github_enrich_max_concurrent)
+
+        async def load(key: object) -> None:
+            url = url_for(key)
+            cached = self._cached_text(url)
+            if cached is not None:
+                try:
+                    results[key] = parse(json.loads(cached), key)
+                except (TypeError, ValueError, json.JSONDecodeError) as exc:
+                    logger.debug("GitHub enrichment parse failed for %s: %s", url, exc)
+                return
+            if url in self._github_enrich_misses or self._github_enrich_rate_limited:
+                return
+            async with semaphore:
+                if url in self._github_enrich_misses or self._github_enrich_rate_limited:
+                    return
+                try:
+                    payload = await self._fetch_github_payload(url)
+                except _GitHubRateLimit as exc:
+                    self._stop_github_enrichment(exc.status_code)
+                    return
+                except (RuntimeError, json.JSONDecodeError, TypeError, ValueError) as exc:
+                    logger.debug("GitHub enrichment fetch failed for %s: %s", url, exc)
+                    return
+                try:
+                    results[key] = parse(payload, key)
+                except (TypeError, ValueError) as exc:
+                    logger.debug("GitHub enrichment parse failed for %s: %s", url, exc)
+
+        await asyncio.gather(*(load(key) for key in keys))
+        return results
+
+    def _cached_text(self, url: str) -> str | None:
+        if url not in self._cache:
+            return None
+        cached = self._cache[url]
+        return cached.decode() if isinstance(cached, bytes) else cached
+
+    async def _fetch_github_payload(self, url: str) -> dict:
+        try:
+            response = await self._client.get(url)
+        except httpx.HTTPError as exc:
+            raise RuntimeError(str(exc)) from exc
+
+        if response.status_code in (403, 429):
+            remaining = response.headers.get("X-RateLimit-Remaining", "")
+            if remaining.strip() == "0":
+                raise _GitHubRateLimit(response.status_code)
+            raise RuntimeError(f"HTTP {response.status_code} for {url}")
+
+        if response.status_code in (404, 410, 422):
+            self._github_enrich_misses.add(url)
+            raise RuntimeError(f"HTTP {response.status_code} for {url}")
+
+        if response.status_code != 200:
+            raise RuntimeError(f"HTTP {response.status_code} for {url}")
+
+        self._cache[url] = response.text
+        payload = json.loads(response.text)
+        if not isinstance(payload, dict):
+            raise TypeError(f"GitHub payload for {url} is not an object")
+        return payload
+
+    def _stop_github_enrichment(self, status_code: int) -> None:
+        if self._github_enrich_rate_limited:
+            return
+        self._github_enrich_rate_limited = True
+        logger.warning(
+            "GitHub enrichment API rate limit exhausted "
+            "(HTTP %s, X-RateLimit-Remaining: 0); "
+            "skipping further GitHub enrichment requests for this run",
+            status_code,
+        )
+
     @abstractmethod
     async def discover_versions(self) -> list[str]:
         """Return ordered versions available for this framework."""
 
     @abstractmethod
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
-        """Extract documented changes for a single version hop."""
+    async def extract(
+        self,
+        from_version: str,
+        to_version: str,
+        *,
+        hop_context: HopContext | None = None,
+    ) -> ExtractionResult:
+        """
+        Extract documented changes for a single version hop.
 
-    async def extract_range(
-        self, from_version: str, to_version: str
-    ) -> tuple[ExtractionResult, list[tuple[str, str, list[DocumentedChange]]]]:
-        """Discover versions, extract each hop, and return aggregated result."""
+        ``hop_context`` describes how the hop was planned (granularity and
+        whether it crosses into a new minor line). Extractors that have
+        minor-line-only sources (migration guides, wiki release notes) use it to
+        avoid re-attaching the same prose to every patch hop; it is optional so
+        that extractors and callers may ignore it.
+        """
+
+    async def plan_hops(
+        self,
+        from_version: str,
+        to_version: str,
+        granularity: str = "patch",
+    ) -> list[HopContext]:
+        """Discover releases and plan the hop boundaries for ``granularity``."""
+        granularity = validate_hop_granularity(granularity)
         versions = await self.discover_versions()
-        in_range = versions_in_range(versions, from_version, to_version)
-        hops = compute_hops(in_range)
-        all_changes: list[DocumentedChange] = []
-        metadata: dict = {}
-        hop_changes: list[tuple[str, str, list[DocumentedChange]]] = []
+        boundaries = select_hop_versions(
+            versions, from_version, to_version, granularity
+        )
+        return [
+            HopContext(
+                from_version=hop_from,
+                to_version=hop_to,
+                granularity=granularity,
+            )
+            for hop_from, hop_to in compute_hops(boundaries)
+        ]
 
-        for hop_from, hop_to in hops:
+    async def extract_contexts(
+        self,
+        contexts: list[HopContext],
+        *,
+        per_hop_range_metadata: bool = False,
+    ) -> list[HopResult]:
+        """
+        Extract the given planned hops and return one :class:`HopResult` each.
+
+        A hop whose extraction fails is logged and returned with an empty change
+        list, so a broken release page does not abort the whole range. When
+        ``per_hop_range_metadata`` is set, range-level metadata (BOM diff) is
+        computed for each hop instead of only for the outer range — this is what
+        makes patch-level dependency and CVE deltas visible.
+        """
+        hop_results: list[HopResult] = []
+
+        for context in contexts:
             try:
-                result = await self.extract(hop_from, hop_to)
+                result = await self.extract(
+                    context.from_version, context.to_version, hop_context=context
+                )
             except RuntimeError as exc:
                 logger.warning(
                     "%s: skipping hop %s → %s: %s",
                     self.display_name,
-                    hop_from,
-                    hop_to,
+                    context.from_version,
+                    context.to_version,
                     exc,
                 )
-                hop_changes.append((hop_from, hop_to, []))
+                hop_results.append(
+                    HopResult(context=context, result=ExtractionResult(changes=[]))
+                )
                 continue
-            hop_changes.append((hop_from, hop_to, result.changes))
-            all_changes.extend(result.changes)
-            metadata.update(result.metadata)
+            if per_hop_range_metadata:
+                try:
+                    result.metadata.update(
+                        await self.build_range_metadata(
+                            context.from_version, context.to_version
+                        )
+                    )
+                except RuntimeError as exc:
+                    logger.warning(
+                        "%s: range metadata failed for hop %s → %s: %s",
+                        self.display_name,
+                        context.from_version,
+                        context.to_version,
+                        exc,
+                    )
+            hop_results.append(HopResult(context=context, result=result))
+
+        return hop_results
+
+    async def extract_hops(
+        self,
+        from_version: str,
+        to_version: str,
+        *,
+        granularity: str = "patch",
+        per_hop_range_metadata: bool = False,
+    ) -> list[HopResult]:
+        """Plan hops for ``granularity`` and extract each of them separately."""
+        contexts = await self.plan_hops(from_version, to_version, granularity)
+        return await self.extract_contexts(
+            contexts, per_hop_range_metadata=per_hop_range_metadata
+        )
+
+    async def extract_range(
+        self, from_version: str, to_version: str, granularity: str = "patch"
+    ) -> tuple[ExtractionResult, list[tuple[str, str, list[DocumentedChange]]]]:
+        """Discover versions, extract each hop, and return aggregated result."""
+        hop_results = await self.extract_hops(
+            from_version, to_version, granularity=granularity
+        )
+        all_changes: list[DocumentedChange] = []
+        metadata: dict = {}
+        hop_changes: list[tuple[str, str, list[DocumentedChange]]] = []
+
+        for hop in hop_results:
+            hop_changes.append((hop.from_version, hop.to_version, list(hop.changes)))
+            all_changes.extend(hop.changes)
+            metadata.update(hop.result.metadata)
 
         if not all_changes:
             raise RuntimeError(

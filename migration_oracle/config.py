@@ -59,6 +59,8 @@ EXTRACTION_RETRY_BASE_DELAY: float = float(
     _optional("EXTRACTION_RETRY_BASE_DELAY", "2.0")
 )
 JIRA_MAX_CONCURRENT: int = int(_optional("JIRA_MAX_CONCURRENT", "4"))
+GITHUB_ENRICH_MAX_CONCURRENT: int = int(_optional("GITHUB_ENRICH_MAX_CONCURRENT", "8"))
+GITHUB_ENRICH_BODY_MAX_CHARS: int = int(_optional("GITHUB_ENRICH_BODY_MAX_CHARS", "1500"))
 REDHAT_DOCS_DELAY_SEC: float = float(_optional("REDHAT_DOCS_DELAY_SEC", "2.0"))
 
 
@@ -72,9 +74,27 @@ JBOSS_SKIP_PRERELEASE: bool = _parse_bool_flag(
 SPRING_INCLUDE_PRERELEASE: bool = _parse_bool_flag(
     _optional("SPRING_INCLUDE_PRERELEASE", "1")
 )
+# When false, release rows keep the one-line GitHub text.
+SPRING_BOOT_GITHUB_ENRICHMENT: bool = _parse_bool_flag(
+    _optional("SPRING_BOOT_GITHUB_ENRICHMENT", "true")
+)
+ANGULAR_GITHUB_ENRICHMENT: bool = _parse_bool_flag(
+    _optional("ANGULAR_GITHUB_ENRICHMENT", "true")
+)
 MCP_STATELESS_HTTP: bool = _parse_bool_flag(_optional("MCP_STATELESS_HTTP", "false"))
 FINDIT_CACHE_STRATEGY: str = _optional("FINDIT_CACHE_STRATEGY", "none")
 # Valid values: "bulk", "paginated", "none"
 FINDIT_CACHE_LOAD_TIMEOUT_SECONDS: float = float(
     _optional("FINDIT_CACHE_LOAD_TIMEOUT_SECONDS", "30")
 )
+
+# --- Pipeline hop configuration -------------------------------------------
+# Version-hop granularity for export-extract-populate-framework runs.
+#   patch — one hop per released version (3.1.0 → 3.1.1 → … → 3.2.0)
+#   minor — one hop per minor line (3.1.12 → 3.2.0 → 3.2.4)
+# Overridden per run by --hop-granularity.
+HOP_GRANULARITY: str = _optional("HOP_GRANULARITY", "patch").strip().lower()
+# When true, the filter LLM, entity LLM, and graph population run once per
+# version hop instead of once per requested range, producing one Version node
+# (and one ruleset) per hop. Overridden per run by --hop-by-hop/--no-hop-by-hop.
+HOP_BY_HOP: bool = _parse_bool_flag(_optional("HOP_BY_HOP", "0"))

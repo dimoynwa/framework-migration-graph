@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext
 
 
 class StubFrameworkExtractor(BaseExtractor):
@@ -13,7 +13,9 @@ class StubFrameworkExtractor(BaseExtractor):
     async def discover_versions(self) -> list[str]:
         return ["1.0.0", "2.0.0"]
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         changes = [
             DocumentedChange(
                 type="breaking",

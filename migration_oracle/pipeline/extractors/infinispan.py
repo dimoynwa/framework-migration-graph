@@ -5,6 +5,7 @@ from __future__ import annotations
 from migration_oracle.models.entities import ExtractionResult
 from migration_oracle.pipeline.extractors.base import (
     BaseExtractor,
+    HopContext,
     is_infinispan_ga_version,
 )
 from migration_oracle.pipeline.extractors.filters import _skip_prerelease
@@ -42,7 +43,9 @@ class InfinispanExtractor(BaseExtractor):
             versions = raw_versions
         return filter_release_versions(versions, final_only=False)
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         version = normalize_wildfly_maven_version(to_version)
         tag_candidates = [f"{version}", f"{version}.Final"]
         source_url, body = await self.fetch_github_release(

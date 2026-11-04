@@ -6,6 +6,12 @@
 Quick reference for converting version strings to sortable integers.
 Formula: `MAJOR * 1_000_000 + MINOR * 1_000 + PATCH`
 
+Milestone and RC builds are valid versions too and sort **below** the GA release
+they precede, in the previous minor line's unused patch band: `4.1.0-M1` →
+`4000901`, `4.1.0-RC1` → `4000951`, `4.1.0` → `4001000`. GA spellings such as
+`26.1.2.Final` resolve to the plain GA integer. Tables below list GA releases
+only.
+
 ---
 
 ## Spring Boot

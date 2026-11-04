@@ -19,12 +19,24 @@ from migration_oracle.mcp.matching import compute_matched_entities
 from migration_oracle.mcp.graph.queries.upgrade import _CHECK_VERSION_IN_GRAPH, resolve_version
 from migration_oracle.mcp.config import MIGRATION_MODE
 from migration_oracle.mcp.instance import mcp
-from migration_oracle.models.graph import VersionResolutionFailure
+from migration_oracle.models.graph import VersionResolutionFailure, is_prerelease
 
 
 def _to_minor_zero(version: str) -> str:
-    """Normalise 'major.minor.patch' → 'major.minor.0' for graph lookups."""
+    """Normalise 'major.minor.patch' → 'major.minor.0' for graph lookups.
+
+    Prereleases such as '4.1.0-RC1' are returned unchanged: they are catalogued
+    versions in their own right, and the '4.1.0' GA release they precede may not
+    exist yet.
+    """
     parts = version.split(".", 2)
+    if len(parts) < 2:
+        return version
+    try:
+        if is_prerelease(version):
+            return version
+    except ValueError:
+        pass
     return f"{parts[0]}.{parts[1]}.0"
 
 

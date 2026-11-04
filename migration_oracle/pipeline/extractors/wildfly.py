@@ -7,7 +7,7 @@ import logging
 import re
 
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor, is_jboss_ga_version
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext, is_jboss_ga_version
 from migration_oracle.pipeline.extractors.filters import _skip_prerelease
 from migration_oracle.pipeline.extractors.parsing import (
     apply_cli_hints,
@@ -142,7 +142,9 @@ class WildFlyExtractor(BaseExtractor):
         await asyncio.gather(*(load_key(key) for key in keys))
         return cache, index
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         version = to_version
         tag_candidates = [f"{version}.Final", f"{version}"]
         source_url, body = await self._fetch_release_body(to_version, tag_candidates)

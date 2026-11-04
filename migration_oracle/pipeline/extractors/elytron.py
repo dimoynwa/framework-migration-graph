@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import is_jboss_ga_version
+from migration_oracle.pipeline.extractors.base import HopContext, is_jboss_ga_version
 from migration_oracle.pipeline.extractors.filters import _skip_prerelease
 from migration_oracle.pipeline.extractors.parsing import (
     filter_release_versions,
@@ -41,5 +41,7 @@ class ElytronExtractor(StubExtractor):
         normalized = [normalize_wildfly_maven_version(v) for v in versions]
         return filter_release_versions(normalized, final_only=False)
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         self._raise_not_implemented()

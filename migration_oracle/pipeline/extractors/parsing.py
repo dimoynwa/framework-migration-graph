@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from typing import Iterable
 
 from migration_oracle.models.entities import DocumentedChange
+from migration_oracle.models.graph import is_prerelease, version_parts
 
 _VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(.*)$")
 _BULLET_RE = re.compile(r"^[\s]*[-*+]\s+(.+)$")
@@ -36,9 +37,20 @@ def parse_version(version: str) -> tuple[int, int, int, str]:
     return int(match.group(1)), int(match.group(2)), int(match.group(3)), match.group(4)
 
 
-def version_key(version: str) -> tuple[int, int, int]:
-    major, minor, patch, _ = parse_version(version)
-    return major, minor, patch
+def version_key(version: str) -> tuple[int, int, int, int]:
+    """
+    Sort/compare key: ``(major, minor, patch, prerelease_offset)``.
+
+    The offset term is 0 for GA builds and negative for milestone/RC builds.
+    Without it ``4.1.0-M1``, ``4.1.0-RC1`` and ``4.1.0`` all compare equal, so
+    discovery order decided hop sequences and a range ending at ``4.1.0-RC1``
+    also pulled in the ``4.1.0`` GA release.
+    """
+    try:
+        return version_parts(version)
+    except ValueError:
+        major, minor, patch, _ = parse_version(version)
+        return (major, minor, patch, 0)
 
 
 def compare_versions(left: str, right: str) -> int:
@@ -127,6 +139,65 @@ def compute_hops(versions: list[str]) -> list[tuple[str, str]]:
     if len(versions) < 2:
         raise ValueError("Need at least two versions to compute hops")
     return [(versions[i], versions[i + 1]) for i in range(len(versions) - 1)]
+
+
+#: Supported hop granularities for ``select_hop_versions``.
+HOP_GRANULARITIES: tuple[str, ...] = ("patch", "minor")
+
+
+def validate_hop_granularity(granularity: str) -> str:
+    """Return ``granularity`` if it is a supported hop granularity."""
+    normalized = granularity.strip().lower()
+    if normalized not in HOP_GRANULARITIES:
+        raise ValueError(
+            f"Unknown hop granularity {granularity!r}; "
+            f"expected one of {', '.join(HOP_GRANULARITIES)}"
+        )
+    return normalized
+
+
+def select_hop_versions(
+    versions: list[str],
+    from_version: str,
+    to_version: str,
+    granularity: str = "patch",
+) -> list[str]:
+    """
+    Version boundaries that become hops for the requested granularity.
+
+    ``patch`` — every released version in range, so every patch release is its
+                own hop (the historical behaviour of the raw extraction stage),
+                including milestone/RC builds when prereleases are enabled.
+    ``minor`` — only GA ``X.Y.0`` releases plus the requested endpoints, so one
+                hop per minor line even when the endpoints are patch releases
+                (``3.1.12 → 3.2.4`` yields ``3.1.12 → 3.2.0 → 3.2.4``).
+                Prereleases are skipped unless the caller asked for one
+                explicitly, e.g. ``4.0.6 → 4.1.0-RC1`` stays a single hop.
+    """
+    selected_granularity = validate_hop_granularity(granularity)
+    in_range = versions_in_range(versions, from_version, to_version)
+    if selected_granularity == "patch":
+        return in_range
+    return [
+        version
+        for version in in_range
+        if version in (from_version, to_version)
+        or (parse_version(version)[2] == 0 and not is_prerelease(version))
+    ]
+
+
+def enters_new_minor_line(from_version: str, to_version: str) -> bool:
+    """
+    True when a hop crosses into a different ``major.minor`` line.
+
+    Minor-line release notes (Spring Boot wiki pages, migration guides) describe
+    what changes when you *enter* a line, so they belong to the hop that crosses
+    the boundary — not to every patch hop inside the line, which would duplicate
+    the same prose across the whole line.
+    """
+    from_major, from_minor, _, _ = parse_version(from_version)
+    to_major, to_minor, _, _ = parse_version(to_version)
+    return (to_major, to_minor) != (from_major, from_minor)
 
 
 def classify_statement(section: str, text: str) -> tuple[str, str]:

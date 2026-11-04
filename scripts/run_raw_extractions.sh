@@ -29,11 +29,14 @@ run angular 20.0.0 21.0.0
 run angular 21.0.0 22.0.0
 
 echo "Spring Boot extractions..."
-run spring-boot 3.3.0 3.4.0
-run spring-boot 3.4.0 3.5.0
-run spring-boot 3.5.0 4.0.0
+# Raw extraction already walks every intermediate release; --hop-granularity makes
+# that explicit. For patch-level ingestion (one Version node + ruleset per release)
+# use scripts/run_spring_boot_patch_ingest.sh instead.
+run spring-boot 3.3.0 3.4.0 --hop-granularity patch
+run spring-boot 3.4.0 3.5.0 --hop-granularity patch
+run spring-boot 3.5.0 4.0.0 --hop-granularity patch
 # 4.1.0 GA is not on Maven yet; extract through latest 4.1 prerelease (RC1).
-run spring-boot 4.0.0 4.1.0-RC1 --output-md runs/raw/spring-boot-4.0.0-to-4.1.0-changes.md
+run spring-boot 4.0.0 4.1.0-RC1 --hop-granularity patch --output-md runs/raw/spring-boot-4.0.0-to-4.1.0-changes.md
 
 echo "WildFly extractions..."
 pairs=(

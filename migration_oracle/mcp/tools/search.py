@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Annotated
 
-from sentence_transformers import SentenceTransformer
+from pydantic import Field
 
 from migration_oracle import config
 from migration_oracle.mcp.config import MIGRATION_MODE
 from migration_oracle.mcp.graph.queries import search as search_queries
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.mcp.tools._rrf import rrf_fuse
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 _model: SentenceTransformer | None = None
 _executor = ThreadPoolExecutor(max_workers=4)
@@ -20,7 +24,9 @@ _executor = ThreadPoolExecutor(max_workers=4)
 def get_embedding_model() -> SentenceTransformer:
     global _model
     if _model is None:
-        _model = SentenceTransformer(config.SENTENCE_TRANSFORMERS_MODEL)
+        from sentence_transformers import SentenceTransformer as _SentenceTransformer
+
+        _model = _SentenceTransformer(config.SENTENCE_TRANSFORMERS_MODEL)
     return _model
 
 
@@ -150,12 +156,30 @@ def _build_hits(
 
 @mcp.tool()
 async def search_migration_knowledge(
-    query: str,
-    framework: str = "Spring Boot",
-    max_results: int = 5,
-    rrf_k: int = 60,
-    top_k_per_index: int = 50,
-    min_vector_similarity: float = 0.30,
+    query: Annotated[
+        str,
+        Field(description="Natural-language migration question or keywords to search across rules and community insights."),
+    ],
+    framework: Annotated[
+        str,
+        Field(description="Framework filter for hydrated graph results, for example 'Spring Boot'."),
+    ] = "Spring Boot",
+    max_results: Annotated[
+        int,
+        Field(description="Maximum number of fused BM25/vector hits to return."),
+    ] = 5,
+    rrf_k: Annotated[
+        int,
+        Field(description="Reciprocal Rank Fusion k constant; higher values smooth rank differences."),
+    ] = 60,
+    top_k_per_index: Annotated[
+        int,
+        Field(description="Number of candidate IDs to retrieve from each underlying index before fusion."),
+    ] = 50,
+    min_vector_similarity: Annotated[
+        float,
+        Field(description="Minimum vector similarity threshold for vector index candidates."),
+    ] = 0.30,
 ) -> dict:
     """Search migration rules and community insights using hybrid BM25 + vector ranking (RRF).
 
@@ -188,13 +212,34 @@ if MIGRATION_MODE == "full":
 
     @mcp.tool()
     async def search_openrewrite_recipes(
-        query: str,
-        max_results: int = 5,
-        only_composite: bool | None = None,
-        require_no_params: bool = False,
-        rrf_k: int = 60,
-        top_k_per_index: int = 50,
-        min_vector_similarity: float = 0.30,
+        query: Annotated[
+            str,
+            Field(description="Natural-language recipe search query, for example a migration topic or framework feature."),
+        ],
+        max_results: Annotated[
+            int,
+            Field(description="Maximum number of fused OpenRewrite recipe hits to return."),
+        ] = 5,
+        only_composite: Annotated[
+            bool | None,
+            Field(description="When true return only composite recipes; when false only non-composite recipes; when null do not filter."),
+        ] = None,
+        require_no_params: Annotated[
+            bool,
+            Field(description="When true, exclude recipes with required RecipeParam nodes."),
+        ] = False,
+        rrf_k: Annotated[
+            int,
+            Field(description="Reciprocal Rank Fusion k constant; higher values smooth rank differences."),
+        ] = 60,
+        top_k_per_index: Annotated[
+            int,
+            Field(description="Number of candidate IDs to retrieve from each underlying recipe index before fusion."),
+        ] = 50,
+        min_vector_similarity: Annotated[
+            float,
+            Field(description="Minimum vector similarity threshold for vector index candidates."),
+        ] = 0.30,
     ) -> dict:
         """Search OpenRewrite recipe descriptions using hybrid BM25 + vector ranking (RRF).
 

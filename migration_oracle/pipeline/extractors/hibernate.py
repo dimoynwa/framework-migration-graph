@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from migration_oracle.models.entities import ExtractionResult
-from migration_oracle.pipeline.extractors.base import BaseExtractor, is_jboss_ga_version
+from migration_oracle.pipeline.extractors.base import BaseExtractor, HopContext, is_jboss_ga_version
 from migration_oracle.pipeline.extractors.filters import _skip_prerelease
 from migration_oracle.pipeline.extractors.parsing import (
     filter_release_versions,
@@ -61,7 +61,9 @@ class HibernateExtractor(BaseExtractor):
             "hibernate/hibernate-orm", version, tag_candidates
         )
 
-    async def extract(self, from_version: str, to_version: str) -> ExtractionResult:
+    async def extract(
+        self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
+    ) -> ExtractionResult:
         version = normalize_wildfly_maven_version(to_version)
         tag_candidates = [f"{version}"]
         source_url, body = await self._fetch_guide(version, tag_candidates)

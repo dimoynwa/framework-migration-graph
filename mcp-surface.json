@@ -1,0 +1,1123 @@
+{
+  "capabilities": {
+    "prompts": true,
+    "resources": true,
+    "tools": true
+  },
+  "discovery_mode": "runtime_import_static_fastmcp_lists",
+  "migration_mode": "full",
+  "prompts": [
+    {
+      "arguments": [
+        {
+          "description": null,
+          "name": "framework",
+          "required": true
+        },
+        {
+          "description": null,
+          "name": "current_version",
+          "required": true
+        },
+        {
+          "description": null,
+          "name": "target_version",
+          "required": true
+        },
+        {
+          "description": null,
+          "name": "project_id",
+          "required": true
+        },
+        {
+          "description": null,
+          "name": "stage",
+          "required": false
+        }
+      ],
+      "description": "Start a split migration harness session for a project.\n\n    framework: e.g. 'Spring Boot', 'WildFly', 'Quarkus'\n    current_version: the version the project is migrating FROM, e.g. '2.7'\n    target_version: the version the project is migrating TO, e.g. '3.2'\n    project_id: unique project identifier (used in plan.md header)\n    stage: one of research, plan, gap-check, clarify, preview, execute (default: plan)\n    ",
+      "icons": null,
+      "meta": null,
+      "name": "start_migration",
+      "title": null
+    },
+    {
+      "arguments": [
+        {
+          "description": null,
+          "name": "migration_folder",
+          "required": true
+        },
+        {
+          "description": null,
+          "name": "stage",
+          "required": false
+        }
+      ],
+      "description": "Resume a file-state migration from an existing ps-migration/ folder.\n\n    migration_folder: path to ps-migration/{framework}-{from}-to-{to}/ in the consumer repo.\n    stage: one of research, plan, gap-check, clarify, preview, execute (default: execute).\n    ",
+      "icons": null,
+      "meta": null,
+      "name": "resume_migration",
+      "title": null
+    },
+    {
+      "arguments": [],
+      "description": "Zero-parameter fallback for clients that do not support parameterized prompts.\n\n    Prefer start_migration or resume_migration when the client supports parameters.\n    ",
+      "icons": null,
+      "meta": null,
+      "name": "migration_workflow_prompt",
+      "title": null
+    }
+  ],
+  "resources": [
+    {
+      "annotations": null,
+      "description": "Research stage \u2014 knowledge query and research.md checkpoint emission.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_research",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-research/main"
+    },
+    {
+      "annotations": null,
+      "description": "Plan stage \u2014 codebase scan, knowledge queries, and file emission.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_plan",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-plan/main"
+    },
+    {
+      "annotations": null,
+      "description": "Gap-check stage \u2014 mechanical plan audit.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_gap_check",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-gap-check/main"
+    },
+    {
+      "annotations": null,
+      "description": "Clarify stage \u2014 optional human plan amendments.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_clarify",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-clarify/main"
+    },
+    {
+      "annotations": null,
+      "description": "Preview stage \u2014 read-only customer-facing plan rendering.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_preview",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-preview/main"
+    },
+    {
+      "annotations": null,
+      "description": "Execute stage \u2014 apply pending steps.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_execute",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-execute/main"
+    },
+    {
+      "annotations": null,
+      "description": "Codebase scanning patterns for entity extraction.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_plan_scanning",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-plan/scanning"
+    },
+    {
+      "annotations": null,
+      "description": "Framework version map and toolchain gates.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_plan_version_map",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-plan/version-map"
+    },
+    {
+      "annotations": null,
+      "description": "Build-failure rollback procedure for the migration harness.",
+      "icons": null,
+      "meta": null,
+      "mimeType": "text/plain",
+      "name": "skill_framework_migration_execute_rollback",
+      "size": null,
+      "title": null,
+      "uri": "skill://framework-migration-execute/rollback"
+    }
+  ],
+  "server": "PaysafeMigrationOracle",
+  "tools": [
+    {
+      "annotations": null,
+      "description": "Install migration skill bundles for the active server mode to a local skills directory.\n\n    target: 'auto', 'cursor', or 'claude-code' \u2014 used to suggest the install directory.\n            'auto' defaults to 'cursor'.\n    target_dir: override the install root directory (skills parent for all bundles).\n    project_dir: starting directory for project-root detection; defaults to the process CWD.\n    scope: 'project' (default) installs under {project_root}/.cursor/skills or\n           {project_root}/.claude/skills; 'global' installs under ~/.cursor/skills or\n           ~/.claude/skills. Ignored when target_dir is set.\n\n    Returns:\n      status, target, installed_paths, message, mode, installed_skills, project_root, scope\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "project_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional starting directory for project-root detection; defaults to the process CWD.",
+            "title": "Project Dir"
+          },
+          "scope": {
+            "default": "project",
+            "description": "'project' installs under the project skills directory; 'global' installs under the user skills directory.",
+            "title": "Scope",
+            "type": "string"
+          },
+          "target": {
+            "default": "auto",
+            "description": "'auto', 'cursor', or 'claude-code'. 'auto' resolves to cursor.",
+            "title": "Target",
+            "type": "string"
+          },
+          "target_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional explicit skills parent directory; overrides target and scope path resolution.",
+            "title": "Target Dir"
+          }
+        },
+        "title": "install_migration_skillArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "install_migration_skill",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Resolve a com.paysafe.* dependency via FindIt and GitLab. Returns repo, tags, and migration guidance.\n\n    Requires FINDIT_AUTH_TOKEN and GITLAB_API_KEY environment variables. Returns a RESOLUTION_FAILED dict with subStatus='auth_error' if FINDIT_AUTH_TOKEN is absent.\n    Pass target_version to filter returned tags to those compatible with that framework version.\n    Scans at most max_tags (default 15) within a 45s wall-clock budget. For BOM-only repos without\n    per-tag framework metadata, omit target_version or set allow_latest_overall=True.\n    The tool delegates entirely to the Paysafe resolver \u2014 check resolver logs for root-cause errors.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "allow_latest_overall": {
+            "default": false,
+            "description": "Allow selecting the latest tag even when per-tag framework compatibility metadata is unavailable.",
+            "title": "Allow Latest Overall",
+            "type": "boolean"
+          },
+          "framework": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional framework identifier for compatibility filtering, for example 'spring-boot'.",
+            "title": "Framework"
+          },
+          "max_tags": {
+            "default": 15,
+            "description": "Maximum number of repository tags to inspect within the resolver wall-clock budget.",
+            "title": "Max Tags",
+            "type": "integer"
+          },
+          "pinned_tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional exact Git tag to inspect instead of selecting from recent tags.",
+            "title": "Pinned Tag"
+          },
+          "pinned_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional exact dependency version to prefer when present in repository metadata.",
+            "title": "Pinned Version"
+          },
+          "service_name": {
+            "description": "FindIt service name for the com.paysafe dependency, for example 'payments-core'.",
+            "title": "Service Name",
+            "type": "string"
+          },
+          "target_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional target framework version used to filter compatible tags when metadata is available.",
+            "title": "Target Version"
+          }
+        },
+        "required": [
+          "service_name"
+        ],
+        "title": "resolve_paysafe_dependency_by_service_nameArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "resolve_paysafe_dependency_by_service_name",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Search migration rules and community insights using hybrid BM25 + vector ranking (RRF).\n\n    Returns up to max_results hits ordered by Reciprocal Rank Fusion score. Each hit\n    includes: statement, action_step, source_url, node_type, score.\n    Vector search requires embeddings; if embeddings were not generated (POPULATE_MIGRATION_EMBEDDINGS=false),\n    only BM25 results are returned.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework filter for hydrated graph results, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "max_results": {
+            "default": 5,
+            "description": "Maximum number of fused BM25/vector hits to return.",
+            "title": "Max Results",
+            "type": "integer"
+          },
+          "min_vector_similarity": {
+            "default": 0.3,
+            "description": "Minimum vector similarity threshold for vector index candidates.",
+            "title": "Min Vector Similarity",
+            "type": "number"
+          },
+          "query": {
+            "description": "Natural-language migration question or keywords to search across rules and community insights.",
+            "title": "Query",
+            "type": "string"
+          },
+          "rrf_k": {
+            "default": 60,
+            "description": "Reciprocal Rank Fusion k constant; higher values smooth rank differences.",
+            "title": "Rrf K",
+            "type": "integer"
+          },
+          "top_k_per_index": {
+            "default": 50,
+            "description": "Number of candidate IDs to retrieve from each underlying index before fusion.",
+            "title": "Top K Per Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_migration_knowledgeArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "search_migration_knowledge",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Search OpenRewrite recipe descriptions using hybrid BM25 + vector ranking (RRF).\n\n        Returns up to max_results recipe hits with statement and score.\n        Filters only_composite and require_no_params are applied at the Cypher layer.\n        - only_composite: filters on the graph property r.composite (boolean), not r.isComposite.\n        - require_no_params: excludes recipes that have (r)-[:HAS_PARAM]->(p:RecipeParam {required: true}).\n          Required parameters are modelled as RecipeParam nodes, not as an array property.\n        ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "max_results": {
+            "default": 5,
+            "description": "Maximum number of fused OpenRewrite recipe hits to return.",
+            "title": "Max Results",
+            "type": "integer"
+          },
+          "min_vector_similarity": {
+            "default": 0.3,
+            "description": "Minimum vector similarity threshold for vector index candidates.",
+            "title": "Min Vector Similarity",
+            "type": "number"
+          },
+          "only_composite": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "When true return only composite recipes; when false only non-composite recipes; when null do not filter.",
+            "title": "Only Composite"
+          },
+          "query": {
+            "description": "Natural-language recipe search query, for example a migration topic or framework feature.",
+            "title": "Query",
+            "type": "string"
+          },
+          "require_no_params": {
+            "default": false,
+            "description": "When true, exclude recipes with required RecipeParam nodes.",
+            "title": "Require No Params",
+            "type": "boolean"
+          },
+          "rrf_k": {
+            "default": 60,
+            "description": "Reciprocal Rank Fusion k constant; higher values smooth rank differences.",
+            "title": "Rrf K",
+            "type": "integer"
+          },
+          "top_k_per_index": {
+            "default": 50,
+            "description": "Number of candidate IDs to retrieve from each underlying recipe index before fusion.",
+            "title": "Top K Per Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "search_openrewrite_recipesArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "search_openrewrite_recipes",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Return migration rules and lifecycle alerts for a framework version range.\n\n    Queries all MigrationRule nodes whose version range covers [current_version, target_version].\n    Optionally filter by scope ('api-surface', 'runtime', 'config', 'build', 'test') and\n    severity ('low', 'medium', 'high', 'critical').\n\n    Returns: rules list (statement, steps, scopes, recipes), lifecycle_alerts list.\n    Each rule contains steps: [] and scopes: [] when no MigrationStep/BreakingScope nodes\n    exist in the graph (pre-redesign data) \u2014 this is expected, not an error.\n\n    When include_recipes=True, each rule includes a recipes list. Recipes are per step\n    (traversal: REQUIRES_STEP \u2192 AUTOMATED_BY). Each recipe entry includes step_id identifying\n    the MigrationStep that has the AUTOMATED_BY edge.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "classification": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional entityClassification filters such as 'actionable', 'incomplete', or 'informational'.",
+            "title": "Classification"
+          },
+          "current_version": {
+            "description": "Source framework version to migrate from.",
+            "title": "Current Version",
+            "type": "string"
+          },
+          "format": {
+            "default": "json",
+            "description": "'json' for structured output or 'markdown' for a concise Markdown summary.",
+            "title": "Format",
+            "type": "string"
+          },
+          "framework": {
+            "description": "Framework name for the migration range, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "include_lifecycle": {
+            "default": true,
+            "description": "Include lifecycle alerts for versions in the migration range when true.",
+            "title": "Include Lifecycle",
+            "type": "boolean"
+          },
+          "include_recipes": {
+            "default": false,
+            "description": "Include linked OpenRewrite recipe metadata for each migration rule when true.",
+            "title": "Include Recipes",
+            "type": "boolean"
+          },
+          "min_severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional minimum severity: 'low', 'medium', 'high', or 'critical'.",
+            "title": "Min Severity"
+          },
+          "scope_filter": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional scopes: 'api-surface', 'runtime', 'config', 'build', or 'test'.",
+            "title": "Scope Filter"
+          },
+          "target_version": {
+            "description": "Target framework version to migrate to.",
+            "title": "Target Version",
+            "type": "string"
+          },
+          "top_n": {
+            "default": 50,
+            "description": "Maximum number of migration rules to return after filtering and ranking.",
+            "title": "Top N",
+            "type": "integer"
+          },
+          "user_entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional scanned codebase entities: FQCNs, simple class names, group:artifact coordinates, artifact IDs, or property keys.",
+            "title": "User Entities"
+          },
+          "verbose": {
+            "default": false,
+            "description": "Request verbose rule output when supported by downstream formatting.",
+            "title": "Verbose",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "framework",
+          "current_version",
+          "target_version"
+        ],
+        "title": "analyze_upgrade_pathArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "analyze_upgrade_path",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Produce a two-track migration plan: auto (scriptable) and manual (human review required).\n\n        Auto track: steps with automatable=true, effort=mechanical, and a linked OpenRewrite recipe.\n        Manual track: all other steps. Falls back to rule-level cards when no MigrationStep nodes exist.\n\n        Returns: auto_track list, manual_track list, fallback_to_rule_cards bool.\n        An empty auto_track is expected in the first release (no AUTOMATED_BY edges yet).\n        ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "auto_only": {
+            "default": false,
+            "description": "When true, omit the manual track and return only automatable recipe-backed work.",
+            "title": "Auto Only",
+            "type": "boolean"
+          },
+          "classification": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional entityClassification filters such as 'actionable', 'incomplete', or 'informational'.",
+            "title": "Classification"
+          },
+          "current_version": {
+            "description": "Source framework version to migrate from.",
+            "title": "Current Version",
+            "type": "string"
+          },
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework name for the migration plan, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "min_severity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional minimum severity: 'low', 'medium', 'high', or 'critical'.",
+            "title": "Min Severity"
+          },
+          "scope_filter": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional scopes: 'api-surface', 'runtime', 'config', 'build', or 'test'.",
+            "title": "Scope Filter"
+          },
+          "target_version": {
+            "description": "Target framework version to migrate to.",
+            "title": "Target Version",
+            "type": "string"
+          },
+          "user_entities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional scanned codebase entities used to classify plan steps as matched, uncertain, excluded, informational, or universal.",
+            "title": "User Entities"
+          }
+        },
+        "required": [
+          "current_version",
+          "target_version"
+        ],
+        "title": "build_recipe_planArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "build_recipe_plan",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Check whether a framework version exists in the graph and on Maven Central.\n\n        direction='floor' (default): resolve to the highest graph node <= requested version.\n        direction='ceil': resolve to the lowest graph node >= requested version (for target checks).\n\n        Returns: status, exists_in_graph, nodeId, resolved_version, rounded, ahead_of_catalogue,\n                 ga_available, latest_patch, hint.\n        On Maven Central probe failure, returns status='ok' with ga_available=False and a hint.\n        ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "direction": {
+            "default": "floor",
+            "description": "'floor' resolves to the highest graph version <= requested; 'ceil' resolves to the lowest graph version >= requested.",
+            "enum": [
+              "floor",
+              "ceil"
+            ],
+            "title": "Direction",
+            "type": "string"
+          },
+          "framework": {
+            "description": "Framework name or accepted alias, for example 'Spring Boot', 'spring-boot', or 'springboot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "version": {
+            "description": "Requested framework version to resolve in the graph and check on Maven Central.",
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "framework",
+          "version"
+        ],
+        "title": "check_version_availabilityArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "check_version_availability",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "List all Version nodes that have pipeline artifact paths stored in the graph.\n\n    A pipeline run is a processed (framework, version) pair that has at least one artifact\n    path (raw_md, filtered_md, or entities_json). Returns: runs list with framework, to_version,\n    and path fields. Use to discover available artifact keys before calling get_artifact_content.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {},
+        "title": "list_pipeline_runsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "list_pipeline_runs",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Read a pipeline artifact by type. The file path is resolved from the graph \u2014 no direct path accepted.\n\n    artifact_type: 'raw_md' | 'filtered_md' | 'entities_json'.\n    The path is read from the Version node in the graph; callers cannot supply an arbitrary filesystem path.\n    Returns: content (full text), path_resolved, status ('ok' | 'not_found' | 'error').\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "artifact_type": {
+            "description": "'raw_md', 'filtered_md', or 'entities_json'. Paths are graph-resolved; callers cannot pass filesystem paths.",
+            "title": "Artifact Type",
+            "type": "string"
+          },
+          "framework": {
+            "description": "Framework name for the pipeline artifact, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "from_version": {
+            "description": "Source version for the migration run; used for response metadata and artifact identity.",
+            "title": "From Version",
+            "type": "string"
+          },
+          "to_version": {
+            "description": "Target version whose Version node stores the artifact path.",
+            "title": "To Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "framework",
+          "from_version",
+          "to_version",
+          "artifact_type"
+        ],
+        "title": "get_artifact_contentArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_artifact_content",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Submit a developer-contributed migration insight. Writes a MigrationRule node with ruleType='community_insight'.\n\n    Near-duplicate detection runs a three-pass pipeline (exact \u2192 vector \u2192 BM25+cosine) with a\n    0.92 cosine similarity threshold before write. Returns status='duplicate' if a similar insight\n    already exists \u2014 no new node is created.\n\n    Return field semantics across all three status paths:\n    - status='ok':        insight_id=<new element ID>,  duplicate_of=None\n    - status='duplicate': insight_id=None,              duplicate_of=<existing element ID>\n    - status='error':     insight_id=None,              duplicate_of=None\n\n    Not idempotent \u2014 call once per unique finding.\n\n    Note: the parameter 'spring_boot_version' holds the framework version string\n    regardless of the 'framework' value (e.g. '3.2' for Spring Boot, '30' for WildFly).\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "affected_classes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional affected fully-qualified class names or simple class names.",
+            "title": "Affected Classes"
+          },
+          "affected_dependencies": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional affected dependency coordinates or artifact IDs.",
+            "title": "Affected Dependencies"
+          },
+          "affected_properties": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional affected application property keys.",
+            "title": "Affected Properties"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional confidence score for the insight, typically between 0 and 1.",
+            "title": "Confidence"
+          },
+          "evidence_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional source URL supporting the submitted insight.",
+            "title": "Evidence Url"
+          },
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework name whose Version node should receive the community insight.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "solution": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional recommended remediation or workaround text.",
+            "title": "Solution"
+          },
+          "spring_boot_version": {
+            "description": "Framework version string to attach the insight to; name is legacy and applies to any framework.",
+            "title": "Spring Boot Version",
+            "type": "string"
+          },
+          "statement": {
+            "description": "Developer-contributed migration finding or workaround to store as a community insight.",
+            "title": "Statement",
+            "type": "string"
+          }
+        },
+        "required": [
+          "statement",
+          "spring_boot_version"
+        ],
+        "title": "submit_migration_insightArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "submit_migration_insight",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Query MigrationRule nodes (ruleType='community_insight') by version range, entity name, or verified status. Read-only.\n\n    Returns: insights list with statement, solution, votes, verified, confidence, version.\n    Note: entity_type filter is accepted but not yet applied \u2014 all entity types are returned.\n    Use verified_only=True to return only moderator-approved insights.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "entity_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional affected entity name to filter insights by.",
+            "title": "Entity Name"
+          },
+          "entity_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Accepted for compatibility but not currently applied; all entity types are returned.",
+            "title": "Entity Type"
+          },
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework name for the insight query, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          },
+          "from_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional lower bound framework version for insight lookup.",
+            "title": "From Version"
+          },
+          "to_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "description": "Optional upper bound framework version for insight lookup.",
+            "title": "To Version"
+          },
+          "verified_only": {
+            "default": false,
+            "description": "When true, return only moderator-verified community insights.",
+            "title": "Verified Only",
+            "type": "boolean"
+          }
+        },
+        "title": "get_community_insightsArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_community_insights",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Increment or decrement the votes count on a community insight. Not idempotent.\n\n    delta=1 for upvote, delta=-1 for downvote. Calling twice with delta=1 adds 2 votes.\n    Returns: insight_id, new_vote_count.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "delta": {
+            "default": 1,
+            "description": "Vote delta: 1 for upvote, -1 for downvote. The operation is not idempotent.",
+            "title": "Delta",
+            "type": "integer"
+          },
+          "insight_id": {
+            "description": "Community insight identifier to vote on.",
+            "title": "Insight Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "insight_id"
+        ],
+        "title": "vote_insightArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "vote_insight",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Mark a community insight as verified (moderator operation). Sets verified=true.\n\n    This is a write operation and is not reversible via this tool.\n    Returns: insight_id, verified (always true on success).\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "insight_id": {
+            "description": "Community insight identifier to mark as verified. Moderator/trusted-operator write operation.",
+            "title": "Insight Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "insight_id"
+        ],
+        "title": "verify_insightArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "verify_insight",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Return deprecation metadata and replacement for a single entity name (one hop only).\n\n    entity_name must be the fully-qualified name as stored in the graph\n    (e.g. 'org.springframework.boot.env.EnvironmentPostProcessor', not 'EnvironmentPostProcessor').\n    Short or partial names will return status='not_found'.\n\n    Returns: entity_name, entity_type, deprecated_in, removed_in, replaced_by (direct successor only), and related rules.\n    For the full replacement chain across multiple versions use entity_evolution instead.\n    Returns status='not_found' when the entity is not in the graph.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "entity_name": {
+            "description": "Fully-qualified entity name stored in the graph; partial or short names return not_found.",
+            "title": "Entity Name",
+            "type": "string"
+          },
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework name to search, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_name"
+        ],
+        "title": "resolve_deprecationArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "resolve_deprecation",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Trace the full REPLACED_BY replacement chain for an entity, up to 5 hops.\n\n    entity_name must be the fully-qualified name as stored in the graph\n    (e.g. 'org.springframework.boot.env.EnvironmentPostProcessor', not 'EnvironmentPostProcessor').\n\n    Returns: chain list where each node includes entity_name, entity_type, deprecated_in,\n    removed_in, and related rules. The chain starts at entity_name and follows REPLACED_BY\n    edges until the terminus or the 5-hop limit.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "entity_name": {
+            "description": "Fully-qualified origin entity name stored in the graph for replacement-chain traversal.",
+            "title": "Entity Name",
+            "type": "string"
+          },
+          "framework": {
+            "default": "Spring Boot",
+            "description": "Framework name to search, for example 'Spring Boot'.",
+            "title": "Framework",
+            "type": "string"
+          }
+        },
+        "required": [
+          "entity_name"
+        ],
+        "title": "entity_evolutionArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "entity_evolution",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Return the authoritative graph schema as a Markdown string. No Cypher is executed.\n\n    Use this before execute_custom_cypher to understand available node labels, relationship\n    types, and property names. Returns: schema_markdown string.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {},
+        "title": "get_graph_schemaArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "get_graph_schema",
+      "outputSchema": null,
+      "title": null
+    },
+    {
+      "annotations": null,
+      "description": "Execute a read-only Cypher query against the graph and return rows.\n\n    Blocked keywords (returns status='blocked'): CREATE, MERGE, SET, DELETE, REMOVE, DROP, CALL db.\n    Only SELECT-equivalent MATCH queries are permitted. Returns: rows list, row_count.\n    Call get_graph_schema first to verify node labels and property names before writing a query.\n    ",
+      "execution": null,
+      "icons": null,
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "Read-only Cypher query. Mutation/admin keywords such as CREATE, MERGE, SET, DELETE, REMOVE, DROP, and CALL db are blocked.",
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "execute_custom_cypherArguments",
+        "type": "object"
+      },
+      "meta": null,
+      "name": "execute_custom_cypher",
+      "outputSchema": null,
+      "title": null
+    }
+  ],
+  "transport": "stdio"
+}

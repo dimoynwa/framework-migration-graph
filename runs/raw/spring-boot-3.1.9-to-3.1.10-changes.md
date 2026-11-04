@@ -1,0 +1,20 @@
+# Spring Boot — documented changes (extract-only)
+
+- **Framework key:** `spring-boot`
+- **Resolved range:** `3.1.9` → `3.1.10`
+- **Generated (UTC):** 2026-11-04T12:53:01Z
+
+---
+
+- **bom_diff:** present in extraction metadata
+
+## `3.1.9` → `3.1.10`
+
+| Type | Confidence | Source | Statement |
+|------|------------|--------|-----------|
+| behavioral | inferred | https://github.com/spring-projects/spring-boot/issues/39942 | Title: When graceful shutdown of Tomcat is aborted it may report that it completed successfully Issue: There's a race condition between the thread that's waiting for Tomcat to become inactive or the graceful shutdown to be aborted and the thread that aborts the shutdown and stops Tomcat when the grace period has elapsed. This race can lead to Tomcat appearing to have become inactive before the abort of the shutdown is noticed. When this happens, the result of the shutdown is reported as `IDLE` when it should have been `REQUESTS_ACTIVE`. This result is mostly benign although it does affect the log messages that are emitted. It is also causing some of our graceful shutdown tests to be flaky. Release: When graceful shutdown of Tomcat is aborted it may report that it completed successfully [#39942](https://github.com/spring-projects/spring-boot/issues/39942) |
+| behavioral | inferred | https://github.com/spring-projects/spring-boot/issues/39792 | Title: Resolving a BuildpackReference created from a URL-like String can fail on Windows Issue: ` TarGzipBuildpack.resolve(this.resolverContext, reference)` returns `null` on a GitHub Actions Windows runner as the `Path -> String -> Path` round-tripping does not work. I think we're seeing a difference compared to the Concourse Windows runner due to the build being run from a different working directory. On GitHub Actions, the value of the reference is something like `file://C:\Users\RUNNER~1\AppData\Local\Temp\junit364266182815735792\buildpack\buildpack.tgz` Release: Resolving a BuildpackReference created from a URL-like String can fail on Windows [#39792](https://github.com/spring-projects/spring-boot/issues/39792) |
+| behavioral | inferred | https://github.com/spring-projects/spring-boot/issues/39584 | Title: bootStartScripts tasks should be an instance of org.gradle.api.tasks.application.CreateStartScripts rather than its superclass org.gradle.jvm.application.tasks.CreateStartScripts Issue: Output from my own plugin test, built with Gradle 8.6: ``` The task 'bootStartScripts' (org.gradle.jvm.application.tasks.CreateStartScripts) is not a subclass of the given type (org.gradle.api.tasks.application.CreateStartScripts) ``` Shouldn't custom tasks prefer the API versions of tasks? `org.gradle.api.tasks.application.CreateStartScripts` extends `org.gradle.jvm.application.tasks.CreateStartScripts` anyway. Release: bootStartScripts tasks should be an instance of org.gradle.api.tasks.application.CreateStartScripts rather than its superclass org.gradle.jvm.application.tasks.CreateStartScripts [#39584](https://github.com/spring-projects/spring-boot/issues/39584) |
+| behavioral | inferred | https://github.com/spring-projects/spring-boot/pull/39403 | Title: SpringProfile arbiter fails without a Spring's environment Issue: A issue has been raised and fixed in `apache/logging-log4j2`: https://github.com/apache/logging-log4j2/issues/1783 A detailed explanation of the proposed change may be found in this issue. Basically, the null check for the environment _is not necessary_ in the builder as the `isCondition()` method already correctly checks for a null environment. Release: SpringProfile arbiter fails without a Spring's environment [#39403](https://github.com/spring-projects/spring-boot/pull/39403) |
+| behavioral | inferred | https://github.com/spring-projects/spring-boot/pull/39777 | Title: Fix typo in Custom HTTP Exchange Recording section Issue: Fix Typo in Spring Boot Docs Section 10.1 Custom HTTP Exchange Recording Closes: https://github.com/spring-projects/spring-boot/issues/39768 Release: Fix typo in Custom HTTP Exchange Recording section [#39777](https://github.com/spring-projects/spring-boot/pull/39777)## :heart: Contributors |
+

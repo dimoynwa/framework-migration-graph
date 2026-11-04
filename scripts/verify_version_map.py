@@ -5,7 +5,7 @@ import re
 import sys
 from pathlib import Path
 
-SKILL = Path("migration_oracle/mcp/skills/framework_migration_version_map.md")
+SKILL = Path("migration_oracle/mcp/skills/framework-migration/version-map.md")
 SCHEMA = Path("docs/graph-schema.md")
 
 ROW = re.compile(r"^\|\s*(\d+\.\d+\.\d+)\s*\|\s*(\d+)\s*\|")

@@ -2,19 +2,44 @@
 
 from __future__ import annotations
 
+from typing import Annotated
+
+from pydantic import Field
+
 from migration_oracle.mcp.instance import mcp
 from migration_oracle.paysafe.resolver import resolve
 
 
 @mcp.tool()
 def resolve_paysafe_dependency_by_service_name(
-    service_name: str,
-    target_version: str | None = None,
-    framework: str | None = None,
-    allow_latest_overall: bool = False,
-    max_tags: int = 15,
-    pinned_version: str | None = None,
-    pinned_tag: str | None = None,
+    service_name: Annotated[
+        str,
+        Field(description="FindIt service name for the com.paysafe dependency, for example 'payments-core'."),
+    ],
+    target_version: Annotated[
+        str | None,
+        Field(description="Optional target framework version used to filter compatible tags when metadata is available."),
+    ] = None,
+    framework: Annotated[
+        str | None,
+        Field(description="Optional framework identifier for compatibility filtering, for example 'spring-boot'."),
+    ] = None,
+    allow_latest_overall: Annotated[
+        bool,
+        Field(description="Allow selecting the latest tag even when per-tag framework compatibility metadata is unavailable."),
+    ] = False,
+    max_tags: Annotated[
+        int,
+        Field(description="Maximum number of repository tags to inspect within the resolver wall-clock budget."),
+    ] = 15,
+    pinned_version: Annotated[
+        str | None,
+        Field(description="Optional exact dependency version to prefer when present in repository metadata."),
+    ] = None,
+    pinned_tag: Annotated[
+        str | None,
+        Field(description="Optional exact Git tag to inspect instead of selecting from recent tags."),
+    ] = None,
 ) -> dict:
     """Resolve a com.paysafe.* dependency via FindIt and GitLab. Returns repo, tags, and migration guidance.
 
