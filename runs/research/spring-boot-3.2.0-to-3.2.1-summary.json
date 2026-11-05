@@ -1,0 +1,23 @@
+{
+  "framework": "Spring Boot",
+  "from_version": "3.2.0",
+  "to_version": "3.2.1",
+  "rows": 37,
+  "status": {
+    "ok": 36,
+    "not_found": 1,
+    "error": 0
+  },
+  "action": {
+    "required": 14,
+    "none": 21,
+    "unclear": 1,
+    "missing": 0
+  },
+  "errors": {},
+  "tool_calls": 274,
+  "cache_hits": 0,
+  "wall_time_sec": 334.06,
+  "model": "/models/Qwen3.6",
+  "prompt_version": 7
+}

@@ -1,0 +1,23 @@
+{
+  "framework": "Angular",
+  "from_version": "20.2.0",
+  "to_version": "20.3.0",
+  "rows": 3,
+  "status": {
+    "ok": 3,
+    "not_found": 0,
+    "error": 0
+  },
+  "action": {
+    "required": 2,
+    "none": 1,
+    "unclear": 0,
+    "missing": 0
+  },
+  "errors": {},
+  "tool_calls": 21,
+  "cache_hits": 0,
+  "wall_time_sec": 34.753,
+  "model": "/models/Qwen3.6",
+  "prompt_version": 7
+}
