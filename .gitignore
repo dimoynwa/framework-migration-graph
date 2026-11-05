@@ -36,3 +36,8 @@ artifacts/
 probe-results/
 .agents/
 .claude/worktrees/
+
+# Per-change research dossiers. Write-only pipeline output: nothing reads
+# runs/research/ back (the resumable row cache is artifacts/research/), so the
+# regenerated jsonl and summary files stay out of the repo.
+runs/research/
