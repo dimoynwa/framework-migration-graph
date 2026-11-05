@@ -128,6 +128,10 @@ async def test_ac8_commit_row_includes_scope_issue_and_schematic(github_token: N
     assert change.metadata["github_pr"] == 58796
     assert change.metadata["github_fixes"] == [58793]
     assert change.metadata["has_schematic"] is True
+    assert (
+        "packages/core/schematics/ng-generate/route-lazy-loading/util.ts"
+        in change.metadata["github_files"]
+    )
     assert change.metadata["github_commit"] == FULL_SHA
     assert change.source_url == COMMIT_WEB
     assert change.metadata["release_url"] == CHANGELOG_URL

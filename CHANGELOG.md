@@ -1,5 +1,34 @@
 # Changelog
 
+## [023-per-change-research] — 2026-11-04
+
+### New features
+
+- **Default hop granularity is now `minor`**: `HOP_GRANULARITY` / `--hop-granularity` default to one hop per minor line (`19.0.0 → 19.1.0 → 19.2.0 → 20.0.0`) instead of every patch release. Pass `--hop-granularity patch` (or set `HOP_GRANULARITY=patch`) for the old behaviour.
+- **Fetch-only research**: `TAVILY_API_KEY` is now optional. Without it research still runs when `RESEARCH_BASE_URL` and `RESEARCH_MODEL_ID` are set. The model gets only `fetch_url` and reads the row Sources and the pages they link to. With a key, prompt, tools and cache are unchanged. Fetch-only rows use their own cache key.
+- **Per-change research** runs after the filter and before the entity LLM. A small tool-calling model reads each filtered row, searches with Tavily, and fetches the cited pages. It writes a fact dossier (`runs/research/*-research.jsonl`) and does not write migration steps. The entity prompt receives those dossiers as a Research appendix and is told to prefer cited facts over memory.
+- Filtered tables gain a `Sources` column (comma-separated source URLs, or `N/A`). The entity step copies the first of those URLs into `source_url`. Older filtered files without the column still parse.
+- Research stays off unless `RESEARCH_BASE_URL` and `RESEARCH_MODEL_ID` are set (`TAVILY_API_KEY` only enables `web_search`). `--skip-research` leaves the entity input unchanged. `--force-research` ignores the row cache. A row that times out, exceeds its tool budget, or returns invalid JSON is passed through to the entity step unchanged.
+- An exhausted Tavily quota (HTTP 432, 433, 401, or 429 after three attempts) stops that hop with exit code 2. Finished rows stay cached, and a re-run continues from the rows that were not finished. Fetches to private, loopback, or link-local addresses are refused.
+- Error dossiers are not cached, so a model or Tavily outage does not hide rows from later runs. The research cache is keyed per framework and hop (prompt version 2). Using the full tool budget now yields a dossier instead of an error. Raw statements are attached by issue/PR/commit links and skip Source URLs shared by many rows (`RESEARCH_SHARED_URL_MAX_ROWS`, `RESEARCH_RAW_CONTEXT_MAX_CHARS`). The per-section entity split skips summary sections.
+- Prompt review: the filter's `Sources` column now lists the issue/PR/commit/JIRA links inside each statement instead of the shared release-notes page; the triage input column is `Impact score`; `Category` maps explicitly to sections; split filter parts keep the framework header and omit summaries. The research prompt documents every dossier field and the hop's version lines (`PROMPT_VERSION` 3), and a row's own Sources are always trusted. The entity prompt explains research blocks and fills `subsystem` / `cli_operation` only for WildFly.
+- `--stop-after-research` stops a run after the research stage (no entity LLM, no graph writes).
+- Research now runs right after triage, on every kept row, and before the filter LLM. The filter LLM writes the migration document from the kept rows plus a Research appendix (blocks tied to rows by Sources), and the entity LLM receives that document plus the research merged per document row. `--stop-after-research` stops before the filter LLM, so it needs no `MODEL_*`. `MODEL_ID` is now required and checked only for steps that call the main LLM; `langchain-openai` is a dependency for `MODEL_PROVIDER=openai`.
+- Triage and research show a `tqdm` progress bar per hop on a terminal (stderr; `keep/drop/error` and `ok/not_found/error/cached` counts). Bars are off when output is not a TTY or with `TQDM_DISABLE=1`.
+
+### Changed
+
+- Research budgets: `RESEARCH_MAX_TOOL_CALLS` defaults to `12` (was `6`) and `RESEARCH_TIMEOUT_SEC` to `240` (was `120`). The per-request model timeout is now its own setting, `RESEARCH_MODEL_TIMEOUT_SEC` (`60`), so one hung completion no longer consumes the whole row budget.
+
+## [022-system1-change-triage] — 2026-11-04
+
+### New features
+
+- **System-1 change triage** runs after extraction and before the filter LLM. A fast local classifier (`TRIAGE_BASE_URL` + `TRIAGE_MODEL`, contract `POST /v1/systemone`) labels every raw row. Only rows that are confidently noise are dropped; low confidence, errors, timeouts, and an unreachable endpoint keep the row. With triage off, the raw file and the filter input stay the historical 4-column table.
+- Raw files gain triage columns and a `Triage:` summary line. `runs/triage/*-triage.jsonl` stores full probability distributions so `--retriage-from-cache` can retune thresholds without another model call. `--skip-triage` and `--force-triage` control the stage. Answers are cached by questions version, model, and state.
+- The filter prompt uses `Category` and `Impact` when those columns are present, and splits an oversized kept table into category groups.
+- `runs/nodes/*.md` follows the kept rows. A `*.input.sha256` file next to it records the filter input. When triage changes which rows are kept, the cached filtered Markdown and entities JSON are regenerated instead of being silently reused.
+
 ## [021-github-change-enrichment] — 2026-11-04
 
 ### New features

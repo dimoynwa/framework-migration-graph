@@ -16,12 +16,13 @@ This document explains, in full detail, how the **export-extract-populate-framew
 8. [Phase 3 — JBoss / WildFly Jira enrichment](#phase-3--jboss--wildfly-jira-enrichment)
 9. [Phase 4 — Storing raw release nodes (Markdown)](#phase-4--storing-raw-release-nodes-markdown)
 10. [Phase 5 — Filter and group (raw → filtered nodes)](#phase-5--filter-and-group-raw--filtered-nodes)
-11. [Phase 6 — Entity extraction (filtered → JSON)](#phase-6--entity-extraction-filtered--json)
-12. [Phase 7 — Optional graph population](#phase-7--optional-graph-population)
-13. [Caching, idempotency, and force flags](#caching-idempotency-and-force-flags)
-14. [Environment variables and model configuration](#environment-variables-and-model-configuration)
-15. [Failure modes and retries](#failure-modes-and-retries)
-16. [End-to-end example walkthrough](#end-to-end-example-walkthrough)
+11. [Phase 5b — Per-change research](#phase-5b--per-change-research)
+12. [Phase 6 — Entity extraction (filtered → JSON)](#phase-6--entity-extraction-filtered--json)
+13. [Phase 7 — Optional graph population](#phase-7--optional-graph-population)
+14. [Caching, idempotency, and force flags](#caching-idempotency-and-force-flags)
+15. [Environment variables and model configuration](#environment-variables-and-model-configuration)
+16. [Failure modes and retries](#failure-modes-and-retries)
+17. [End-to-end example walkthrough](#end-to-end-example-walkthrough)
 ---
  
 ## Purpose and scope
@@ -77,14 +78,24 @@ The command is **framework-agnostic**: the same orchestration runs for Spring Bo
                     └─────────────────┬─────────────────┘
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  4. FILTER/GROUP LLM  →  runs/nodes/...-changes_filtered.md                 │
-│     Single call; Markdown in → categorized Markdown out                     │
+│  4. PER-CHANGE RESEARCH (optional)  →  runs/research/...-research.jsonl     │
+│     One small tool-calling model call per kept triage row. Facts only.     │
+│     Off unless RESEARCH_BASE_URL and RESEARCH_MODEL_ID are set. No        │
+│     TAVILY_API_KEY = fetch_url only. A failed row stays unchanged.         │
+│     --stop-after-research ends the run here.                               │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. WHOLE-VERSION ENTITY LLM  →  runs/json/...-entities.json                │
-│     Single call; filtered Markdown in → structured JSON out                  │
+│  5. FILTER/GROUP LLM  →  runs/nodes/...-changes_filtered.md                 │
+│     Kept rows + Research appendix in → consolidated migration document     │
+│     out (sections, Sources column, Summary by Priority)                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                      │
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  6. ENTITY LLM  →  runs/json/...-entities.json                              │
+│     Migration document, plus research merged per document row             │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                     ┌─────────────────┴─────────────────┐
@@ -99,9 +110,9 @@ The command is **framework-agnostic**: the same orchestration runs for Spring Bo
  
 Key design choices:
  
-- **Two separate LLM calls**, not one: first call cleans and structures the document; second call extracts typed JSON entities. This separation keeps each prompt focused and reduces hallucination on noisy raw input.
-- **Whole-document LLM calls**: both LLM steps send the entire Markdown document in a single request (not batched per row). This allows the model to deduplicate, merge related upgrades, and maintain cross-item context.
-- **Incremental caching**: raw Markdown, filtered Markdown, and entities JSON are persisted independently. Re-runs skip expensive steps when artifacts already exist.
+- **Separate LLM calls**: the filter call cleans and structures the document; an optional per-row research call gathers cited facts; the entity call extracts typed JSON. This keeps each prompt focused.
+- **Whole-document filter and entity calls**: those two steps send the Markdown for the hop in one request (the entity call is split by section only when the input exceeds `ENTITY_MAX_INPUT_TOKENS`). Research is the per-row step.
+- **Incremental caching**: raw Markdown, filtered Markdown, research dossiers, and entities JSON are persisted independently. Re-runs skip expensive steps when artifacts already exist.
 ---
  
 ## Command-line interface
@@ -122,8 +133,14 @@ Key design choices:
 | `--force-extract` | Always re-fetch upstream data and overwrite the raw Markdown report, even if one already exists. |
 | `--force-llm` | Always call both LLM steps and overwrite filtered Markdown and entities JSON, even if they already exist. |
 | `--force` | Shorthand for `--force-extract` **and** `--force-llm`. |
-| `--hop-granularity patch\|minor` | Version step size between ingestion hops. `patch` (default) walks every released version; `minor` collapses each minor line into one hop (`3.1.12 → 3.2.0 → 3.2.4`). Env fallback: `HOP_GRANULARITY`. |
+| `--hop-granularity patch\|minor` | Version step size between ingestion hops. `minor` (default) collapses each minor line into one hop (`3.1.12 → 3.2.0 → 3.2.4`); `patch` walks every released version. Env fallback: `HOP_GRANULARITY`. |
 | `--hop-by-hop` / `--no-hop-by-hop` | Run the filter LLM, entity LLM, and graph population **once per version hop** instead of once per range, so every hop becomes its own `Version` node holding only its own rules. Implies one raw/filtered/entities artifact triple per hop and rejects `--output-*` overrides. Env fallback: `HOP_BY_HOP` (default off). |
+| `--skip-triage` | Keep every extracted row. Do not call the System-1 classifier and do not apply triage drop rules. The raw file stays a 4-column table. |
+| `--force-triage` | Ignore the answer cache and any triage columns already stored in the raw file, and classify again. |
+| `--retriage-from-cache` | Recompute keep/drop from `runs/triage/*-triage.jsonl` using the current thresholds. No classifier HTTP calls. |
+| `--skip-research` | Do not research filtered rows. The entity step sees the filtered Markdown only, as it did before this stage. |
+| `--force-research` | Ignore the per-row research cache and any existing `research.jsonl` for the hop. |
+| `--stop-after-research` | Run extraction, triage, and per-row research, then stop. No filter LLM, no entity LLM, and no graph writes, so no `MODEL_*` is needed. Needs research configured. |
 | `--output-md <path>` | Override default path for the raw Markdown report. |
 | `--output-filtered-md <path>` | Override default path for the filtered Markdown report. |
 | `--output-json <path>` | Override default path for the entities JSON file. |
@@ -170,10 +187,12 @@ When the command starts:
 1. **Environment loading** — A `.env` file (if present) is loaded so API keys, model provider settings, and SSL options are available.
 2. **SSL verification** — If `SSL_VERIFY=false`, HTTP clients disable certificate validation (common behind corporate proxies). This applies to all outbound HTTP: GitHub, Maven Central, npm, Jira, Red Hat docs, and LLM provider endpoints.
 3. **Framework lookup** — The `--framework` key is normalized (lowercased, spaces → hyphens) and looked up in a central registry. An unknown key exits immediately with a list of supported keys.
-4. **Artifact directory creation** — Three sibling directories under `runs/` are ensured to exist:
+4. **Artifact directory creation** — Sibling directories under `runs/` are ensured to exist:
    - `runs/raw/` — raw Markdown reports
    - `runs/nodes/` — filtered/grouped Markdown
    - `runs/json/` — entities JSON
+   - `runs/triage/` — System-1 triage distributions
+   - `runs/research/` — per-row research dossiers
 Default artifact naming pattern:
  
 ```
@@ -662,6 +681,40 @@ Each table row is one **raw release node** — an atomic upstream change record 
  
 ---
  
+## Phase 4b — System-1 change triage
+ 
+Before the filter LLM sees the raw table, an optional **System-1 classifier** labels every row. The question it answers is “does an upgrading user need to change anything?”, not “is this a bug fix?”. A row is dropped only when the deterministic rules or the model are confident it is noise. Anything uncertain is kept.
+ 
+Triage runs only when **both** `TRIAGE_BASE_URL` and `TRIAGE_MODEL` are set. Leaving either empty is the off switch: no rules, no HTTP, and the raw file stays the 4-column table above. `--skip-triage` does the same for one invocation.
+ 
+### Order of decisions
+ 
+1. **Hard keep** (no model call): an Angular `BREAKING CHANGE` / `DEPRECATED` footer, a `!` in the commit header, an `ng update` schematic, a confirmed `breaking` / `deprecation` / `mandatory_migration` row, or a title that says the change removes, renames, deprecates, breaks, or requires something.
+2. **Hard drop** (no model call): an Angular `docs` / `test` / `ci` / `build` commit whose files all sit outside `packages/*/src/`; a Spring Boot issue typed `documentation` or `task`; a Spring Boot issue closed as not planned; a row that is only a “full changelog” or WildFly Core pointer.
+3. **Model.** Three fixed questions (`requires_action`, `category`, `impact`), versioned as `TRIAGE_QUESTIONS_VERSION`. A row is dropped only when all of these hold: action probability below `TRIAGE_DROP_MAX_ACTION_PROB` (default 0.10), category is `internal_fix`, `noise`, or `new_optional_feature` with probability at least `TRIAGE_DROP_MIN_CATEGORY_PROB` (default 0.80), and impact score below `TRIAGE_DROP_MAX_IMPACT_SCORE` (default 1.0).
+ 
+A 4xx response or a connection failure on the first request keeps every row and records `Triage source = error` (one log line, then the run continues). A timeout or 5xx is retried twice and then keeps that row only.
+ 
+### What is written
+ 
+When triage ran, `runs/raw/<framework>-<from>-to-<to>-changes.md` still lists **every** row, kept and dropped, in the original order, with columns `Triage`, `Category`, `Cat. prob`, `P(action)`, `Impact`, and `Triage source`. The header gains:
+ 
+```text
+- **Triage:** <model> · questions v<N> · kept <k> / dropped <d> / error <e>
+```
+ 
+`runs/triage/<framework>-<from>-to-<to>-triage.jsonl` stores the full probability distributions. `runs/triage/...-summary.json` stores counts, summed `input_tokens`, and wall time. The filter LLM does not see the raw file directly: it receives only `keep` rows, with columns `Type | Confidence | Source | Statement | Category | Impact score`. `Impact score` is the classifier's 0–3 effort estimate; the filter uses it only to order items, and the prompt maps each `Category` to an output section. When the kept table is split into category groups, each part keeps the framework and range lines and leaves out the summary sections.
+ 
+Re-running against a raw file that already has those columns makes no classifier calls. `--retriage-from-cache` reapplies the thresholds to the saved distributions and rewrites the `Triage` column. Classifying a raw file that has no extraction metadata (labels, files, commit type) logs a warning and recommends `--force-extract`.
+ 
+Answers are cached under `ARTIFACT_CACHE_DIR/triage/`, keyed by questions version, model name, and state text.
+
+`runs/nodes/*-changes_filtered.md` therefore holds only the migration-relevant changes built from the kept rows, and it is the only input the entity LLM sees. Next to it, `*-changes_filtered.md.input.sha256` records the hash of the filter input. When the kept rows change (`--force-triage`, `--retriage-from-cache`, new thresholds, or triage enabled on an old raw file), the CLI prints a warning and re-runs both the filter and the entity LLM, even without `--force-llm`. A filtered file from before triage with no hash file is reused only while the input is still the untriaged 4-column table. An existing `Version` node is still not repopulated.
+ 
+If the kept table is larger than `FILTER_MAX_INPUT_TOKENS` (default 60000), the filter runs once per category group — breaking with deprecation, behaviour with config and security, dependency upgrades, then everything else — and the section outputs are concatenated.
+ 
+---
+ 
 ## Phase 5 — Filter and group (raw → filtered nodes)
  
 The raw Markdown table is too noisy for direct entity extraction. A **first LLM call** transforms it into a curated, categorized migration document.
@@ -682,18 +735,19 @@ Inference parameters: `temperature` and `top_p` from agent config (defaults: 0.7
  
 ### Prompt design
  
-The filter prompt instructs the model to act as an **expert software migration analyst**. The full raw Markdown document is injected via a `{changes_text_markdown_table}` placeholder at the end of the prompt.
+The filter prompt instructs the model to act as an **expert software migration analyst**. The Markdown document is injected via a `{changes_text_markdown_table}` placeholder at the end of the prompt. When System-1 triage ran, that document contains only the kept rows plus `Category` and `Impact`; the model is told to use `Category` and to override it when the statement clearly contradicts it. When triage did not run, the placeholder is the full 4-column raw file.
  
 #### Core rules given to the model
  
 1. **Filter noise** — Remove rows representing tests, documentation-only updates, CI/CD, quickstarts, examples, refactors with no user-facing effect, and internal build changes. Keep only changes that force or strongly require user action.
 2. **Consolidate and combine** — Merge multiple rows about the same migration (e.g. several Jakarta EE component upgrades) into one row with comma-separated Jira keys and a unified impact statement.
 3. **Deduplicate** — Never repeat the same migration across sections.
-4. **Transform columns** — Input columns `| Type | Confidence | Source | Statement |` become output columns `| # | JIRA | Title | Impact |`:
+4. **Transform columns** — Input columns `| Type | Confidence | Source | Statement |` become output columns `| # | JIRA | Title | Impact | Sources |`:
    - `#` — row number within section, starting at 1
    - `JIRA` — issue key extracted from Source URL (e.g. `WFLY-17948`); comma-separated when consolidated; `N/A` if none found
    - `Title` — short header summarizing the change
    - `Impact` — rewritten, actionable migration guidance (not a copy-paste of the raw statement)
+   - `Sources` — comma-separated `Source` URLs of every raw row consolidated into the item; `N/A` when none
 5. **Do not invent facts** — Only use information supported by the input records.
 #### Required output sections (in order)
  
@@ -733,13 +787,13 @@ Sections with zero items are omitted entirely.
 ```markdown
 ## 🔴 Breaking Changes
  
-| # | JIRA | Title | Impact |
-| :--- | :--- | :--- | :--- |
-| 1 | WFLY-17842 | Removal of `sun.jdk` implicit dependency | The `sun.jdk` module is no longer added... |
+| # | JIRA | Title | Impact | Sources |
+| :--- | :--- | :--- | :--- | :--- |
+| 1 | WFLY-17842 | Removal of `sun.jdk` implicit dependency | The `sun.jdk` module is no longer added... | https://issues.redhat.com/browse/WFLY-17842 |
  
 ## 🟠 Mandatory Migrations — Security & CVE Fixes
  
-| # | JIRA | Title | Impact |
+| # | JIRA | Title | Impact | Sources |
 | ... |
  
 ---
@@ -754,6 +808,33 @@ Sections with zero items are omitted entirely.
  
 ---
  
+## Phase 5b — Per-change research
+
+Research runs right after triage and before the filter LLM. It is optional. The stage runs only when `RESEARCH_BASE_URL` and `RESEARCH_MODEL_ID` are set. `TAVILY_API_KEY` is optional: without it the model has no `web_search` and reads the row Sources and the pages they link to with `fetch_url` only. Otherwise the pipeline logs one info line and the entity step receives the filtered Markdown exactly as before. `--skip-research` does the same for one invocation.
+
+Every kept triage row becomes one research row: the title comes from the statement's `Title:` prefix, `Sources` are the issue, pull request, commit, and JIRA links in the statement (the row's Source only when there are none), and the triage `Category` gives a section hint. For each research row, a small OpenAI-compatible model may call two tools:
+
+- `web_search` — Tavily search. Every query includes the framework name and the hop's target version; the tool appends them when the model leaves them out. Results are cached under `ARTIFACT_CACHE_DIR/research/search/`.
+- `fetch_url` — readable text of a public page, capped by `RESEARCH_FETCH_MAX_CHARS`. GitHub issue, pull, and commit URLs are read through the GitHub REST API (the same token and parsers as GitHub enrichment). URLs that resolve to a private, loopback, or link-local address are refused.
+
+The model returns a fact dossier: a short summary, cited findings, and `applies_when`. It does not write migration steps. A finding is kept only when its URL was fetched in that run and the page matches the hop's major.minor line or is version-neutral (an issue, pull request, or commit). A dossier whose findings are all dropped is `not_found`. A timeout, a tool-budget overrun, or invalid JSON becomes `status: error` with no findings. Using the tool budget exactly is not an overrun: the model is asked for the final dossier. Error and not-found dossiers are left out.
+
+The filter LLM then receives the kept rows plus a `## Research` appendix: one block per researched row (`### <Title>`, `Row sources: …`, applicability, cited findings). It writes the consolidated migration document, using the research to pick sections, merge rows that are the same change, and name exact APIs in `Impact`. When the kept table is split into category groups, each part gets only the blocks of its rows. Finally the entity LLM receives that document plus a second `## Research` appendix: for each document row, the dossiers of the kept rows that share one of its `Sources`, merged.
+
+`runs/research/<framework>-<from>-to-<to>-research.jsonl` stores one dossier per filtered row. `runs/research/...-summary.json` stores status counts, tool-call counts, and wall time. Finished `ok` and `not_found` dossiers are cached by prompt version, model id, framework, hop, and row key. Error dossiers are not cached, so the next run tries that row again. The row key is a hash of the section, title, JIRA keys, and source URLs, so renumbering a row does not invalidate research.
+
+Each row is sent with the enriched raw statements behind it. Raw rows are matched by their Source URL and by the issue, pull request, commit, and JIRA links inside the statement. A Source URL shared by more than `RESEARCH_SHARED_URL_MAX_ROWS` raw rows is skipped, so a row citing a release-notes page does not receive every statement from that release. `--force-research` ignores that cache and any existing jsonl.
+
+An exhausted Tavily quota is the one fail-closed case. HTTP 432, 433, or 401, or a 429 that is still failing after three attempts, stops the hop: in-flight rows are cancelled, finished dossiers stay in the row cache, and that hop writes no `research.jsonl`, no entities JSON, and no graph data. The process exits with code 2:
+
+```text
+Tavily quota exhausted at <framework> <from>→<to> (<done>/<total> rows researched). Re-run after the quota resets; finished rows are cached.
+```
+
+A later run researches only the rows that were not cached. Hops that already finished keep their artifacts.
+
+---
+
 ## Phase 6 — Entity extraction (filtered → JSON)
  
 The filtered Markdown document is fed to a **second LLM call** that produces structured JSON entities.
@@ -765,7 +846,7 @@ The entity extraction prompt instructs the model to analyze the structured chang
 | Placeholder | Value |
 |-------------|-------|
 | `{framework}` | Framework display name (e.g. `WildFly`, `Spring Boot`, `Angular`) |
-| `{changes_text}` | The complete filtered Markdown document |
+| `{changes_text}` | The filtered Markdown document. When research produced cited dossiers, a `## Research` appendix follows it: one block per row (`### <section> #<index> — <title>`) with the summary, findings, URLs, and `applies_when`. Error and not-found dossiers are left out. With research off, skipped, or empty, this value is the filtered Markdown byte for byte. |
  
 #### Output schema
  
@@ -907,7 +988,9 @@ The pipeline is designed for **incremental re-runs**. Each stage independently c
 | Condition | Behavior |
 |-----------|----------|
 | Raw MD exists, no `--force-extract` | Skip all HTTP extraction; read existing MD |
-| Entities JSON exists, no `--force-llm` | Skip both LLM calls; load JSON from disk |
+| Entities JSON exists, no `--force-llm` | Skip both LLM calls when the entity input digest still matches. A new or changed research appendix regenerates the entities JSON. |
+| Research configured | Research only the filtered rows whose cache entry is missing. `--skip-research` leaves the entity input unchanged. `--force-research` ignores the row cache. |
+| Tavily quota exhausted (432, 433, 401, or 429 after retries) | Exit code 2. No `research.jsonl`, entities JSON, or graph write for the current hop. Finished rows stay cached. |
 | Filtered MD exists, no `--force-llm`, raw was cached | Skip filter LLM; reuse filtered MD, but still run entity LLM if JSON missing |
 | `--force-extract` only | Re-extract and overwrite raw MD; reuse filtered MD and JSON if present (with warning) |
 | `--force-llm` only | Re-run both LLM steps; reuse raw MD if present |
@@ -945,6 +1028,31 @@ If raw Markdown was regenerated but cached JSON was reused, the pipeline prints 
 | `SPRING_BOOT_GITHUB_ENRICHMENT` | `true` | Set to `false` to keep Spring Boot release rows unenriched |
 | `ANGULAR_GITHUB_ENRICHMENT` | `true` | Set to `false` to keep Angular release and changelog rows unenriched |
 | `SSL_VERIFY` | `true` | Set to `false` to disable TLS certificate verification |
+| `TRIAGE_BASE_URL` | empty | System-1 classifier origin, for example `http://gpuserver1.neterra.skrill.net:8002`. Empty disables triage |
+| `TRIAGE_ENDPOINT_PATH` | `/v1/systemone` | Path joined onto `TRIAGE_BASE_URL` |
+| `TRIAGE_MODEL` | empty | Model name sent as `model` (currently `nimble`). Empty disables triage |
+| `TRIAGE_API_KEY` | empty | Sent as `Authorization: Bearer …` only when set. The local deployment does not need it |
+| `TRIAGE_TIMEOUT_SEC` | `30` | Per-request timeout |
+| `TRIAGE_MAX_CONCURRENT` | `2` | Parallel classifier calls. The server serialises work, so higher values only queue |
+| `TRIAGE_STATE_MAX_CHARS` | `6000` | Cap on the state string sent for one row |
+| `TRIAGE_DROP_MAX_ACTION_PROB` | `0.10` | Drop only when P(action) is below this |
+| `TRIAGE_DROP_MIN_CATEGORY_PROB` | `0.80` | Drop only when the chosen noise-side category is at least this confident |
+| `TRIAGE_DROP_MAX_IMPACT_SCORE` | `1.0` | Drop only when the impact score is below this |
+| `FILTER_MAX_INPUT_TOKENS` | `60000` | Above this, the filter LLM runs once per triage category group |
+| `RESEARCH_BASE_URL` | empty | OpenAI-compatible API root for the research model, for example `http://gpuserver2.neterra.skrill.net:8010/v1`. A trailing `/chat/completions` is stripped. Empty disables research |
+| `RESEARCH_MODEL_ID` | empty | Model id sent to that server, for example `/models/Qwen3.6`. Empty disables research |
+| `RESEARCH_API_KEY` | empty | Sent as `Authorization: Bearer …` only when set |
+| `RESEARCH_ENABLE_THINKING` | `false` | Sent as `chat_template_kwargs.enable_thinking` |
+| `RESEARCH_MAX_CONCURRENT` | `4` | Parallel research rows |
+| `RESEARCH_MAX_TOOL_CALLS` | `12` | Tool calls allowed for one row |
+| `RESEARCH_TIMEOUT_SEC` | `240` | Per-row budget for the whole tool-calling loop |
+| `RESEARCH_MODEL_TIMEOUT_SEC` | `60` | Timeout for one model HTTP request, capped at `RESEARCH_TIMEOUT_SEC` |
+| `RESEARCH_SEARCH_RESULTS` | `5` | Tavily hits returned to the model |
+| `RESEARCH_FETCH_MAX_CHARS` | `20000` | Cap on fetched page text |
+| `RESEARCH_SHARED_URL_MAX_ROWS` | `3` | A Source URL shared by more raw rows than this (release-notes page, release tag, `CHANGELOG.md`) is not used to attach raw statements |
+| `RESEARCH_RAW_CONTEXT_MAX_CHARS` | `8000` | Cap on the raw statements attached to one research row |
+| `TAVILY_API_KEY` | empty | Tavily Search key. Empty = fetch-only research (no `web_search`) |
+| `ENTITY_MAX_INPUT_TOKENS` | `60000` | Above this, the entity LLM runs once per filtered change section (summary sections are skipped) and the entities are concatenated |
 | `JBOSS_SKIP_PRERELEASE` | `1` | When `1`/`true`/`yes`, filter Maven versions to `.Final` suffix only |
 | `REDHAT_DOCS_DELAY_SEC` | `2.0` | Delay between Red Hat documentation requests (EAP) |
  
@@ -974,6 +1082,7 @@ Connection details come from standard Neo4j/Memgraph environment variables confi
 | LLM rate limit (429) | Automatic retry with exponential backoff |
 | Jira fetch failure | Silently degraded; enrichment uses release one-liner only |
 | Graph version already exists | Exit code 0; graph write skipped |
+| Tavily quota exhausted during research | Exit code 2; current hop writes no research jsonl, entities JSON, or graph data. Earlier hops stay as they are |
 | `--dry-run` | Exit code 0 after LLM steps; no graph write |
  
 ---

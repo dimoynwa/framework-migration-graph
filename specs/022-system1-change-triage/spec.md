@@ -94,7 +94,7 @@ Default adapter `System1HttpClient`, matching the local deployment (verified 202
 |---|---|---|
 | `TRIAGE_BASE_URL` | `""` | e.g. `http://gpuserver1.neterra.skrill.net:8002`; empty → triage off |
 | `TRIAGE_ENDPOINT_PATH` | `/v1/systemone` | |
-| `TRIAGE_MODEL` | `nimble` | sent as `model` |
+| `TRIAGE_MODEL` | `""` | e.g. `nimble`; sent as `model`; empty → triage off |
 | `TRIAGE_API_KEY` | `""` | sent as `Authorization: Bearer …` only when set |
 | `TRIAGE_TIMEOUT_SEC` | `30` | per request |
 | `TRIAGE_MAX_CONCURRENT` | `2` | server processes requests ~serially (see below) |
@@ -200,7 +200,7 @@ A classified row is **dropped** only if all hold (thresholds configurable):
 shows they add signal.
 
 Otherwise the row is **kept**. Every row (kept or dropped) records in `metadata`:
-`triage_decision`, `triage_source` (`rule` | `model` | `error` | `disabled`),
+`triage_decision`, `triage_source` (`rule` | `model` | `error`),
 `triage_category`, `triage_category_prob`, `triage_category_confidence`, `triage_action_prob`,
 `triage_impact_score`, `triage_questions_version`, `triage_model`.
 
@@ -229,7 +229,7 @@ When triage ran, `render_raw_markdown` writes **all rows (kept and dropped)** to
 - Row order is unchanged (dropped rows are not moved), so diffs against previous runs stay readable.
 - The header block gains a line
   `- **Triage:** <model> · questions v<N> · kept <k> / dropped <d> / error <e>`.
-- When triage did not run (disabled, `--skip-triage`, no `TRIAGE_BASE_URL`), the raw file is
+- When triage did not run (`TRIAGE_BASE_URL`/`TRIAGE_MODEL` not set, or `--skip-triage`), the raw file is
   rendered exactly as today (4 columns, byte-for-byte).
 
 #### FR-5.2 Derived artifacts
@@ -239,8 +239,12 @@ When triage ran, `render_raw_markdown` writes **all rows (kept and dropped)** to
   threshold tuning).
 - `runs/triage/<framework>-<from>-to-<to>-summary.json`: counts per decision/category/source.
 - The filter input is derived from the raw file in memory: `Triage = keep` rows only, columns
-  `Type | Confidence | Source | Statement | Category | Impact` (confidence/probability columns
+  `Type | Confidence | Source | Statement | Category | Impact score` (confidence/probability columns
   are stripped to save tokens). No separate kept/dropped Markdown files.
+- `runs/nodes/<framework>-<from>-to-<to>-changes_filtered.md` is the filter LLM output for
+  that kept-only input: it holds **only migration-relevant, consolidated changes**, and it is
+  the sole input of the entity LLM that produces the migration steps
+  (`runs/json/*-entities.json`). Dropped rows never reach the filter or the entity LLM.
 
 #### FR-5.3 Re-use of an existing raw file
 
@@ -262,12 +266,39 @@ The CLI re-uses `runs/raw/*.md` when extraction is skipped. Therefore:
   `ARTIFACT_CACHE_DIR/triage/`, so re-runs and overlapping ranges do not re-classify.
 - Flags: `--skip-triage` (raw file and filter input as today), `--force-triage`
   (ignore cache and existing triage columns), `--retriage-from-cache`.
-  Config `TRIAGE_ENABLED` (default `false` until AC-7 passes, then `true`).
-- If `TRIAGE_BASE_URL` is unset or the health check fails: one WARNING, behave as `--skip-triage`.
+
+#### FR-5.5 Gating — no model configured means keep everything
+
+- Triage is active **only when both `TRIAGE_BASE_URL` and `TRIAGE_MODEL` are set**. There is no
+  separate enable flag: leaving them empty is the off switch (and the default).
+- Not configured, or `--skip-triage` → **every row is kept**: no deterministic rules, no drops,
+  no HTTP calls, one INFO log line. The raw file and filter input are exactly as today.
+- Configured but the endpoint is unreachable at the first request (connection error, or a 4xx
+  per FR-2) → one WARNING, then the same keep-everything behaviour for the rest of the run;
+  the raw file still gets the triage columns with `Triage = keep`, `Triage source = error`, so
+  the run is visibly un-triaged.
+
+#### FR-5.6 Filtered artifact follows the kept rows
+
+Triage decisions can change without re-extraction (`--force-triage`, `--retriage-from-cache`,
+new thresholds or model, triage enabled on an old raw file). A cached `runs/nodes/*.md`
+built from the previous row set must not be reused silently.
+
+- `run_filter` writes a sidecar `<filtered>.md.input.sha256` with the sha256 of the filter
+  input that produced the artifact (also written when an existing artifact is reused).
+- Before the LLM steps the CLI calls `refresh_flags_for_filter_input`: if the cached filtered
+  file was built from a different input, both the filter and the entity LLM steps re-run
+  (one WARNING on stderr), regardless of `--force-*` flags. This also applies after
+  `--force-extract` when the re-extracted kept rows differ.
+- No sidecar (artifact predates this spec): trusted when the current input is untriaged
+  (4 columns, identical to before); treated as stale when the current input is triaged.
+- Out of scope: graph population keeps the existing "Version node exists → skip" rule, so a
+  regenerated artifact does not overwrite an already populated Version node.
 
 ### FR-6 Filter prompt adaptation
 
-- `FILTER_PROMPT` input table gains `Category | Impact` columns. Add one rule: *"Rows were
+- `FILTER_PROMPT` input table gains `Category | Impact score` columns (renamed from `Impact` in
+  023 so it is not confused with the output `Impact` text). Add one rule: *"Rows were
   pre-classified; use Category to choose the output section, but override it when the
   statement clearly contradicts it."* The rest of the prompt is unchanged.
 - If the kept table exceeds `FILTER_MAX_INPUT_TOKENS` (default `60k`), run the filter per
@@ -290,17 +321,23 @@ The CLI re-uses `runs/raw/*.md` when extraction is skipped. Therefore:
    `choice.criteria` object, `score.criteria` array) and parses the recorded response from FR-2;
    a recorded `{"error": "..."}` 400 disables triage for the run with one ERROR log.
 4. **AC-4** Client timeout/5xx after retries → row kept, `triage_source = "error"`.
-5. **AC-5** `TRIAGE_BASE_URL` unset → no HTTP calls; the raw file and the filter input equal
-   today's output byte-for-byte (4 columns).
+5. **AC-5** `TRIAGE_BASE_URL` or `TRIAGE_MODEL` unset → no HTTP calls, no rule-based drops;
+   the raw file and the filter input equal today's output byte-for-byte (4 columns).
+5a. **AC-5a** Both set but the endpoint refuses the connection → every row kept with
+   `Triage source = error`, one WARNING, the run completes.
 6. **AC-6** Cached result is reused: the second run makes zero classifier calls; changing
    `TRIAGE_QUESTIONS_VERSION` invalidates the cache.
 7. **AC-6a** With triage enabled, `runs/raw/*-changes.md` contains every extracted row (kept and
    dropped) in the original order, with the 10-column header and the `Triage:` header line;
    `parse_raw_markdown` round-trips it to identical decisions.
 8. **AC-6b** Filter input built from that raw file contains only `keep` rows and exactly the
-   columns `Type | Confidence | Source | Statement | Category | Impact`.
+   columns `Type | Confidence | Source | Statement | Category | Impact score`.
 9. **AC-6c** Re-running with an existing triaged raw file makes zero classifier calls;
    `--retriage-from-cache` with a changed threshold rewrites `Triage` values without HTTP calls.
+9a. **AC-6d** When the kept rows change, a cached `runs/nodes/*.md` and `runs/json/*.json`
+   are regenerated (filter and entity LLM re-run); with an unchanged filter input they are
+   reused with zero LLM calls. A pre-022 filtered file without a sidecar is regenerated once
+   triage is active.
 
 **Quality (silver labels from existing runs)**
 
@@ -330,7 +367,8 @@ The CLI re-uses `runs/raw/*.md` when extraction is skipped. Therefore:
   `migration_oracle/pipeline/extractors/__init__.py` (`render_raw_markdown` triage columns,
   new `parse_raw_markdown`), `scripts/eval_triage.py`.
 - Tests: `tests/pipeline/test_triage_rules.py`, `test_triage_decision.py`,
-  `test_triage_cache.py`, and a CLI test with `FakeTriageClient`.
+  `test_triage_cache.py`, `test_filter_input_cache.py` (FR-5.6), and a CLI test with
+  `FakeTriageClient`.
 - Docs: new "Triage" section in `docs/export-extract-populate-framework-pipeline.md`;
   `CHANGELOG.md` entry; `.env.example` gains the `TRIAGE_*` variables.
 
@@ -343,7 +381,7 @@ The CLI re-uses `runs/raw/*.md` when extraction is skipped. Therefore:
    safety net only. The server will not get more workers; throughput (~4–5 req/s) is accepted
    because extraction speed is not critical — AC-9 is informational, not a gate.
 4. **Calibration** (open): the server `confidence` differs from the top probability; thresholds
-   in FR-4 must be tuned with AC-7 before `TRIAGE_ENABLED` defaults to `true`.
+   in FR-4 must be tuned with AC-7 before `TRIAGE_MODEL` is set in shared `.env` / Docker config.
 5. ~~Other models~~ — resolved: only `nimble` for now. `TRIAGE_MODEL` stays configurable and is
    part of the cache key, so a future model is evaluated by re-running AC-7.
 
