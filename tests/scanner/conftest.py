@@ -43,6 +43,14 @@ def npm_workspace(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
+def ts_imports_repo(tmp_path: Path) -> Path:
+    """Copy of the ts-imports fixture: every FR-5 import form in one file."""
+    target = tmp_path / "ts-imports"
+    shutil.copytree(FIXTURES / "ts-imports", target)
+    return target
+
+
+@pytest.fixture()
 def make_repo(tmp_path: Path) -> "callable":
     """Build a throwaway tree from ``{relative path: content}``."""
 

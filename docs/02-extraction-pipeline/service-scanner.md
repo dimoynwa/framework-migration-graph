@@ -207,7 +207,7 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | `generated`, `inputs_hash`, `modules[].path/manifests`, discovery `diagnostics` | **026.1** (this page) |
 | `framework`, `modules[].frameworks` | **026.2** (Angular), spec6 (Spring Boot) |
 | `modules[].angular_projects`, `modules[].own_packages`, npm `dependencies`, npm / angular / tsconfig `config` | **026.2** |
-| `symbols`, `members`, `side_effect_imports` (TS/JS) | spec3, spec4 |
+| `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3** (spec4 adds barrel-resolved keys) |
 | `templates` | spec5 |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | spec6 |
 | `symbols`, `members`, `wildcard_imports` (Java) | spec7 |
@@ -235,6 +235,65 @@ A section whose spec has not landed yet is an empty list, so the schema is stabl
 - `inputs_hash` is sha256 over the sorted `(path, sha256(content))` of every scanned file, the
   scanner version and the output-changing scan options (`--max-locations`, `--include-tests`).
   An unchanged tree scanned with the same options gives an unchanged hash.
+
+## TypeScript / JavaScript sources (026.3)
+
+`migration_planner/scanner/ts.py` parses `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` with
+**tree-sitter** (the grammar follows the extension) and records imports, member accesses and
+decorator options. The extractor is a pure function of the file's bytes, so spec9 can cache it
+and run it in a process pool.
+
+### What is recorded
+
+| Form | Fact |
+|---|---|
+| `import { A, B as C } from 'pkg'` | `npm:pkg#A`, `npm:pkg#B` |
+| `import D from 'pkg'` / `import { default as D }` | `npm:pkg#default` |
+| `import * as ns from 'pkg'` + `ns.X` | `npm:pkg#X` at the use site |
+| `import 'pkg'` | `npm:pkg` in `side_effect_imports` |
+| `import type { T } from 'pkg'` / `import { type T }` | `npm:pkg#T`, `type_only: true` (per name for inline `type`) |
+| `export { A } from 'pkg'` | `npm:pkg#A` |
+| `export * from 'pkg'` | `npm:pkg` in `symbols` (names feed the export map for spec4) |
+| `import('pkg')`, `require('pkg')`, `import x = require('pkg')` | `npm:pkg` in `symbols` (plus the destructured names) |
+
+Only `import 'pkg'` goes to `side_effect_imports`. `symbols[].locations` are import sites: a
+decorator or a call never adds a symbol location.
+
+**Package of a specifier.** `@angular/core/testing` is its own package (an Angular entry point,
+as in 025); deep imports are kept as written (`rxjs/internal/operators/map`, `lodash/fp.js`).
+The rules live in
+`migration_keys/specifiers.py`, shared with 025.
+
+**Own code is not a fact.** A relative specifier, a `compilerOptions.paths` alias, a specifier
+under `compilerOptions.baseUrl` (`'app/core/x'` with `baseUrl: "./src"`; a declared dependency
+of the same name wins) and a workspace package name are counted in `own_imports` and kept as
+`OwnImport` entries (specifier, local names, import site) for spec4 to follow through a barrel.
+A Node builtin (`node:fs`, `fs`) is neither and is skipped, unless the repo declares an npm
+package of that name (`events`, `buffer` polyfills), which is then external. If `@shared/x` never shows up in the profile, that is the reason: it
+is the service's own code.
+
+**Members.** For every identifier bound to an external import — named, aliased, default or
+namespace — `Local.member` is recorded as `npm:<pkg>#<Symbol>.<member>` at the access line,
+first segment only (`A.b.c` → `A.b`). A local declaration that shadows the name stops tracking
+in that scope, so `function f(TestBed) { TestBed.get(…) }` is not a use of the imported
+`TestBed`.
+
+**Decorators.** Each literal key of a decorator's first object argument is a member
+(`npm:@angular/core#Component.standalone`), shorthand keys (`{ selector }`) and namespaced
+decorators (`@core.Component({…})`) included — that is what most Angular rules are written
+against. The decorator adds no symbol location.
+
+**Parse errors.** A file whose whole tree fails is a `parse_error` diagnostic; a partial parse
+still yields the imports that parsed and adds `partial_parse_error`. One bad file never loses
+the rest of its facts.
+
+### Known gap until 026.4
+
+Own-code imports are already collected (`own_imports`, `OwnImport`) together with each file's
+export map (`export_map`, `star_exports`, `namespace_exports`) and the names it declares itself
+(`local_declarations`). Spec4 resolves them: it follows a barrel to the external package and
+records the external key at the original import site. Until then, symbols imported through a
+barrel (`import { inject } from '@app/core'`) are missing from the profile.
 
 ## Canonical keys
 
@@ -279,6 +338,7 @@ migration_planner/            planner: runs in a service repo
     cli.py                    migration-scan
     discover.py               file discovery, classification, module roots
     npm_manifests.py          package.json / lock / angular.json / tsconfig (026.2)
+    ts.py                     TS / JS imports, members, decorators (026.3)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
@@ -286,6 +346,7 @@ migration_planner/            planner: runs in a service repo
 migration_keys/               pure key builders + Angular data (shared with ingestion)
   keys.py
   angular.py
+  specifiers.py               package-of-specifier and own-code rules
 ```
 
 `tests/scanner/test_isolation.py` guards the split: it fails if anything under `migration_planner/`
@@ -300,9 +361,10 @@ jq '.framework, (.dependencies | length), [.config[].key] | unique' .migration/p
 migration-scan /tmp/empty-dir; echo $?    # → 2
 ```
 
-Expected on an Angular service after 026.2: `angular <version>` in the summary line, every
-declared npm dependency with its lockfile version, and
-`cfg:angular.json#projects.*.architect.build.builder` among the config keys. Compare
-`framework.version` with `npm ls @angular/core`.
+Expected on an Angular service after 026.3: `angular <version>` in the summary line, every
+declared npm dependency with its lockfile version,
+`cfg:angular.json#projects.*.architect.build.builder` among the config keys, and `symbols[]` /
+`members[]` filled from the TypeScript sources. Compare `framework.version` with
+`npm ls @angular/core`, and a `symbols[]` entry with `grep -rn "from '@angular/core'" src`.
 
-Symbols and members stay `0` until specs 3–7 land.
+`templates` stay `0` until spec5, and Java facts until specs 6–8.

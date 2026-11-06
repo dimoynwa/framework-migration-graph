@@ -1,5 +1,43 @@
 # Changelog
 
+## [026.3-service-scanner] — 2026-11-06
+
+### New features
+
+- **TypeScript / JavaScript extraction.** `migration_planner/scanner/ts.py` parses `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` with **tree-sitter** and fills `symbols[]`, `members[]` and `side_effect_imports[]`. Every FR-5 import form is handled: named, aliased (`B as C` keeps `npm:pkg#B`), default (`#default`), namespace, side-effect, `import type` and inline `type` (`type_only`), `export … from`, `export *`, `import('pkg')` / `require('pkg')` including destructuring, and `import x = require('pkg')`. The extractor is a pure function of the file's bytes, so spec9 can cache it and run it in a process pool.
+- **Members.** `Local.member` for every identifier bound to an external import, first segment only (`A.b.c` → `A.b`). A namespace import resolves per name (`core.inject(…)` → `npm:@angular/core#inject`). A local declaration that shadows the name stops tracking in that scope — a parameter named `TestBed` is not the imported `TestBed`.
+- **Decorators.** Every literal key of a decorator's first object argument is a member (`npm:@angular/core#Component.standalone`, `….changeDetection`). Angular rules are mostly about these options.
+- **`migration_keys/specifiers.py`.** The import-specifier rules both sides need: `package_of_specifier` (`@angular/core/testing` is its own package, `rxjs/internal/x` and `lodash/fp.js` kept as written), `dependency_name`, `is_own_code` (relative, paths alias, workspace package), `is_node_builtin`, and `resolve_path_alias` for spec4. Pure string handling, no file system, no `migration_oracle`.
+- **Spec4 inputs are already collected.** `FileFacts` gains typed `ExportBinding`, `OwnImport`, `star_exports`, `namespace_exports`, `local_declarations` and `own_import_bindings`, replacing the untyped `export_map` dict — so spec4 can follow a barrel without re-parsing anything.
+- **`builtin.py` registry.** The shipped readers and extractors live in one list and are installed when the scanner package is imported, so `migration-scan` needs no setup step while `reset_registry()` stays a working escape hatch.
+
+### Fixes
+
+- **`reset_registry()` could not empty the registry.** `scan()` re-installed the built-in readers and extractors on every call, so nothing could opt out of them. Installation is now an import-time effect of `builtin`, never something `scan()` does inside a scan.
+- **A `const` that shadows an import was not detected.** `const TestBed = local(); TestBed.get(x)` was attributed to the imported `TestBed`, because only the declaration node was checked and not the block that scopes it. Block-scoped declarations are now checked per enclosing block.
+- **`require('pkg')` bound to a name looked shadowed by its own declaration.** The declarator that *creates* an import binding is now excluded from the shadow check, which had been silently dropping `const m = require('pkg'); m.thing()`.
+- **`await import('pkg')` recorded nothing.** The `await_expression` wrapper between the call and its `variable_declarator` stopped the declarator lookup, so the binding (and the package fact) was lost.
+
+### Fixes (review 2026-11-06)
+
+- **`baseUrl` imports were recorded as npm packages.** With `baseUrl: "./src"`, `'app/core/core.service'` gave `npm:app/core/core.service#CoreService`. The scan now hands extractors the entries directly under `baseUrl` (`ModuleEnv.base_url_roots`), and such specifiers are own code; a declared dependency of the same name still wins.
+- **Declared npm packages named like Node builtins were dropped.** `events`, `buffer`, `util`, `url`, `process` … are external when the repo declares them (`ModuleEnv.declared_dependencies`); `node:` is always a builtin.
+- **Decorators added symbol locations.** `@Input()` twice gave `Input` a count of 3 while `inject` called twice stayed at 1. `symbols[].locations` are import sites only again (spec1 FR-9); decorators contribute members.
+- **`export * from '<external>'` recorded nothing.** It is now the package-level symbol `npm:<pkg>`.
+- **Inline `import { type T, V }`** marks only `T` as `type_only` (was neither); all-`type` specifiers make the whole import type-only.
+- **`import x = require('pkg')`** (TypeScript) is recorded, with member tracking on `x`.
+- **Decorator options**: shorthand keys (`{ selector }`), method keys and namespaced decorators (`@core.Component({…})`) now become members.
+- **Package-level uses moved to `symbols`.** `import('pkg')` / `require('pkg')` were in `side_effect_imports`; that section now holds only `import 'pkg'`.
+- **Deep file imports are kept as written** (`lodash/fp.js` → `npm:lodash/fp.js#…`, was folded to `npm:lodash`), as FR-5 says.
+- Removed the unused `ts.register()`; registration lives in `builtin.py`.
+
+### Tests
+
+- `tests/scanner/test_ts.py` (62 tests) covers AC-1 (every FR-5 form, own code skipped, entry points and deep imports), AC-3 (members through named / aliased / namespace bindings, first-segment rule, four shadowing shapes, decorator keys), AC-3.2 (all six grammars incl. tsx/jsx syntax), parse errors and AC-3.3 (`count` exact, `files: 30`, 5 locations, `truncated`, test flags).
+- `tests/scanner/test_specifiers.py` (40 tests) covers the shared specifier rules.
+- New fixture `tests/fixtures/scanner/ts-imports/` puts every import form in one file, with a workspace package and a paths alias for the own-code cases. Verified against a real 709-file Angular service: 0.8 s, 361 symbols, 152 members, 0 diagnostics, no alias leakage.
+- Whole scanner suite and the 025 shared-key / canonicalization tests pass: 348 passed (`tests/scanner` 275, `test_shared_keys.py` 8, the four `test_canonical_*.py` files 65), no regressions in the spec1 / spec2 tests.
+
 ## [026.2-service-scanner] — 2026-11-06
 
 ### New features

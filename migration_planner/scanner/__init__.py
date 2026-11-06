@@ -14,6 +14,7 @@ Public entry points:
   module to the source extractors of specs 3–5)
 """
 
+from migration_planner.scanner import builtin as _builtin  # noqa: F401  registration side effect
 from migration_planner.scanner.contract import (
     SCANNER_VERSION,
     ConfigFact,

@@ -25,8 +25,16 @@ from .conftest import read_profile, write
 
 @pytest.fixture(autouse=True)
 def clean_registry():
-    """The npm reader is installed by the scan itself; no test may leak state."""
+    """Install the shipped readers fresh for each test.
+
+    ``scan()`` does not install anything itself (spec1's "no facts by default"
+    test needs a registry that can be emptied), so a test that wants the real
+    npm reader has to ask for it.
+    """
+    from migration_planner.scanner import builtin
+
     contract.reset_registry()
+    builtin.install()
     yield
     contract.reset_registry()
 

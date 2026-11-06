@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from migration_planner.scanner import builtin, contract
+from migration_planner.scanner import contract
 from migration_planner.scanner.contract import (
     Diagnostic,
     ManifestContext,
@@ -131,7 +131,6 @@ def scan(
     discovery = discover(root, include_tests=include_tests)
     if not discovery.has_supported_manifest:
         raise NoSupportedManifest(f"no supported manifest under {root}")
-    builtin.install()
 
     target = Path(out) if out is not None else default_profile_path(root)
     accumulator = FactAccumulator(max_locations=max_locations)
@@ -201,11 +200,22 @@ def scan(
         module_path: environment.own_packages
         for module_path, environment in environments.items()
     }
+    declared_dependencies = tuple(
+        sorted(
+            {
+                dependency.name
+                for dependency in accumulator.dependencies
+                if dependency.key.startswith("npm:") and dependency.name
+            }
+        )
+    )
     for module_path, environment in environments.items():
         environments[module_path] = ModuleEnv(
             module=module_path,
             own_packages=repo_packages,
             path_map=environment.path_map,
+            base_url_roots=_base_url_roots(root, environment.path_map),
+            declared_dependencies=declared_dependencies,
         )
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
@@ -314,6 +324,53 @@ def scan(
         result.path = write_profile(profile, target)
         result.written = True
     return result
+
+
+# Source extensions stripped from a ``baseUrl`` entry: ``main.ts`` is importable
+# as ``'main'``. Longest first, so ``.d.ts`` wins over ``.ts``.
+_BASE_URL_EXTENSIONS: tuple[str, ...] = (
+    ".d.ts",
+    ".tsx",
+    ".ts",
+    ".jsx",
+    ".mjs",
+    ".cjs",
+    ".js",
+)
+
+
+def _base_url_roots(root: Path, path_map: PathMap | None) -> tuple[str, ...]:
+    """Entry names directly under the module's ``baseUrl`` (spec3 FR-5).
+
+    Only ``baseUrl`` itself is listed, not the tree below it: a non-relative
+    specifier resolves under ``baseUrl`` only through its first segment.
+    """
+    if path_map is None or not path_map.base_url:
+        return ()
+    directory = (root / path_map.base_url).resolve()
+    try:
+        directory.relative_to(root)
+    except ValueError:
+        return ()
+    if not directory.is_dir():
+        return ()
+    names: set[str] = set()
+    try:
+        entries = list(directory.iterdir())
+    except OSError:
+        return ()
+    for entry in entries:
+        name = entry.name
+        if name.startswith(".") or name == "node_modules":
+            continue
+        if entry.is_dir():
+            names.add(name)
+            continue
+        for extension in _BASE_URL_EXTENSIONS:
+            if name.endswith(extension):
+                names.add(name[: -len(extension)])
+                break
+    return tuple(sorted(names))
 
 
 def _display_path(target: Path, root: Path) -> str:

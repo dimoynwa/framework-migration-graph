@@ -9,6 +9,8 @@ model clients, and the ingestion tests guard ``migration_oracle`` imports.
   ``syntax_key`` builders, so both sides produce byte-identical keys.
 - :mod:`migration_keys.angular` — the Angular entry points, template-syntax
   tokens and config prefixes the canonicalizer and the scanner both match on.
+- :mod:`migration_keys.specifiers` — the import-specifier rules: which package a
+  specifier belongs to, and whether it names the service's own code.
 """
 
 from migration_keys.angular import (
@@ -26,6 +28,15 @@ from migration_keys.keys import (
     npm_key,
     syntax_key,
 )
+from migration_keys.specifiers import (
+    dependency_name,
+    is_node_builtin,
+    is_own_code,
+    is_relative_specifier,
+    matches_path_alias,
+    package_of_specifier,
+    resolve_path_alias,
+)
 
 __all__ = [
     "ANGULAR_CONFIG_PREFIXES",
@@ -35,8 +46,15 @@ __all__ = [
     "UNRESOLVED_PACKAGE",
     "cfg_key",
     "config_file_for_key",
+    "dependency_name",
     "diag_key",
+    "is_node_builtin",
+    "is_own_code",
+    "is_relative_specifier",
+    "matches_path_alias",
     "maven_key",
     "npm_key",
+    "package_of_specifier",
+    "resolve_path_alias",
     "syntax_key",
 ]

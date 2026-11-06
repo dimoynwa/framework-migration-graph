@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Draft
+**Status**: Implemented (2026-11-06)
 
 **Depends on**: spec1 (extractor contract, profile writer), spec2 (tsconfig `paths`, workspace
 package names). Shared context: see `spec1.md`.
@@ -29,17 +29,32 @@ for `.js` / `.jsx` / `.mjs` / `.cjs`).
 | `import * as ns from 'pkg'` | namespace `ns` → members `ns.X` become `npm:pkg#X` |
 | `import 'pkg'` (side effect) | `npm:pkg` in `side_effect_imports` |
 | `import type { T } from 'pkg'` | `npm:pkg#T` with `type_only: true` |
-| `export { A } from 'pkg'` / `export * from 'pkg'` | re-export: recorded in the file's **export map** (input for spec4); for an external `pkg` also recorded as a usage of `npm:pkg#A` |
-| `import('pkg')`, `require('pkg')` with a string literal | `npm:pkg` (+ destructured names when present) |
+| `import { type T, V } from 'pkg'` (inline) | `npm:pkg#T` with `type_only: true`, `npm:pkg#V` without |
+| `export { A } from 'pkg'` | re-export: recorded in the file's **export map** (input for spec4); for an external `pkg` also recorded as a usage of `npm:pkg#A` |
+| `export * from 'pkg'` | export map (`star_exports`, spec4); for an external `pkg` also the package-level symbol `npm:pkg` |
+| `import('pkg')`, `require('pkg')` with a string literal | `npm:pkg` in `symbols` (+ destructured names when present) |
+| `import x = require('pkg')` (TypeScript) | `npm:pkg` in `symbols`; `x.member` → `npm:pkg#member` |
+
+`side_effect_imports` holds only `import 'pkg'`. Every other use of a package without a named
+symbol (`import()`, `require()`, `export *`) is the package-level key `npm:pkg` in `symbols`.
+`symbols[].locations` are **import sites** only (spec1 FR-9): a decorator or a call adds no
+symbol location.
 
 **Package of a specifier**: `@scope/name/sub/path` → package `@scope/name/sub/path` (Angular
 entry points such as `@angular/core/testing` are packages in 025). The dependency it belongs
-to is `@scope/name` (or `name` for unscoped). Deep file imports (`rxjs/internal/…`) are kept as
-written.
+to is `@scope/name` (or `name` for unscoped). Deep file imports (`rxjs/internal/…`,
+`lodash/fp.js`) are kept as written, extension included.
 
 **Own code is not recorded**: relative specifiers, specifiers matching `compilerOptions.paths`
-(spec2), and workspace package names declared in the same repo (spec2). In this spec they are
-only counted per file (`own_imports`) and kept in the export map, so spec4 can resolve them.
+(spec2), specifiers whose first segment is an entry directly under `compilerOptions.baseUrl`
+(`'app/core/x'` with `baseUrl: "./src"` and `src/app/`), and workspace package names declared
+in the same repo (spec2). A declared npm dependency of the same name wins over a `baseUrl`
+entry. In this spec they are only counted per file (`own_imports`) and kept in the export map,
+so spec4 can resolve them.
+
+**Node builtins** (`node:fs`, bare `fs` / `path`) are skipped. A bare builtin name that the repo
+declares as an npm dependency (`events`, `buffer`, `util`, `url`, `process` polyfills) is an
+external npm package. `node:` is always a builtin.
 
 **Members**: for every identifier bound to an external import (named, aliased, default,
 namespace), member accesses `Local.member` and `Local.member(` in the same file are recorded
@@ -48,10 +63,11 @@ as `npm:<pkg>#<Symbol>.<member>` with the access location. Examples: `TestBed.ge
 the first member segment is recorded (`A.b.c` → `A.b`). A local declaration that shadows the
 import name inside a scope stops member tracking in that scope.
 
-**Decorators**: `@Component({...})`, `@Injectable(...)` are usages of the imported symbol. The
-literal keys of their first object argument are recorded as members:
-`npm:@angular/core#Component.standalone`, `…#Component.changeDetection`. Many Angular rules
-are about decorator options.
+**Decorators**: the literal keys of the first object argument of `@Component({...})`,
+`@Injectable(...)`, … are recorded as members: `npm:@angular/core#Component.standalone`,
+`…#Component.changeDetection`. Shorthand keys (`{ selector }`) count, and so does a decorator
+through a namespace import (`@core.Component({...})`). Many Angular rules are about decorator
+options. The decorator adds no symbol location (its import site already is one).
 
 **Per-file output** (extractor contract, spec1): `symbols`, `members`, `side_effect_imports`,
 an export map (`{exported name → (specifier, original name)}` and `export *` specifiers), and
@@ -68,6 +84,17 @@ whole file) → diagnostic; partial parse errors still yield the imports that pa
 - **AC-3.2**: `.js`, `.mjs`, `.cjs`, `.tsx` fixtures parse with the right grammar.
 - **AC-3.3 Bounds**: a symbol used in 30 files with `--max-locations 5` → `count` exact,
   `files: 30`, 5 locations, `truncated: true`; `test` flag correct on `*.spec.ts` sites.
+- **AC-3.4** (review 2026-11-06):
+  - `baseUrl: "./src"` + `'app/core/x'` → not recorded, and a declared `lodash` still wins over
+    a `lodash/` entry under `baseUrl`;
+  - declared `events` / `buffer` → `npm:events#…`, `npm:buffer#…`; `fs` / `node:path` skipped;
+  - two `@Input()` → `npm:@angular/core#Input` with one location (the import site);
+  - `export * from '@angular/cdk/a11y'` → `npm:@angular/cdk/a11y` in `symbols`;
+  - `import { type Signal, inject }` → only `Signal` is `type_only`;
+  - `import fs = require('fs-extra')` → `npm:fs-extra`, `fs.copy` → `npm:fs-extra#copy`;
+  - `@Component({ selector })` and `@core.Component({ selector: 'x' })` → `…#Component.selector`;
+  - `import('pkg')` / `require('pkg')` → `symbols`, not `side_effect_imports`;
+  - `lodash/fp.js` → `npm:lodash/fp.js#…`.
 
 - **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec2 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
 

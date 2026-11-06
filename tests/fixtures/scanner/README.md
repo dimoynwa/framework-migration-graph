@@ -21,3 +21,8 @@ and three `tsconfig` files that use comments, trailing commas and `extends`.
 `tests/fixtures/scanner/npm-workspace/` covers AC-8.2: a root workspace (`package.json` plus one
 lockfile) with two package modules, so the scanner produces three modules, records the workspace
 package names as own packages, and reads each module's own dependency scopes.
+
+`tests/fixtures/scanner/ts-imports/` covers spec 026.3: one TypeScript file with every row of the
+FR-5 import table (named, aliased, default, namespace, side-effect, `type`, `export … from`,
+`export *`, `import()`, `require()` with and without destructuring), plus a relative import, a
+`@app/*` paths alias and a workspace package (`@demo/ui`) so the own-code cases are exercised.

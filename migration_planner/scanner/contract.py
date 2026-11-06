@@ -149,6 +149,15 @@ class ModuleEnv:
     module: str = "."
     own_packages: tuple[str, ...] = ()
     path_map: PathMap | None = None
+    # Entry names directly under ``compilerOptions.baseUrl`` (directories, and
+    # files without their extension): ``'app/core/x'`` with ``baseUrl: "./src"``
+    # is own code when ``app`` is one of them (spec3 FR-5). Computed by the scan
+    # so the extractor stays a pure function of the file.
+    base_url_roots: tuple[str, ...] = ()
+    # npm dependency names declared anywhere in the repo. A declared ``events``
+    # or ``buffer`` is an npm package, not a Node builtin; a declared name also
+    # wins over a ``baseUrl`` entry of the same name.
+    declared_dependencies: tuple[str, ...] = ()
 
     def owns(self, specifier: str) -> bool:
         """Whether a bare specifier names this repo's own code (``@demo/ui``)."""
@@ -242,6 +251,49 @@ class SourceContext:
     env: ModuleEnv = field(default_factory=ModuleEnv)
 
 
+@dataclass(frozen=True)
+class ExportBinding:
+    """Where a file's exported name really comes from (spec3 → spec4).
+
+    ``specifier`` is the module the name is re-exported from — ``""`` when the
+    file declares the name itself. ``original`` is the name it has there, so a
+    rename chain (``export { inject as di } from '@angular/core'``) can be
+    followed to the original key.
+    """
+
+    specifier: str = ""
+    original: str = ""
+
+
+@dataclass(frozen=True)
+class OwnImport:
+    """One import of the repo's own code (spec3) — spec4's resolution input.
+
+    Own-code imports are not recorded as facts: they become facts only when a
+    barrel chain ends at an external package. Until then the import site, the
+    local names it binds and the specifier are all kept, because the external
+    key must be recorded at this file and line (spec4 FR-5).
+    """
+
+    #: Where the import happened: ``relative`` and ``line`` are the import site.
+    relative: str
+    line: int
+    test: bool = False
+    #: The specifier as written (``./app.component``, ``@app/core``).
+    specifier: str = ""
+    #: A relative specifier (``./x``, ``../y``) rather than an alias / package.
+    is_relative: bool = True
+    #: ``{local name: imported name}``; ``*`` is the namespace import, and an
+    #: empty imported name means a side-effect import.
+    named: dict[str, str] = field(default_factory=dict)
+    #: Local name of a default import, if any.
+    default: str = ""
+    #: Local name of a ``import * as ns``, if any.
+    namespace: str = ""
+    #: True when the import is ``import type`` (or every specifier is ``type``).
+    type_only: bool = False
+
+
 @dataclass
 class FileFacts:
     """Per-file output of a source extractor (specs 3–8)."""
@@ -255,8 +307,18 @@ class FileFacts:
     # Own-code imports (relative / paths aliases / workspace packages). Not
     # recorded as facts; spec4 follows them through barrels.
     own_imports: int = 0
-    # ``{exported name: (specifier, original name)}`` plus ``*`` re-exports.
-    export_map: dict[str, Any] = field(default_factory=dict)
+    # ``{exported name: ExportBinding}`` plus ``export *`` specifiers: the
+    # file's export map, which spec4 walks to reach an external package.
+    export_map: dict[str, "ExportBinding"] = field(default_factory=dict)
+    # ``export * from '<specifier>'`` targets, in source order.
+    star_exports: list[str] = field(default_factory=list)
+    # ``export * as ns from '<specifier>'``: namespaced re-exports.
+    namespace_exports: dict[str, str] = field(default_factory=dict)
+    # Local names the file declares itself (class / function / const). Spec4
+    # drops a barrel name that ends in one of these: that is own code.
+    local_declarations: set[str] = field(default_factory=set)
+    # The own-code imports this file makes, with their bound local names.
+    own_import_bindings: list[OwnImport] = field(default_factory=list)
 
 
 class ManifestReader(Protocol):
@@ -323,6 +385,7 @@ __all__ = [
     "ConfigFact",
     "DependencyFact",
     "Diagnostic",
+    "ExportBinding",
     "FileFacts",
     "FrameworkFact",
     "Location",
@@ -330,6 +393,9 @@ __all__ = [
     "ManifestFacts",
     "ManifestFile",
     "ManifestReader",
+    "ModuleEnv",
+    "OwnImport",
+    "PathMap",
     "PostPass",
     "SourceContext",
     "SourceExtractor",

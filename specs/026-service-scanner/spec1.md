@@ -20,7 +20,7 @@ Requirement IDs (FR-x, AC-x) are kept from the original single spec, so referenc
 |---|---|---|---|---|---|
 | **spec1** | Package split, CLI, discovery, module roots, profile model + writer, determinism, isolation | FR-1, FR-2, FR-3 (module roots, repo framework), FR-9 | AC-9a, AC-10 | `migration-scan` on any repo writes a valid, deterministic profile with `modules[]` | ~7 h |
 | **spec2** | npm manifests, tsconfig, Angular version | FR-3 (Angular), FR-4 | AC-8 | Angular repo: framework, `dependencies[]`, `cfg:package.json/angular.json/tsconfig.json` keys | ~3.5 h |
-| spec3 | TS/JS imports, members, decorators (no barrels) | FR-5 (minus barrels) | AC-1, AC-3 | Angular repo: `symbols[]`, `members[]`, `side_effect_imports[]` | ~6 h |
+| **spec3** | TS/JS imports, members, decorators (no barrels) | FR-5 (minus barrels) | AC-1, AC-3 | Angular repo: `symbols[]`, `members[]`, `side_effect_imports[]` | ~6 h |
 | spec4 | Barrel / alias resolution | FR-5 (barrels) | AC-2 | `@app/*` imports resolve to the external package at the import site | ~5 h |
 | spec5 | Angular templates + Angular real-service check | FR-6 | AC-4, AC-11 (Angular) | Angular repo: `templates[]`; full Angular profile validated on a real service | ~5.5 h |
 | spec6 | Maven + Gradle manifests, Spring Boot version | FR-3 (Spring Boot), FR-8 | AC-6, AC-7 | Spring repo: framework, `dependencies[]`, `cfg:pom.xml/build.gradle` keys | ~6 h |
