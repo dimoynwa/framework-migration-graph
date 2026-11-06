@@ -73,8 +73,8 @@ _ACTION = re.compile(r"^\s*\*\*Action:\*\*\s*(.*)$", re.MULTILINE)
 def action_of(text: str) -> str:
     """``required`` / ``none`` / ``unclear`` from the ``**Action:**`` line, or ``missing``.
 
-    Only for summary counts. Nothing downstream branches on it; the next stages
-    read the text.
+    The dossier entity gate drops a row when this is ``none`` and the triage
+    category is not protected. The filter path still reads the description.
     """
     match = _ACTION.search(text or "")
     if not match:

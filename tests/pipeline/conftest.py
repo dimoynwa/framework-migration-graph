@@ -40,6 +40,15 @@ def _isolated_triage_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Non
         "RESEARCH_FETCH_MAX_CHARS",
         "TAVILY_API_KEY",
         "ENTITY_MAX_INPUT_TOKENS",
+        "ENTITY_SOURCE",
+        "ENTITY_CONCURRENCY",
+        "CLUSTER_MAX_ROWS",
+        "CLUSTER_CONFIRM",
+        "GATE_PROTECTED_CATEGORIES",
+        "SIGNAL_STATE_MAX_CHARS",
+        "SIGNAL_SEARCHABLE_MIN_PROB",
+        "SIGNAL_UNIVERSAL_MIN_PROB",
+        "SIGNAL_FEATURE_MIN_PROB",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("ARTIFACT_CACHE_DIR", str(tmp_path / "artifacts"))

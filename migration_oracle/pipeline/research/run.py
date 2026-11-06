@@ -103,7 +103,7 @@ def run_research(
         )
     key = framework_key or framework.strip().lower().replace(" ", "-")
     try:
-        dossiers, tool_calls, cache_hits, elapsed = asyncio.run(
+        dossiers, tool_calls, cache_hits, artifact_hits, elapsed = asyncio.run(
             _research_all(
                 rows,
                 framework=framework,
@@ -126,9 +126,48 @@ def run_research(
         model=settings.model_id,
         tool_calls=tool_calls,
         cache_hits=cache_hits,
+        artifact_hits=artifact_hits,
         elapsed=elapsed,
     )
     return dossiers
+
+
+def load_artifact_dossiers(
+    settings: ResearchSettings,
+    framework_key: str,
+    hop: tuple[str, str],
+) -> dict[str, ResearchDossier]:
+    """Dossiers from an earlier ``runs/research/<hop>-research.jsonl``, by ``row_key``.
+
+    Only lines a fresh run would also accept are kept: not ``error``, the current
+    ``PROMPT_VERSION``, and the current ``RESEARCH_MODEL_ID``. The framework and
+    hop come from the file name. Hand edits to a dossier's text are used as-is.
+    """
+    path = default_research_jsonl_path(framework_key, hop[0], hop[1])
+    if not path.exists():
+        return {}
+    found: dict[str, ResearchDossier] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError as exc:
+        logger.warning("cannot read %s: %s", path, exc)
+        return {}
+    for number, line in enumerate(lines, 1):
+        if not line.strip():
+            continue
+        try:
+            dossier = ResearchDossier.model_validate_json(line)
+        except ValueError:
+            logger.warning("%s:%d is not a research dossier; ignored", path, number)
+            continue
+        if (
+            dossier.status == "error"
+            or dossier.prompt_version != PROMPT_VERSION
+            or dossier.model != settings.model_id
+        ):
+            continue
+        found.setdefault(dossier.row_key, dossier)
+    return found
 
 
 async def _research_all(
@@ -142,11 +181,14 @@ async def _research_all(
     search: SearchClient | None,
     fetcher: PageFetcher | None,
     force: bool,
-) -> tuple[list[ResearchDossier], int, int, float]:
+) -> tuple[list[ResearchDossier], int, int, int, float]:
     started = time.perf_counter()
     results: list[ResearchDossier | None] = [None] * len(rows)
     call_counts = [0] * len(rows)
     cache_hits = 0
+    artifact_hits = 0
+    # ``--force-research`` ignores the earlier JSONL as well as the row cache.
+    artifact = {} if force else load_artifact_dossiers(settings, framework_key, hop)
     resolved_model = model
     resolved_search = search
     # No injected client and no Tavily key: fetch_url only, no web_search tool.
@@ -154,17 +196,25 @@ async def _research_all(
     resolved_fetcher = fetcher or build_fetcher(settings, force=force)
     semaphore = asyncio.Semaphore(settings.max_concurrent)
     bar = progress_bar(len(rows), f"Research {framework} {hop[0]}→{hop[1]}")
-    counts = {"ok": 0, "not_found": 0, "error": 0, "cached": 0}
+    counts = {"ok": 0, "not_found": 0, "error": 0, "cached": 0, "artifact": 0}
 
-    def tick(dossier: ResearchDossier, *, cached: bool = False) -> None:
+    def tick(dossier: ResearchDossier, *, cached: bool = False, from_artifact: bool = False) -> None:
         counts[dossier.status] = counts.get(dossier.status, 0) + 1
         if cached:
             counts["cached"] += 1
+        if from_artifact:
+            counts["artifact"] += 1
         bar.update(1)
         bar.set_postfix(counts, refresh=False)
 
     async def worker(index: int, row: FilteredRow) -> None:
-        nonlocal cache_hits, resolved_model, resolved_search
+        nonlocal cache_hits, artifact_hits, resolved_model, resolved_search
+        previous = artifact.get(row.row_key)
+        if previous is not None:
+            results[index] = previous
+            artifact_hits += 1
+            tick(previous, from_artifact=True)
+            return
         cached = None if force else _read_cache(settings, row, framework_key, hop)
         if cached is not None:
             results[index] = cached
@@ -232,7 +282,13 @@ async def _research_all(
         else _timeout_dossier(row, settings, "row did not finish (research run aborted)")
         for item, row in zip(results, rows)
     ]
-    return dossiers, sum(call_counts), cache_hits, elapsed
+    if artifact_hits:
+        jsonl = default_research_jsonl_path(framework_key, hop[0], hop[1])
+        print(
+            f"Research {framework} {hop[0]}→{hop[1]}: {artifact_hits}/{len(rows)} rows "
+            f"reused from {jsonl}."
+        )
+    return dossiers, sum(call_counts), cache_hits, artifact_hits, elapsed
 
 
 def _timeout_dossier(
@@ -307,6 +363,7 @@ def _write_artifacts(
     model: str,
     tool_calls: int,
     cache_hits: int,
+    artifact_hits: int = 0,
     elapsed: float,
 ) -> None:
     jsonl_path = default_research_jsonl_path(framework_key, hop[0], hop[1])
@@ -338,6 +395,8 @@ def _write_artifacts(
         "errors": dict(error_counts.most_common()),
         "tool_calls": tool_calls,
         "cache_hits": cache_hits,
+        # Rows taken from the previous runs/research JSONL before the row cache.
+        "artifact_hits": artifact_hits,
         "wall_time_sec": round(elapsed, 3),
         "model": model,
         "prompt_version": PROMPT_VERSION,

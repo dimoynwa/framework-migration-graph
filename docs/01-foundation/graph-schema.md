@@ -18,6 +18,8 @@ For MCP tool contracts that query this schema, see [mcp-tools-skills-prompts.md]
    - [Class](#class)
    - [ApplicationProperty](#applicationproperty)
    - [Dependency](#dependency)
+   - [TemplateSyntax](#templatesyntax)
+   - [DiagnosticCode](#diagnosticcode)
    - [OpenRewriteRecipe](#openrewriterecipe)
    - [RecipeParam](#recipeparam)
    - [LifecycleAlert](#lifecyclealert)
@@ -140,6 +142,13 @@ Represents a single documented migration rule extracted from a framework changel
 | `sourceUrl` | string | no | Link to upstream documentation |
 | `framework` | string | yes | Framework name — denormalised to allow scoped queries without traversing `Version` |
 | `jiraKeys` | list[string] | no | Paysafe Jira keys related to this rule |
+| `signal` | string | no | How a service shows the rule applies: `"symbol"`, `"config"`, `"dependency"`, `"syntax"`, `"behavioral"`, `"universal"` (spec 027). **Missing = treat as `"behavioral"`** |
+| `signalConfidence` | float | no | Probability of the chosen `signal` after the contract guard |
+| `signalSource` | string | no | `"model"` · `"rule"` (all-dependency component upgrade) · `"guard"` (nothing to search for) · `"low_confidence"` (below the floor) |
+| `signalKeys` | list[string] | no | Canonical keys (spec 025) the planner searches for; empty for `behavioral` / `universal` |
+| `features` | list[string] | no | Feature ids the rule needs (`ssr`, `testbed`, `security`, …), see [Rule signals](#rule-signals) |
+| `signalQuestionsVersion` | integer | no | Version of the signal question contract; a bump re-asks every rule |
+| `signalModel` | string | no | Classifier that produced the signal (`"nimble"`) |
 | `communitySubmittedBy` | string | community only | Author; defaults to `"mcp-agent"` |
 | `communityCreatedAt` | string | community only | ISO 8601 creation timestamp |
 | `communityConfidence` | float | community only | Confidence score `[0.0, 1.0]`; default `0.5` |
@@ -226,18 +235,24 @@ Represents the impact surface and severity of a `MigrationRule`. Every rule has 
 
 ### Class
 
-Represents a Java class (or interface/annotation) referenced in a migration rule or step.
+Represents a Java class (or interface/annotation) or an npm exported symbol (or a member of one) referenced in a migration rule or step.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Fully qualified class name (e.g. `"org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter"`) |
+| `name` | string | yes | Fully qualified class name (e.g. `"org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter"`) or bare symbol / `Owner.member` for npm (e.g. `"InjectFlags"`, `"TestBed.get"`); never contains `:` |
+| `key` | string | yes | Canonical merge identity: `maven:<FQCN>` or `npm:<package>#<symbol>[.<member>]` (`npm:?#…` while the package is unresolved) |
+| `ecosystem` | string | yes | `maven` or `npm` |
+| `package` | string | no | npm package / entry point (e.g. `"@angular/core/testing"`) or Maven `groupId:artifactId` for dependencies |
+| `symbol` | string | no | Exported symbol / FQCN |
+| `member` | string | no | Method, field, or option of `symbol` (`kind: member` occurrences) |
+| `verified` | string | yes | `true` · `false` · `ambiguous` — npm symbols checked against the framework's published API index at populate time; `unchecked` for maven (no API index yet) |
 | `framework` | string | no | Framework that owns this class |
 
-**Uniqueness constraint:** `name`
+**Uniqueness constraint:** `key` (`name` has a plain index — a symbol like `VERSION` exists in several Angular entry points)
 
 **Example:**
 ```cypher
-(:Class {name: "org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter", framework: "Spring Boot"})
+(:Class {name: "org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter", key: "maven:org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter", ecosystem: "maven", verified: "unchecked", framework: "Spring Boot"})
 ```
 
 ---
@@ -248,14 +263,18 @@ Represents a framework configuration property key.
 
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Property key (e.g. `"spring.datasource.url"`, `"server.port"`) |
+| `name` | string | yes | Property key (e.g. `"spring.datasource.url"`, `"server.port"`) or full dotted config key for npm (e.g. `"engines.node"`) |
+| `key` | string | yes | Canonical merge identity: `cfg:<file>#<dotted key>` (`application.properties` for Spring, `package.json` / `tsconfig.json` / `angular.json` for Angular) |
+| `file` | string | no | Config file the key belongs to |
+| `ecosystem` | string | yes | `maven` or `npm` |
+| `verified` | string | yes | npm: `true` when the config file is known, else `false`; maven: `unchecked` |
 | `framework` | string | no | Framework that owns this property |
 
-**Uniqueness constraint:** `name`
+**Uniqueness constraint:** `key` (`name` has a plain index)
 
 **Example:**
 ```cypher
-(:ApplicationProperty {name: "spring.security.oauth2.resourceserver.jwt.issuer-uri", framework: "Spring Boot"})
+(:ApplicationProperty {name: "spring.security.oauth2.resourceserver.jwt.issuer-uri", key: "cfg:application.properties#spring.security.oauth2.resourceserver.jwt.issuer-uri", ecosystem: "maven", verified: "unchecked", framework: "Spring Boot"})
 ```
 
 ---
@@ -266,15 +285,46 @@ Represents an external library or module (Maven GAV, NPM package, etc.).
 
 | Property | Type | Required | Description |
 |---|---|---|---|
-| `name` | string | yes | Dependency identifier (e.g. `"org.springframework.boot:spring-boot-starter-web"`) |
+| `name` | string | yes | Dependency identifier (e.g. `"org.springframework.boot:spring-boot-starter-web"`, `"@angular/core"`) |
+| `key` | string | yes | Canonical merge identity: `maven:<groupId>:<artifactId>` or `npm:<package>` |
+| `ecosystem` | string | yes | `maven` or `npm` |
+| `verified` | string | yes | npm: `true`; maven: `unchecked` |
 | `framework` | string | no | Framework ecosystem this dependency belongs to |
 
-**Uniqueness constraint:** `name`
+**Uniqueness constraint:** `key` (`name` has a plain index)
 
 **Example:**
 ```cypher
-(:Dependency {name: "org.springframework.boot:spring-boot-starter-security", framework: "Spring Boot"})
+(:Dependency {name: "org.springframework.boot:spring-boot-starter-security", key: "maven:org.springframework.boot:spring-boot-starter-security", ecosystem: "maven", verified: "unchecked", framework: "Spring Boot"})
 ```
+
+---
+
+### TemplateSyntax
+
+Represents an Angular template operator or block keyword affected by a rule (e.g. `@if`, `in`, `@defer`).
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | The token as written in a template (e.g. `"@defer"`) |
+| `key` | string | yes | `syntax:<framework>-template#<token>` |
+| `verified` | string | yes | `true` (recognized from the profile's token list) |
+
+**Uniqueness constraint:** `key` (`template_syntax_key`)
+
+---
+
+### DiagnosticCode
+
+Represents a compiler or tooling diagnostic affected by a rule (e.g. `NG8115`).
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | The diagnostic code (e.g. `"NG8115"`) |
+| `key` | string | yes | `diag:<code>` |
+| `verified` | string | yes | `true` (recognized by pattern) |
+
+**Uniqueness constraint:** `key` (`diagnostic_code_key`)
 
 ---
 
@@ -412,6 +462,24 @@ Same `role` values as `AFFECTS_CLASS`. Links to an external dependency.
 
 ---
 
+### AFFECTS_SYNTAX
+```
+(MigrationRule)-[:AFFECTS_SYNTAX {role}]->(TemplateSyntax)
+(MigrationStep)-[:AFFECTS_SYNTAX {role}]->(TemplateSyntax)
+```
+Same `role` values as `AFFECTS_CLASS`. Links to an Angular template operator or block keyword.
+
+---
+
+### AFFECTS_DIAGNOSTIC
+```
+(MigrationRule)-[:AFFECTS_DIAGNOSTIC {role}]->(DiagnosticCode)
+(MigrationStep)-[:AFFECTS_DIAGNOSTIC {role}]->(DiagnosticCode)
+```
+Same `role` values as `AFFECTS_CLASS`. Links to a compiler or tooling diagnostic.
+
+---
+
 ### REPLACED_BY
 ```
 (Class)-[:REPLACED_BY]->(Class)
@@ -510,12 +578,17 @@ Links a recipe to its parameter definitions. No properties.
 |---|---|---|---|
 | `version_unique` | UNIQUENESS | `Version(framework, version)` | Prevent duplicate version records |
 | `migration_rule_id` | UNIQUENESS | `MigrationRule(ruleId)` | Prevent duplicate rule IDs |
-| `class_name` | UNIQUENESS | `Class(name)` | Prevent duplicate class records |
-| `property_name` | UNIQUENESS | `ApplicationProperty(name)` | Prevent duplicate property records |
-| `dependency_name` | UNIQUENESS | `Dependency(name)` | Prevent duplicate dependency records |
+| `class_key` | UNIQUENESS | `Class(key)` | One canonical identity per class / member (spec 025) |
+| `property_key` | UNIQUENESS | `ApplicationProperty(key)` | One canonical identity per config key |
+| `dependency_key` | UNIQUENESS | `Dependency(key)` | One canonical identity per dependency |
+| `template_syntax_key` | UNIQUENESS | `TemplateSyntax(key)` | One canonical identity per template token |
+| `diagnostic_code_key` | UNIQUENESS | `DiagnosticCode(key)` | One canonical identity per diagnostic |
 | `breaking_scope_pair` | UNIQUENESS | `BreakingScope(scope, severity)` | Prevent duplicate scope/severity pairs |
 | `version_sortable` | RANGE | `Version(sortableVersion)` | Enable version range queries |
 | `version_framework` | RANGE | `Version(framework)` | Enable framework-scoped lookup |
+| `class_name_index` | RANGE | `Class(name)` | Matchable-name lookup (name is no longer unique) |
+| `property_name_index` | RANGE | `ApplicationProperty(name)` | Matchable-name lookup |
+| `dependency_name_index` | RANGE | `Dependency(name)` | Matchable-name lookup |
 | `rule_statement` | FULLTEXT | `MigrationRule(statement)` | BM25 duplicate detection and keyword search |
 | `migration_text` | FULLTEXT | `MigrationRule(statement, reason, solution)` | Multi-field keyword search |
 | `step_instruction` | FULLTEXT | `MigrationStep(instruction, summary)` | Full-text search on step text |
@@ -641,3 +714,66 @@ ORDER BY score DESC
 | Rule has at least one `REQUIRES_STEP` edge | `"actionable"` |
 | Rule has no steps but has at least one `AFFECTS_*` edge | `"incomplete"` |
 | Rule has neither steps nor affected entities | `"informational"` |
+
+---
+
+## Rule signals
+
+`signal` answers one question per rule: **what in an application shows that this
+rule applies to it?** The migration planner (spec 026/028) reads it from the
+graph; it never calls the classifier itself.
+
+| `signal` | The planner decides with | Example |
+|---|---|---|
+| `symbol` | the code uses a named API | `TestBed.get` removed |
+| `config` | a config key is set | `angularCompilerOptions.strictStandalone` default changed |
+| `dependency` | a package is declared (optionally in a range) | `@angular/animations` deprecated |
+| `syntax` | template syntax is used | `in` is an operator |
+| `behavioral` | the API name is not enough; the code must be read (or a person asked) | `onDestroy` timing |
+| `universal` | every service on the hop is affected | minimum Node / TypeScript |
+
+The classification is written by populate right after canonicalization (spec
+027) and can be backfilled for hops already in the graph with
+`scripts/classify_signals.py`. Two rules keep a wrong classification from
+excluding a rule that applies:
+
+- **The guard.** If the chosen type has no key to search for — for example
+  `symbol` for a rule that names only its replacement — the type becomes
+  `behavioral` with `signalSource: "guard"`. `signalKeys` reports whatever was
+  found, so the decision can be reviewed.
+- **The floors.** `symbol` / `config` / `dependency` / `syntax` need
+  `SIGNAL_SEARCHABLE_MIN_PROB` (0.70); `universal` needs
+  `SIGNAL_UNIVERSAL_MIN_PROB` (0.60). Below the floor the rule is `behavioral`
+  with `signalSource: "low_confidence"`.
+
+A rule with **no** signal properties (Nimble unset or unreachable, or the hop
+was populated with `--skip-signals`) is read as `behavioral`, so a missing
+classification never excludes anything.
+
+`features` names the features a rule needs, from a per-framework vocabulary
+with **evidence keys**: profile keys (spec 026) from which the planner can tell
+without asking that a service has the feature.
+
+| Framework | Features |
+|---|---|
+| Angular | `ssr`, `hydration`, `zoneless`, `zone`, `animations`, `router`, `forms`, `http`, `i18n`, `service-worker`, `testbed`, `karma`, `ngmodule`, `elements`, `upgrade`, `cli-build` |
+| Spring Boot | `web-mvc`, `webflux`, `security`, `data-jpa`, `data-mongodb`, `data-redis`, `kafka`, `actuator`, `observability`, `jackson`, `batch`, `testing`, `cloud`, `gradle`, `maven` |
+| WildFly | subsystems (`undertow`, `ejb3`, `messaging-activemq`, `elytron`, `jpa`, …) |
+
+The vocabulary lives in `migration_oracle/pipeline/signals/features.py` as plain
+data, so it can be exported to the planner unchanged.
+
+**Example:**
+
+```cypher
+(:MigrationRule {
+  ruleId: "pipeline://Angular/20.0.0/TestBed.get removed",
+  signal: "symbol",
+  signalConfidence: 0.92,
+  signalSource: "model",
+  signalKeys: ["npm:@angular/core/testing#TestBed.get"],
+  features: ["testbed"],
+  signalQuestionsVersion: 1,
+  signalModel: "nimble"
+})
+```

@@ -1,17 +1,38 @@
-"""Graph population from MigrationEntitiesBatch."""
+"""Graph population from MigrationEntitiesBatch.
+
+Every affected entity is canonicalized first (spec 025): normalized by code and,
+for npm frameworks, verified against the published API index. Nodes merge on
+the canonical ``key``; ``name`` stays the identifier scanners and MCP queries
+match on.
+"""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import product
+from pathlib import Path
 
 from migration_oracle.graph.driver import get_driver, write_session
 from migration_oracle.graph.indexes import ensure_indexes
 from migration_oracle.graph.queries import pipeline as pipeline_queries
+from migration_oracle.pipeline._paths import (
+    default_canonical_jsonl_path,
+    default_canonical_summary_path,
+    default_signals_jsonl_path,
+    default_signals_summary_path,
+)
+from migration_oracle.pipeline.canonical import (
+    CanonicalRule,
+    canonicalize_batch,
+    profile_for,
+    write_canonical_audit,
+)
+from migration_oracle.pipeline.rule_ids import rule_id_for
 from migration_oracle.pipeline.seeds.deprecated_classes import SPRING_BOOT_3X_DEPRECATED
 from migration_oracle.pipeline.seeds.lifecycle_alerts import SPRING_BOOT_4X_ALERTS
+from migration_oracle.pipeline.signals import SignalRunResult, classify_signals
 from migration_oracle.models.entities import (
-    AffectedEntity,
+    CanonicalEntity,
     EntityKind,
     EntityRole,
     MigrationEntitiesBatch,
@@ -45,6 +66,10 @@ class PopulationResult:
     entities_written: int
     version_created: bool
     skipped: bool = False
+    #: Signal stage status: ``ok`` / ``partial`` / ``disabled`` / ``unavailable``
+    #: or ``skipped`` when ``--skip-signals`` was given (spec 027 FR-6).
+    signal_status: str = "skipped"
+    signals_written: int = 0
 
 
 def derive_entity_classification(entity: MigrationEntity) -> str:
@@ -67,29 +92,41 @@ def rule_type_for(source_section: str) -> str:
 def _entity_label(kind: EntityKind) -> str:
     return {
         EntityKind.CLASS: "Class",
+        EntityKind.MEMBER: "Class",
         EntityKind.PROPERTY: "ApplicationProperty",
         EntityKind.DEPENDENCY: "Dependency",
+        EntityKind.SYNTAX: "TemplateSyntax",
+        EntityKind.DIAGNOSTIC: "DiagnosticCode",
     }[kind]
 
 
 def _edge_type(kind: EntityKind) -> str:
     return {
         EntityKind.CLASS: "AFFECTS_CLASS",
+        EntityKind.MEMBER: "AFFECTS_CLASS",
         EntityKind.PROPERTY: "AFFECTS_PROPERTY",
         EntityKind.DEPENDENCY: "AFFECTS_DEPENDENCY",
+        EntityKind.SYNTAX: "AFFECTS_SYNTAX",
+        EntityKind.DIAGNOSTIC: "AFFECTS_DIAGNOSTIC",
     }[kind]
 
 
-def _replacement_pairs(entity: MigrationEntity) -> list[tuple[str, str, EntityKind]]:
-    removed = [e for e in entity.entities if e.role == EntityRole.REMOVED]
-    replacements = [e for e in entity.entities if e.role == EntityRole.REPLACEMENT]
+def _replacement_pairs(
+    canonical_rule: CanonicalRule,
+) -> list[tuple[str, str, EntityKind]]:
+    removed = [o for o in canonical_rule.occurrences if o.role == EntityRole.REMOVED.value]
+    replacements = [o for o in canonical_rule.occurrences if o.role == EntityRole.REPLACEMENT.value]
     pairs: list[tuple[str, str, EntityKind]] = []
     for kind in EntityKind:
-        removed_names = [e.name for e in removed if e.kind == kind]
-        replacement_names = [e.name for e in replacements if e.kind == kind]
-        for removed_name, replacement_name in product(removed_names, replacement_names):
-            pairs.append((removed_name, replacement_name, kind))
+        removed_keys = [o.key for o in removed if o.kind == kind]
+        replacement_keys = [o.key for o in replacements if o.kind == kind]
+        for removed_key, replacement_key in product(removed_keys, replacement_keys):
+            pairs.append((removed_key, replacement_key, kind))
     return pairs
+
+
+def _framework_key(framework_display: str) -> str:
+    return framework_display.strip().lower().replace(" ", "-")
 
 
 def populate_graph(
@@ -101,16 +138,78 @@ def populate_graph(
     raw_md_path: str,
     filtered_md_path: str,
     entities_json_path: str,
+    framework_key: str = "",
+    canonical_jsonl_path: Path | None = None,
+    canonical_summary_path: Path | None = None,
+    signals_jsonl_path: Path | None = None,
+    signals_summary_path: Path | None = None,
     dry_run: bool = False,
     skip_if_version_exists: bool = True,
+    skip_signals: bool = False,
+    force_signals: bool = False,
+    signal_client=None,
+    signal_settings=None,
 ) -> PopulationResult:
-    if dry_run:
-        return PopulationResult(0, 0, 0, 0, False, skipped=True)
-
-    if skip_if_version_exists and pipeline_queries.version_exists(
-        framework_display, to_version
+    # An existing Version node is not repopulated, so its hop is neither
+    # canonicalized nor audited: no API-index fetch, no audit rewrite.
+    if (
+        not dry_run
+        and skip_if_version_exists
+        and pipeline_queries.version_exists(framework_display, to_version)
     ):
         return PopulationResult(0, 0, 0, 0, False, skipped=True)
+
+    key = framework_key or _framework_key(framework_display)
+    profile = profile_for(key, framework_display)
+    canonicalized = canonicalize_batch(
+        batch,
+        profile=profile,
+        from_version=from_version,
+        to_version=to_version,
+    )
+    write_canonical_audit(
+        canonicalized,
+        framework=key,
+        hop=(from_version, to_version),
+        jsonl_path=canonical_jsonl_path
+        or default_canonical_jsonl_path(key, from_version, to_version),
+        summary_path=canonical_summary_path
+        or default_canonical_summary_path(key, from_version, to_version),
+    )
+    # Spec 027: classify every rule by how a service shows that it applies. The
+    # stage never raises; without Nimble the hop is still populated, and the
+    # planner reads a missing classification as ``behavioral``.
+    signals = _classify_hop_signals(
+        batch=batch,
+        canonicalized=canonicalized,
+        framework_key=key,
+        framework_display=framework_display,
+        from_version=from_version,
+        to_version=to_version,
+        skip_signals=skip_signals,
+        force_signals=force_signals,
+        dry_run=dry_run,
+        client=signal_client,
+        settings=signal_settings,
+        jsonl_path=signals_jsonl_path
+        or default_signals_jsonl_path(key, from_version, to_version),
+        summary_path=signals_summary_path
+        or default_signals_summary_path(key, from_version, to_version),
+    )
+    signal_properties = signals.properties_by_rule_id() if signals else {}
+    if dry_run:
+        # The canonical and signal artifacts above are the deliverable; the
+        # graph stays untouched. That is the cheap way to review a hop.
+        return PopulationResult(
+            0,
+            0,
+            0,
+            0,
+            False,
+            skipped=True,
+            signal_status=signals.status if signals else "skipped",
+            signals_written=len(signal_properties),
+        )
 
     sortable = sortable_version(to_version)
     rules_written = 0
@@ -126,12 +225,16 @@ def populate_graph(
     )
 
     with write_session() as session:
-        for entity in batch.entities:
+        for entity, canonical_rule in zip(batch.entities, canonicalized.rules):
             _write_entity(
                 session,
                 entity=entity,
+                canonical_rule=canonical_rule,
                 framework_display=framework_display,
                 to_version=to_version,
+                signal_properties=signal_properties.get(
+                    rule_id_for(framework_display, to_version, entity.title)
+                ),
             )
             rules_written += 1
             steps_written += len(entity.steps)
@@ -172,6 +275,41 @@ def populate_graph(
         scopes_written=scopes_written,
         entities_written=entities_written,
         version_created=True,
+        signal_status=signals.status if signals else "skipped",
+        signals_written=len(signal_properties),
+    )
+
+
+def _classify_hop_signals(
+    *,
+    batch: MigrationEntitiesBatch,
+    canonicalized,
+    framework_key: str,
+    framework_display: str,
+    from_version: str,
+    to_version: str,
+    skip_signals: bool,
+    force_signals: bool,
+    dry_run: bool,
+    client,
+    settings,
+    jsonl_path: Path,
+    summary_path: Path,
+) -> SignalRunResult | None:
+    """Run the signal stage for one hop, or ``None`` when it was skipped."""
+    if skip_signals:
+        return None
+    return classify_signals(
+        batch=batch,
+        canonicalized=canonicalized,
+        framework_key=framework_key,
+        framework_display=framework_display,
+        hop=(from_version, to_version),
+        client=client,
+        settings=settings,
+        force=force_signals,
+        jsonl_path=jsonl_path,
+        summary_path=summary_path,
     )
 
 
@@ -179,10 +317,12 @@ def _write_entity(
     session,
     *,
     entity: MigrationEntity,
+    canonical_rule: CanonicalRule,
     framework_display: str,
     to_version: str,
+    signal_properties: dict | None = None,
 ) -> None:
-    rule_id_key = f"pipeline://{framework_display}/{to_version}/{entity.title}"
+    rule_id_key = rule_id_for(framework_display, to_version, entity.title)
     source_url = entity.source_url or rule_id_key
     rule_record = session.run(
         """
@@ -228,6 +368,21 @@ def _write_entity(
     ).single()
     rule_id = rule_record["rule_id"]
 
+    # Spec 027 FR-5: the signal classification, written in the same session as
+    # the rule. A rule without it (Nimble off, or not backfilled yet) is read
+    # by the planner as ``behavioral``, so a missing classification never
+    # excludes anything.
+    if signal_properties:
+        session.run(
+            """
+            MATCH (rule:MigrationRule)
+            WHERE elementId(rule) = $rule_id
+            SET rule += $props
+            """,
+            rule_id=rule_id,
+            props=dict(signal_properties),
+        )
+
     for scope in entity.scopes:
         session.run(
             """
@@ -256,7 +411,14 @@ def _write_entity(
         )
 
     for step in entity.steps:
-        _write_step(session, rule_id=rule_id, step=step, entity=entity, framework_display=framework_display)
+        _write_step(
+            session,
+            rule_id=rule_id,
+            step=step,
+            entity=entity,
+            framework_display=framework_display,
+            occurrences=canonical_rule.occurrences,
+        )
 
     for step in entity.steps:
         for prereq_index in step.requires:
@@ -271,26 +433,26 @@ def _write_entity(
                 prereq=prereq_index,
             )
 
-    for affected in entity.entities:
+    for occurrence in canonical_rule.occurrences:
         _write_affected_entity(
             session,
             rule_id=rule_id,
             entity=entity,
-            affected=affected,
+            occurrence=occurrence,
             framework_display=framework_display,
             to_version=to_version,
         )
 
-    for removed_name, replacement_name, kind in _replacement_pairs(entity):
+    for removed_key, replacement_key, kind in _replacement_pairs(canonical_rule):
         label = _entity_label(kind)
         session.run(
             f"""
-            MATCH (old:{label} {{name: $removed_name}})
-            MATCH (new:{label} {{name: $replacement_name}})
+            MATCH (old:{label} {{key: $removed_key}})
+            MATCH (new:{label} {{key: $replacement_key}})
             MERGE (old)-[:REPLACED_BY]->(new)
             """,
-            removed_name=removed_name,
-            replacement_name=replacement_name,
+            removed_key=removed_key,
+            replacement_key=replacement_key,
         )
 
 
@@ -301,6 +463,7 @@ def _write_step(
     step: MigrationStep,
     entity: MigrationEntity,
     framework_display: str,
+    occurrences=(),
 ) -> None:
     session.run(
         """
@@ -366,22 +529,37 @@ def _write_step(
         )
 
     if step.step_type in (StepType.REMOVE, StepType.REPLACE, StepType.RENAME):
-        for affected in entity.entities:
-            edge = _edge_type(affected.kind)
-            label = _entity_label(affected.kind)
+        for occurrence in occurrences:
+            edge = _edge_type(occurrence.kind)
+            label = _entity_label(occurrence.kind)
+            canonical = occurrence.to_canonical()
             session.run(
                 f"""
                 MATCH (s:MigrationStep {{ruleId: $rule_id, stepIndex: $step_index}})
-                MERGE (e:{label} {{name: $name}})
+                MERGE (e:{label} {{key: $key}})
                 ON CREATE SET e.framework = $framework
                 ON MATCH SET  e.framework = coalesce(e.framework, $framework)
+                SET e.name = $name,
+                    e.package = $package,
+                    e.symbol = $symbol,
+                    e.member = $member,
+                    e.file = $file,
+                    e.ecosystem = $ecosystem,
+                    e.verified = $verified
                 MERGE (s)-[rel:{edge}]->(e)
                 SET rel.role = $role
                 """,
                 rule_id=rule_id,
                 step_index=step.index,
-                name=affected.name,
-                role=affected.role.value,
+                key=canonical.key,
+                name=canonical.name,
+                package=canonical.package,
+                symbol=canonical.symbol,
+                member=canonical.member,
+                file=canonical.file,
+                ecosystem=canonical.ecosystem,
+                verified=canonical.verified,
+                role=occurrence.role,
                 framework=framework_display,
             )
 
@@ -391,66 +569,81 @@ def _write_affected_entity(
     *,
     rule_id: str,
     entity: MigrationEntity,
-    affected: AffectedEntity,
+    occurrence,
     framework_display: str,
     to_version: str,
 ) -> None:
-    label = _entity_label(affected.kind)
-    edge = _edge_type(affected.kind)
-    role = affected.role.value
+    canonical: CanonicalEntity = occurrence.to_canonical()
+    label = _entity_label(canonical.kind)
+    edge = _edge_type(canonical.kind)
+    role = occurrence.role
 
     session.run(
         f"""
-        MERGE (e:{label} {{name: $name}})
+        MERGE (e:{label} {{key: $key}})
         ON CREATE SET e.framework = $framework
         ON MATCH SET  e.framework = coalesce(e.framework, $framework)
+        SET e.name = $name,
+            e.package = $package,
+            e.symbol = $symbol,
+            e.member = $member,
+            e.file = $file,
+            e.ecosystem = $ecosystem,
+            e.verified = $verified
         WITH e
         MATCH (rule:MigrationRule)
         WHERE elementId(rule) = $rule_id
         MERGE (rule)-[rel:{edge}]->(e)
         SET rel.role = $role
         """,
-        name=affected.name,
+        key=canonical.key,
+        name=canonical.name,
+        package=canonical.package,
+        symbol=canonical.symbol,
+        member=canonical.member,
+        file=canonical.file,
+        ecosystem=canonical.ecosystem,
+        verified=canonical.verified,
         rule_id=rule_id,
         role=role,
         framework=framework_display,
     )
 
-    if affected.role == EntityRole.REMOVED:
+    if role == EntityRole.REMOVED.value:
         session.run(
             f"""
             MATCH (v:Version {{framework: $framework, version: $version}})
-            MATCH (e:{label} {{name: $name}})
+            MATCH (e:{label} {{key: $key}})
             MERGE (e)-[:REMOVED_IN]->(v)
             MERGE (v)-[:REMOVES]->(e)
             """,
             framework=framework_display,
             version=to_version,
-            name=affected.name,
+            key=canonical.key,
         )
-    elif affected.role == EntityRole.REPLACEMENT:
+    elif role == EntityRole.REPLACEMENT.value:
         session.run(
             f"""
             MATCH (v:Version {{framework: $framework, version: $version}})
-            MATCH (e:{label} {{name: $name}})
+            MATCH (e:{label} {{key: $key}})
             MERGE (e)-[:INTRODUCED_IN]->(v)
             MERGE (v)-[:INTRODUCES]->(e)
             """,
             framework=framework_display,
             version=to_version,
-            name=affected.name,
+            key=canonical.key,
         )
     elif entity.source_section == "deprecation":
         session.run(
             f"""
             MATCH (v:Version {{framework: $framework, version: $version}})
-            MATCH (e:{label} {{name: $name}})
+            MATCH (e:{label} {{key: $key}})
             MERGE (e)-[:DEPRECATED_IN]->(v)
             MERGE (v)-[:DEPRECATES]->(e)
             """,
             framework=framework_display,
             version=to_version,
-            name=affected.name,
+            key=canonical.key,
         )
 
 
@@ -460,15 +653,17 @@ def seed_deprecated_classes() -> None:
         for dc in SPRING_BOOT_3X_DEPRECATED:
             session.run(
                 """
-                MERGE (c:Class {name: $name})
+                MERGE (c:Class {key: $key})
                 ON CREATE SET c.framework = $framework
                 ON MATCH SET  c.framework = coalesce(c.framework, $framework)
+                SET c.name = $name
                 WITH c
                 MERGE (v:Version {framework: $framework, version: $deprecated_in})
                 ON CREATE SET v.sortableVersion = $sortable_version
                 MERGE (c)-[:DEPRECATED_IN]->(v)
                 MERGE (v)-[:DEPRECATES]->(c)
                 """,
+                key=f"maven:{dc.name}",
                 name=dc.name,
                 framework=dc.framework,
                 deprecated_in=dc.deprecated_in,
@@ -477,11 +672,15 @@ def seed_deprecated_classes() -> None:
             if dc.replacement:
                 session.run(
                     """
-                    MERGE (old:Class {name: $old_name})
-                    MERGE (new:Class {name: $new_name})
+                    MERGE (old:Class {key: $old_key})
+                    SET old.name = $old_name
+                    MERGE (new:Class {key: $new_key})
+                    SET new.name = $new_name
                     MERGE (old)-[:REPLACED_BY]->(new)
                     """,
+                    old_key=f"maven:{dc.name}",
                     old_name=dc.name,
+                    new_key=f"maven:{dc.replacement}",
                     new_name=dc.replacement,
                 )
 

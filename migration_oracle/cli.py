@@ -8,6 +8,7 @@ from pathlib import Path
 import click
 
 from migration_oracle import config
+from migration_oracle.pipeline.entities import resolve_entity_source, run_dossier_entities
 from migration_oracle.pipeline.extractors import (
     FRAMEWORK_DISPLAY_NAMES,
     get_extractor,
@@ -27,6 +28,7 @@ from migration_oracle.pipeline.extractor import (
 from migration_oracle.pipeline.extractors.base import HopContext, HopResult
 from migration_oracle.pipeline.extractors.parsing import (
     HOP_GRANULARITIES,
+    is_version_alias,
     validate_hop_granularity,
 )
 from migration_oracle.models.graph import is_prerelease
@@ -47,7 +49,19 @@ from migration_oracle.pipeline.research.markdown import (
 from migration_oracle.pipeline.research.run import report_quota, run_research
 from migration_oracle.pipeline.research.settings import load_settings as load_research_settings
 from migration_oracle.pipeline.research.tools import ResearchQuotaExceeded
+from migration_oracle.pipeline.triage.markdown import parse_raw_markdown
 from migration_oracle.pipeline.triage.run import PreparedRange, prepare_range_documents
+
+
+def _signal_note(result) -> str:
+    """The signal part of the per-hop summary line (spec 027)."""
+    status = getattr(result, "signal_status", "skipped")
+    written = getattr(result, "signals_written", 0)
+    if status == "skipped":
+        return ""
+    if status in ("disabled", "unavailable"):
+        return f", signals {status}"
+    return f", {written} classified by signals"
 
 
 def _validate_model_provider() -> None:
@@ -70,6 +84,47 @@ def _resolve_hop_settings(
     granularity = validate_hop_granularity(hop_granularity or config.HOP_GRANULARITY)
     by_hop = config.HOP_BY_HOP if hop_by_hop is None else hop_by_hop
     return granularity, by_hop
+
+
+def _resolve_version_args(
+    framework: str, from_version: str, to_version: str
+) -> tuple[str, str]:
+    """Resolve ``latest`` / ``latest-ga`` / ``X.Y.Z-SNAPSHOT`` before any path is derived."""
+    if not (is_version_alias(from_version) or is_version_alias(to_version)):
+        return from_version, to_version
+
+    async def _resolve() -> tuple[str, str]:
+        async with get_extractor(framework) as resolver:
+            return await resolver.resolve_versions(from_version, to_version)
+
+    try:
+        resolved = asyncio.run(_resolve())
+    except (RuntimeError, ValueError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    for requested, concrete in zip((from_version, to_version), resolved):
+        if requested != concrete:
+            click.echo(f"Resolved {requested} → {concrete}")
+    return resolved
+
+
+def _raw_is_stale(raw_path: Path, from_version: str, to_version: str) -> bool:
+    """
+    True when a raw file on disk does not describe exactly this one hop.
+
+    Raw files written before hop-by-hop mode hold a whole range (for example
+    ``4.0.0 → 4.1.0-RC1`` with one section per milestone) under a hop's file
+    name. Reusing one feeds the wrong rows into triage and research.
+    """
+    if not raw_path.exists():
+        return False
+    try:
+        parsed = parse_raw_markdown(raw_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return True
+    hops = {(hop_from, hop_to) for hop_from, hop_to, _ in parsed.hops}
+    return (parsed.from_version, parsed.to_version) != (from_version, to_version) or (
+        hops != {(from_version, to_version)}
+    )
 
 
 def _materialize_raw(
@@ -121,14 +176,18 @@ def _research_filter_extract(
     skip_research: bool,
     force_research: bool,
     stop_after_research: bool = False,
+    entity_source: str = "filter",
+    stop_after_clusters: bool = False,
+    force_llm: bool = False,
 ):
-    """Research every kept row, write the migration document, then extract entities.
+    """Research every kept row, then either extract from dossiers or filter them.
 
-    Order: kept triage rows → per-row research (small model) → filter LLM, which
-    writes the consolidated document from the rows and their research → entity
-    LLM, which receives that document plus the research merged per document row.
-    A Tavily quota exit (2) happens before the filter LLM. With
-    ``stop_after_research`` the run stops after research and returns ``None``.
+    ``dossier`` (the default when research ran): gate on ``**Action:**``, cluster
+    rows that share a pull, commit, or issue, and make one entity call per
+    cluster. ``filter`` is the previous path: the filter LLM writes the migration
+    document, then the entity LLM reads that document plus the research.
+    ``stop_after_research`` returns before either path. ``stop_after_clusters``
+    writes ``runs/clusters/`` and returns ``None``.
     """
     research_settings = load_research_settings()
     research_rows = attach_raw_context(
@@ -151,6 +210,18 @@ def _research_filter_extract(
         raise SystemExit(2) from exc
     if stop_after_research:
         return None
+    if entity_source == "dossier" or stop_after_clusters:
+        return run_dossier_entities(
+            filter_md=filter_md,
+            dossiers=dossiers,
+            framework_key=framework_key,
+            framework_display=display_name,
+            hop=(from_version, to_version),
+            filtered_path=filtered_path,
+            json_path=json_path,
+            force_llm=force_llm,
+            stop_after_clusters=stop_after_clusters,
+        )
 
     research = build_filter_research(research_rows, dossiers)
     flags = refresh_flags_for_filter_input(
@@ -206,6 +277,10 @@ def _run_hop_by_hop(
     skip_research: bool,
     force_research: bool,
     stop_after_research: bool = False,
+    entity_source: str = "filter",
+    stop_after_clusters: bool = False,
+    skip_signals: bool = False,
+    force_signals: bool = False,
 ) -> None:
     """
     Run the whole pipeline once per version hop.
@@ -219,6 +294,8 @@ def _run_hop_by_hop(
     def raw_path_for(context: HopContext) -> Path:
         return default_raw_md_path(framework, context.from_version, context.to_version)
 
+    stale: set[HopContext] = set()
+
     async def _plan_and_extract() -> tuple[
         list[HopContext], dict[tuple[str, str], HopResult]
     ]:
@@ -226,12 +303,20 @@ def _run_hop_by_hop(
             contexts = await extractor.plan_hops(
                 from_version, to_version, granularity
             )
+            stale.update(
+                context
+                for context in contexts
+                if _raw_is_stale(
+                    raw_path_for(context), context.from_version, context.to_version
+                )
+            )
             pending = [
                 context
                 for context in contexts
                 if force
                 or force_extract
                 or not raw_path_for(context).exists()
+                or context in stale
             ]
             hop_results = await extractor.extract_contexts(
                 pending, per_hop_range_metadata=True
@@ -273,6 +358,7 @@ def _run_hop_by_hop(
     entities_written = 0
     hops_done = 0
     hops_skipped = 0
+    hops_incomplete: list[str] = []
 
     for context in contexts:
         hop_from, hop_to = context.from_version, context.to_version
@@ -287,12 +373,18 @@ def _run_hop_by_hop(
             hops_skipped += 1
             continue
 
+        hop_is_stale = context in stale and not (force or force_extract)
+        if hop_is_stale:
+            click.echo(
+                f"  · {hop_from} → {hop_to}: {raw_path} holds a different range "
+                "(old multi-hop layout); re-extracted."
+            )
         flags = resolve_cache_flags(
             raw_path=raw_path,
             filtered_path=filtered_path,
             json_path=json_path,
             force=force,
-            force_extract=force_extract,
+            force_extract=force_extract or hop_is_stale,
             force_llm=force_llm,
         )
 
@@ -357,20 +449,38 @@ def _run_hop_by_hop(
             skip_research=skip_research,
             force_research=force_research,
             stop_after_research=stop_after_research,
+            entity_source=entity_source,
+            stop_after_clusters=stop_after_clusters,
+            force_llm=force_llm,
         )
         if stop_after_research:
             click.echo(f"  · {hop_from} → {hop_to}: research → runs/research/")
             hops_done += 1
             continue
+        if stop_after_clusters:
+            click.echo(f"  · {hop_from} → {hop_to}: clusters → runs/clusters/")
+            hops_done += 1
+            continue
+        if extraction_result.failed_clusters:
+            click.echo(
+                f"  · {hop_from} → {hop_to}: {extraction_result.failed_clusters} entity "
+                "cluster(s) failed; artifacts written, graph not populated. Re-run to "
+                "retry them from the cache."
+            )
+            hops_incomplete.append(f"{hop_from} → {hop_to}")
+            continue
         result = populate_graph(
             batch=extraction_result.batch,
             framework_display=display_name,
+            framework_key=framework,
             to_version=hop_to,
             from_version=hop_from,
             raw_md_path=str(raw_path),
             filtered_md_path=str(filtered_path),
             entities_json_path=str(json_path),
             dry_run=dry_run,
+            skip_signals=skip_signals,
+            force_signals=force_signals,
         )
         if result.skipped:
             click.echo(f"  · {hop_from} → {hop_to}: version node exists, not repopulated.")
@@ -382,7 +492,9 @@ def _run_hop_by_hop(
         hops_done += 1
         click.echo(
             f"  · {hop_from} → {hop_to}: {result.rules_written} rules, "
-            f"{result.steps_written} steps, {result.entities_written} entities."
+            f"{result.steps_written} steps, {result.entities_written} entities"
+            + _signal_note(result)
+            + "."
         )
 
     if extract_only:
@@ -396,6 +508,11 @@ def _run_hop_by_hop(
             f"runs/research/; filter LLM, entity LLM, and graph skipped "
             f"({hops_skipped} skipped)."
         )
+    elif stop_after_clusters:
+        click.echo(
+            f"Stopped after clusters — {hops_done} hop(s) written to runs/clusters/; "
+            f"entity LLM and graph skipped ({hops_skipped} skipped)."
+        )
     elif dry_run:
         click.echo(
             f"Dry run complete — {hops_done} hop(s) processed; graph untouched."
@@ -406,6 +523,13 @@ def _run_hop_by_hop(
             f"{rules_written} rules, {steps_written} steps, "
             f"{entities_written} entities ({hops_skipped} skipped)."
         )
+    if hops_incomplete:
+        click.echo(
+            f"{len(hops_incomplete)} hop(s) had failed entity clusters and were not "
+            f"populated: {', '.join(hops_incomplete)}.",
+            err=True,
+        )
+        raise SystemExit(3)
 
 
 @click.group()
@@ -422,7 +546,14 @@ app = main
 @click.argument("to_version")
 @click.option("--force", is_flag=True, help="Re-run extraction and both LLM steps.")
 @click.option("--force-extract", is_flag=True, help="Re-run upstream extraction only.")
-@click.option("--force-llm", is_flag=True, help="Re-run filter and entity LLM steps.")
+@click.option(
+    "--force-llm",
+    is_flag=True,
+    help=(
+        "Re-run the filter and entity LLM steps. In dossier mode, ignore the "
+        "per-cluster entity cache."
+    ),
+)
 @click.option("--dry-run", is_flag=True, help="Produce artifacts without graph writes.")
 @click.option(
     "--skip-existing",
@@ -487,6 +618,37 @@ app = main
         "No filter LLM, no entity LLM, and no graph writes."
     ),
 )
+@click.option(
+    "--entity-source",
+    type=click.Choice(["dossier", "filter"]),
+    default=None,
+    help=(
+        "Where entities come from. 'dossier' builds them from research dossiers "
+        "(the default when research is enabled). 'filter' is the filter LLM, then "
+        "the entity LLM. Env: ENTITY_SOURCE."
+    ),
+)
+@click.option(
+    "--stop-after-clusters",
+    is_flag=True,
+    help=(
+        "Run the action gate and clustering, write runs/clusters/, then stop. "
+        "No entity calls and no graph writes, so no MODEL_* is needed."
+    ),
+)
+@click.option(
+    "--skip-signals",
+    is_flag=True,
+    help=(
+        "Do not classify rules with System-1. Rules are written without the "
+        "signal properties, which the planner reads as 'behavioral'."
+    ),
+)
+@click.option(
+    "--force-signals",
+    is_flag=True,
+    help="Ignore the rule-signal answer cache and ask System-1 again.",
+)
 @click.option("--output-md", type=click.Path(path_type=Path), default=None)
 @click.option("--output-filtered-md", type=click.Path(path_type=Path), default=None)
 @click.option("--output-json", type=click.Path(path_type=Path), default=None)
@@ -508,6 +670,10 @@ def pipeline(
     skip_research: bool,
     force_research: bool,
     stop_after_research: bool,
+    entity_source: str | None,
+    stop_after_clusters: bool,
+    skip_signals: bool,
+    force_signals: bool,
     output_md: Path | None,
     output_filtered_md: Path | None,
     output_json: Path | None,
@@ -526,6 +692,23 @@ def pipeline(
             "--stop-after-research needs research enabled: set RESEARCH_BASE_URL and "
             "RESEARCH_MODEL_ID (TAVILY_API_KEY is optional)"
         )
+    if stop_after_clusters and (extract_only or stop_after_research):
+        raise click.ClickException(
+            "--stop-after-clusters cannot be combined with --extract-only or "
+            "--stop-after-research"
+        )
+    if skip_signals and force_signals:
+        raise click.ClickException(
+            "--skip-signals cannot be combined with --force-signals"
+        )
+    try:
+        entity_source = resolve_entity_source(
+            entity_source,
+            skip_research=skip_research,
+            research_enabled=load_research_settings().enabled,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
     try:
         extractor = get_extractor(framework)
     except ValueError as exc:
@@ -533,6 +716,7 @@ def pipeline(
         raise SystemExit(1) from exc
 
     display_name = FRAMEWORK_DISPLAY_NAMES.get(framework, framework)
+    from_version, to_version = _resolve_version_args(framework, from_version, to_version)
 
     try:
         granularity, by_hop = _resolve_hop_settings(hop_granularity, hop_by_hop)
@@ -566,6 +750,10 @@ def pipeline(
             skip_research=skip_research,
             force_research=force_research,
             stop_after_research=stop_after_research,
+            entity_source=entity_source,
+            stop_after_clusters=stop_after_clusters,
+            skip_signals=skip_signals,
+            force_signals=force_signals,
         )
         return
 
@@ -602,6 +790,8 @@ def pipeline(
     needs_llm = (
         not extract_only
         and not stop_after_research
+        and not stop_after_clusters
+        and entity_source == "filter"
         and not (flags.skip_filter_llm and flags.skip_entity_llm)
     )
     if needs_llm:
@@ -670,6 +860,9 @@ def pipeline(
         skip_research=skip_research,
         force_research=force_research,
         stop_after_research=stop_after_research,
+        entity_source=entity_source,
+        stop_after_clusters=stop_after_clusters,
+        force_llm=force_llm,
     )
     if stop_after_research:
         click.echo(
@@ -677,16 +870,32 @@ def pipeline(
             "Filter LLM, entity LLM, and graph skipped."
         )
         return
+    if stop_after_clusters:
+        click.echo(
+            "Stopped after clusters — gate and clustering → runs/clusters/. "
+            "Entity LLM and graph skipped."
+        )
+        return
+    if extraction_result.failed_clusters:
+        click.echo(
+            f"{extraction_result.failed_clusters} entity cluster(s) failed; artifacts "
+            "written, graph not populated. Re-run to retry them from the cache.",
+            err=True,
+        )
+        raise SystemExit(3)
 
     result = populate_graph(
         batch=extraction_result.batch,
         framework_display=display_name,
+        framework_key=framework,
         to_version=to_version,
         from_version=from_version,
         raw_md_path=str(raw_path),
         filtered_md_path=str(filtered_path),
         entities_json_path=str(json_path),
         dry_run=dry_run,
+        skip_signals=skip_signals,
+        force_signals=force_signals,
     )
 
     if dry_run:
@@ -696,7 +905,9 @@ def pipeline(
     else:
         click.echo(
             f"Graph populated: {result.rules_written} rules, "
-            f"{result.steps_written} steps, {result.entities_written} entities."
+            f"{result.steps_written} steps, {result.entities_written} entities"
+            + _signal_note(result)
+            + "."
         )
 
 

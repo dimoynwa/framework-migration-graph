@@ -17,12 +17,13 @@ This document explains, in full detail, how the **export-extract-populate-framew
 9. [Phase 4 — Storing raw release nodes (Markdown)](#phase-4--storing-raw-release-nodes-markdown)
 10. [Phase 5 — Filter and group (raw → filtered nodes)](#phase-5--filter-and-group-raw--filtered-nodes)
 11. [Phase 5b — Per-change research](#phase-5b--per-change-research)
-12. [Phase 6 — Entity extraction (filtered → JSON)](#phase-6--entity-extraction-filtered--json)
-13. [Phase 7 — Optional graph population](#phase-7--optional-graph-population)
-14. [Caching, idempotency, and force flags](#caching-idempotency-and-force-flags)
-15. [Environment variables and model configuration](#environment-variables-and-model-configuration)
-16. [Failure modes and retries](#failure-modes-and-retries)
-17. [End-to-end example walkthrough](#end-to-end-example-walkthrough)
+12. [Phase 5c — Dossier entities](#phase-5c--dossier-entities)
+13. [Phase 6 — Entity extraction (filtered → JSON)](#phase-6--entity-extraction-filtered--json)
+14. [Phase 7 — Optional graph population](#phase-7--optional-graph-population)
+15. [Caching, idempotency, and force flags](#caching-idempotency-and-force-flags)
+16. [Environment variables and model configuration](#environment-variables-and-model-configuration)
+17. [Failure modes and retries](#failure-modes-and-retries)
+18. [End-to-end example walkthrough](#end-to-end-example-walkthrough)
 ---
  
 ## Purpose and scope
@@ -87,15 +88,12 @@ The command is **framework-agnostic**: the same orchestration runs for Spring Bo
                                       │
                                       ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  5. FILTER/GROUP LLM  →  runs/nodes/...-changes_filtered.md                 │
-│     Kept rows + Research appendix in → consolidated migration document     │
-│     out (sections, Sources column, Summary by Priority)                    │
-└─────────────────────────────────────────────────────────────────────────────┘
-                                      │
-                                      ▼
-┌─────────────────────────────────────────────────────────────────────────────┐
-│  6. ENTITY LLM  →  runs/json/...-entities.json                              │
-│     Migration document, plus research merged per document row             │
+│  5. ENTITIES                                                                │
+│     dossier (default when research ran): gate → cluster → one entity call  │
+│       per cluster → rendered runs/nodes/*_filtered.md and entities JSON.   │
+│       --stop-after-clusters stops after runs/clusters/.                    │
+│     filter (research off, --skip-research, or --entity-source filter):     │
+│       filter LLM document, then one entity call on that document.          │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                     ┌─────────────────┴─────────────────┐
@@ -110,8 +108,8 @@ The command is **framework-agnostic**: the same orchestration runs for Spring Bo
  
 Key design choices:
  
-- **Separate LLM calls**: the filter call cleans and structures the document; an optional per-row research call gathers cited facts; the entity call extracts typed JSON. This keeps each prompt focused.
-- **Whole-document filter and entity calls**: those two steps send the Markdown for the hop in one request (the entity call is split by section only when the input exceeds `ENTITY_MAX_INPUT_TOKENS`). Research is the per-row step.
+- **Separate LLM calls**: when research ran, each change cluster gets its own entity call. The filter call remains the path for runs without research (`--entity-source filter`, research disabled, or `--skip-research`).
+- **Whole-document filter and entity calls** (`filter` mode): those two steps send the Markdown for the hop in one request (the entity call is split by section only when the input exceeds `ENTITY_MAX_INPUT_TOKENS`). Research is the per-row step. Dossier mode never sends the whole hop to the entity model.
 - **Incremental caching**: raw Markdown, filtered Markdown, research dossiers, and entities JSON are persisted independently. Re-runs skip expensive steps when artifacts already exist.
 ---
  
@@ -131,7 +129,7 @@ Key design choices:
 |------|--------|
 | `--dry-run` | Run extraction and LLM steps but **do not write to the graph database**. Cached artifacts are still reused unless forced. |
 | `--force-extract` | Always re-fetch upstream data and overwrite the raw Markdown report, even if one already exists. |
-| `--force-llm` | Always call both LLM steps and overwrite filtered Markdown and entities JSON, even if they already exist. |
+| `--force-llm` | Always call both LLM steps and overwrite filtered Markdown and entities JSON, even if they already exist. In dossier mode, ignore the per-cluster entity cache. |
 | `--force` | Shorthand for `--force-extract` **and** `--force-llm`. |
 | `--hop-granularity patch\|minor` | Version step size between ingestion hops. `minor` (default) collapses each minor line into one hop (`3.1.12 → 3.2.0 → 3.2.4`); `patch` walks every released version. Env fallback: `HOP_GRANULARITY`. |
 | `--hop-by-hop` / `--no-hop-by-hop` | Run the filter LLM, entity LLM, and graph population **once per version hop** instead of once per range, so every hop becomes its own `Version` node holding only its own rules. Implies one raw/filtered/entities artifact triple per hop and rejects `--output-*` overrides. Env fallback: `HOP_BY_HOP` (default off). |
@@ -139,8 +137,12 @@ Key design choices:
 | `--force-triage` | Ignore the answer cache and any triage columns already stored in the raw file, and classify again. |
 | `--retriage-from-cache` | Recompute keep/drop from `runs/triage/*-triage.jsonl` using the current thresholds. No classifier HTTP calls. |
 | `--skip-research` | Do not research filtered rows. The entity step sees the filtered Markdown only, as it did before this stage. |
-| `--force-research` | Ignore the per-row research cache and any existing `research.jsonl` for the hop. |
+| `--force-research` | Ignore the per-row research cache and any existing `research.jsonl` for the hop. Without it, rows found in the hop's `research.jsonl` are reused first. |
 | `--stop-after-research` | Run extraction, triage, and per-row research, then stop. No filter LLM, no entity LLM, and no graph writes, so no `MODEL_*` is needed. Needs research configured. |
+| `--entity-source dossier\|filter` | `dossier` builds entities from the research dossiers (the default when research is enabled and was not skipped). `filter` is the filter LLM, then the entity LLM. Env: `ENTITY_SOURCE`. `--skip-research` forces `filter`. `--entity-source dossier --skip-research` is an error. |
+| `--stop-after-clusters` | Run the action gate and clustering, write `runs/clusters/`, then stop. No entity calls and no graph writes, so no `MODEL_*` is needed. |
+| `--skip-signals` | Do not classify rules with System-1. Rules are written without the signal properties, which the planner reads as `behavioral`. |
+| `--force-signals` | Ignore the signal answer cache and ask System-1 again. |
 | `--output-md <path>` | Override default path for the raw Markdown report. |
 | `--output-filtered-md <path>` | Override default path for the filtered Markdown report. |
 | `--output-json <path>` | Override default path for the entities JSON file. |
@@ -193,6 +195,8 @@ When the command starts:
    - `runs/json/` — entities JSON
    - `runs/triage/` — System-1 triage distributions
    - `runs/research/` — per-row research dossiers
+   - `runs/canonical/` — canonical entity audit
+   - `runs/signals/` — rule detection signals (spec 027)
 Default artifact naming pattern:
  
 ```
@@ -267,9 +271,35 @@ Prereleases are ordinary versions: with `SPRING_INCLUDE_PRERELEASE=1` a
   property.
 - A `4.0.6 → 4.1.0` path therefore includes the 4.1 milestone rules as early
   warning; a path ending at `4.1.0-M2` excludes later builds.
-- `--hop-granularity minor` ignores milestones (they are not line starts) but
-  honours one when it is the requested endpoint, so
+- `--hop-granularity minor` ignores milestones as hop boundaries (they are not
+  line starts) but honours one when it is the requested endpoint, so
   `4.0.6 → 4.1.0-RC1` stays a single hop.
+- A minor hop still **reads** the release notes of every release it covers
+  (`HopContext.covered_versions`): all releases after `from` up to `to` on the
+  target's `major.minor` line. `4.0.0 → 4.1.0` reads `4.1.0-M1 … 4.1.0-RC1` and
+  `4.1.0`; `4.1.0 → 4.1.2` reads `4.1.1` and `4.1.2`. The GA notes alone only
+  list changes since the last RC. Earlier-line patches (`4.0.x`) are not read —
+  their fixes appear as forward ports in the new line's notes. Rows repeated
+  across releases are kept once. Spring Boot only for now.
+
+#### Version aliases
+
+`FROM`/`TO` accept aliases, resolved against the discovered release list before
+any artifact path or `Version` node is derived (the CLI prints
+`Resolved latest → 4.2.0-RC2`):
+
+| Alias | Resolves to |
+|-------|-------------|
+| `latest` | Newest discovered release (milestones/RCs included when discovered) |
+| `latest-ga`, `latest-stable` | Newest GA release |
+| `X.Y.Z-SNAPSHOT` | Newest published build of `X.Y.Z` — GA if released, else its newest milestone/RC. Errors if none is published. Snapshots have no release notes. |
+
+#### Stale raw files
+
+In `--hop-by-hop` mode a raw file whose `Resolved range` or hop sections do not
+match exactly that hop (files from the old whole-range layout, e.g.
+`4.0.0 → 4.1.0-RC1` with one section per milestone) is re-extracted
+automatically, as if `--force-extract` were given for that hop.
 
 #### Minor-line document attribution
 
@@ -691,7 +721,7 @@ Triage runs only when **both** `TRIAGE_BASE_URL` and `TRIAGE_MODEL` are set. Lea
  
 1. **Hard keep** (no model call): an Angular `BREAKING CHANGE` / `DEPRECATED` footer, a `!` in the commit header, an `ng update` schematic, a confirmed `breaking` / `deprecation` / `mandatory_migration` row, or a title that says the change removes, renames, deprecates, breaks, or requires something.
 2. **Hard drop** (no model call): an Angular `docs` / `test` / `ci` / `build` commit whose files all sit outside `packages/*/src/`; a Spring Boot issue typed `documentation` or `task`; a Spring Boot issue closed as not planned; a row that is only a “full changelog” or WildFly Core pointer.
-3. **Model.** Three fixed questions (`requires_action`, `category`, `impact`), versioned as `TRIAGE_QUESTIONS_VERSION`. A row is dropped only when all of these hold: action probability below `TRIAGE_DROP_MAX_ACTION_PROB` (default 0.10), category is `internal_fix`, `noise`, or `new_optional_feature` with probability at least `TRIAGE_DROP_MIN_CATEGORY_PROB` (default 0.80), and impact score below `TRIAGE_DROP_MAX_IMPACT_SCORE` (default 1.0).
+3. **Model.** Three fixed questions (`requires_action`, `category`, `impact`), versioned as `TRIAGE_QUESTIONS_VERSION`. A row is dropped only when all of these hold: action probability below `TRIAGE_DROP_MAX_ACTION_PROB` (default 0.20), category is `internal_fix`, `noise`, or `new_optional_feature` with probability at least `TRIAGE_DROP_MIN_CATEGORY_PROB` (default 0.80), and impact score below `TRIAGE_DROP_MAX_IMPACT_SCORE` (default 1.0).
  
 A 4xx response or a connection failure on the first request keeps every row and records `Triage source = error` (one log line, then the run continues). A timeout or 5xx is retried twice and then keeps that row only.
  
@@ -716,7 +746,9 @@ If the kept table is larger than `FILTER_MAX_INPUT_TOKENS` (default 60000), the 
 ---
  
 ## Phase 5 — Filter and group (raw → filtered nodes)
- 
+
+This phase is the `filter` mode path (`--entity-source filter`, research disabled, or `--skip-research`). When research ran and `ENTITY_SOURCE` is `dossier` (the default), the pipeline skips this call and builds the filtered document from dossier entities instead (Phase 5c).
+
 The raw Markdown table is too noisy for direct entity extraction. A **first LLM call** transforms it into a curated, categorized migration document.
  
 ### LLM provider and model
@@ -821,7 +853,9 @@ The model returns a fact dossier: a short summary, cited findings, and `applies_
 
 The filter LLM then receives the kept rows plus a `## Research` appendix: one block per researched row (`### <Title>`, `Row sources: …`, applicability, cited findings). It writes the consolidated migration document, using the research to pick sections, merge rows that are the same change, and name exact APIs in `Impact`. When the kept table is split into category groups, each part gets only the blocks of its rows. Finally the entity LLM receives that document plus a second `## Research` appendix: for each document row, the dossiers of the kept rows that share one of its `Sources`, merged.
 
-`runs/research/<framework>-<from>-to-<to>-research.jsonl` stores one dossier per filtered row. `runs/research/...-summary.json` stores status counts, tool-call counts, and wall time. Finished `ok` and `not_found` dossiers are cached by prompt version, model id, framework, hop, and row key. Error dossiers are not cached, so the next run tries that row again. The row key is a hash of the section, title, JIRA keys, and source URLs, so renumbering a row does not invalidate research.
+`runs/research/<framework>-<from>-to-<to>-research.jsonl` stores one dossier per filtered row. `runs/research/...-summary.json` stores status counts, tool-call counts, cache and artifact hits, and wall time.
+
+A later run reads the hop's `research.jsonl` first and reuses each row whose `row_key` matches, provided the line is not `error` and its `prompt_version` and `model` equal the current `PROMPT_VERSION` and `RESEARCH_MODEL_ID`. Rows that are missing or stale fall through to the row cache, then to the model. A complete JSONL therefore skips research for that hop without the row cache, and a hand edit to a dossier's `text` is used by the entity step. The run prints `Research <framework> <from>→<to>: N/M rows reused from <path>` and rewrites the JSONL at the end. The JSONL does not record `RESEARCH_ENABLE_THINKING` or whether Tavily was on, so changing either does not invalidate it; use `--force-research`. Finished `ok` and `not_found` dossiers are cached by prompt version, model id, framework, hop, and row key. Error dossiers are not cached, so the next run tries that row again. The row key is a hash of the section, title, JIRA keys, and source URLs, so renumbering a row does not invalidate research.
 
 Each row is sent with the enriched raw statements behind it. Raw rows are matched by their Source URL and by the issue, pull request, commit, and JIRA links inside the statement. A Source URL shared by more than `RESEARCH_SHARED_URL_MAX_ROWS` raw rows is skipped, so a row citing a release-notes page does not receive every statement from that release. `--force-research` ignores that cache and any existing jsonl.
 
@@ -835,8 +869,39 @@ A later run researches only the rows that were not cached. Hops that already fin
 
 ---
 
+## Phase 5c — Dossier entities
+
+When research is enabled and not skipped, this is the default path (`ENTITY_SOURCE=dossier`). It replaces the filter LLM and the document-wide entity call.
+
+After research, a deterministic gate reads each kept row's dossier:
+
+- `**Action:** none` drops the row, except for `GATE_PROTECTED_CATEGORIES` (default `breaking`, `deprecation`, `security`), which stay so a wrong `none` on those rows is not silent.
+- `required`, `unclear`, and a missing action line stay.
+- `not_found`, `error`, and a missing dossier stay, marked `evidence: row_only`. The entity call then sees only the row text.
+
+Rows that describe the same change are clustered by specific URLs: `/pull/`, `/commit/`, `/issues/`, `/browse/<KEY>`, or a `/compare/` URL with an anchor. A release tag, `CHANGELOG.md`, a docs page, or a blog page never joins rows. GitHub pull, commit, and issue URLs are compared as `github.com/<owner>/<repo>/<kind>/<id>`, so `commit/<sha>.patch`, `.diff`, `pull/<n>/files`, `pull/<n>/commits/<sha>`, and `patch-diff.githubusercontent.com` links meet the plain URL. A component larger than `CLUSTER_MAX_ROWS` (default 4) is split back to row-source edges, then to single rows, and the joining URLs are logged. `CLUSTER_CONFIRM=llm` (default `off`) can split a multi-row cluster when the research model says the titles are different changes.
+
+One entity call per cluster uses the entity model (below), with `ENTITY_CONCURRENCY` (default 4) calls at a time. The call sees only that cluster's rows and dossiers and must return at most one entity. More than one is retried once; a cluster that still fails is recorded as `status: error` and left out of the entities file. Other clusters continue and their artifacts are written, but a hop with any failed cluster is **not populated** (an existing `Version` node is never repopulated, so a partial hop could not be completed later). The run exits with code 3 after the remaining hops; re-running retries only the failed clusters, because the others are cached. When every cluster of a hop fails, the hop's artifacts are removed and the run exits with code 1. Two entities in one hop that share a title get the later title suffixed with its source URL tail, so graph `MERGE` does not fold them together.
+
+`runs/clusters/<framework>-<from>-to-<to>-clusters.jsonl` records every gate decision and each cluster's status. `runs/clusters/...-summary.json` records gate reasons, cluster sizes, entities written, empty results, errors, and wall time. `runs/json/...-entities.json` is the same batch as before, in cluster order. `runs/nodes/..._filtered.md` is rendered from those entities: the same section headings and `| # | JIRA | Title | Impact | Sources |` table, with `Impact` the first sentence of `reason` and no summary sections.
+
+Each cluster is cached under `ARTIFACT_CACHE_DIR/entities/` by prompt version, model, framework, hop, cluster membership, and everything the call sends per member (triage category and impact, type, source, statement, dossier status, text, and sources), so a re-triage that changes a category re-runs the cluster. A changed dossier re-runs only that cluster. Error results are not cached. `--force-llm` ignores the cache. `entities.json.input.sha256` records the hash of those cache keys for inspection. A dossier run also deletes `_filtered.md.input.sha256`, so a later `--entity-source filter` run calls the filter LLM instead of reusing the rendered document as its output.
+
+`--stop-after-clusters` writes the cluster artifact and stops. It does not call the entity model and does not need `MODEL_*`.
+
+**Entity model.** With `ENTITY_MODEL_ID` unset, the entity calls use `MODEL_PROVIDER` / `MODEL_ID` through LangChain. With it set, they use a dedicated OpenAI-compatible model through the OpenAI SDK, and `MODEL_*` is not needed for the dossier path:
+
+| Provider (`ENTITY_MODEL_PROVIDER`) | Output (`ENTITY_OUTPUT_FORMAT`) | Thinking |
+|---|---|---|
+| `openai` (default) | `json_schema` with `strict: true`, built from `MigrationEntitiesBatch`: every object closed and every field required, defaults removed. `json_object` and `off` are also accepted. | `reasoning_effort` = `ENTITY_REASONING_EFFORT` (default `high`). `ENTITY_THINKING=off` sends `none`, which only some models accept. |
+| `deepseek` | `json_object`. DeepSeek has no schema-enforced mode, so `json_schema` is rejected at startup. The reply is still validated against the schema. | `thinking: {"type": "enabled"}` plus `reasoning_effort`; `ENTITY_THINKING=off` sends `disabled`. |
+
+The base URL defaults to `https://api.openai.com/v1` or `https://api.deepseek.com` (`ENTITY_BASE_URL` overrides). The key is `ENTITY_API_KEY`, else `OPENAI_API_KEY` / `DEEPSEEK_API_KEY`. `ENTITY_MAX_OUTPUT_TOKENS` (default 32000) covers reasoning and the JSON reply; a reply cut off at that limit, an empty reply, or a refusal counts as a failed attempt. The provider, model, output format, thinking, and effort are part of the cluster cache key and of `model` in the clusters summary, so changing any of them re-runs the clusters.
+
 ## Phase 6 — Entity extraction (filtered → JSON)
- 
+
+This phase is the `filter` mode path. Dossier mode (Phase 5c) does not send the filtered document to the entity model.
+
 The filtered Markdown document is fed to a **second LLM call** that produces structured JSON entities.
  
 ### Prompt design
@@ -958,7 +1023,124 @@ Each entity's `reason` and `action_step` are concatenated (up to 8,000 character
 ## Phase 7 — Optional graph population
  
 Unless `--dry-run` is set, the pipeline writes migration data to a **Neo4j or Memgraph** graph database.
- 
+
+### Pre-write canonicalization (spec 025)
+
+Before any graph write, every affected entity in the batch is canonicalized by
+code in `migration_oracle/pipeline/canonical/`:
+
+1. **Normalize** (`normalize.py`) — a deterministic normalizer per framework
+   profile (`profiles.py`): clean backticks/quotes/`@`/trailing `()`, split
+   `@angular/core InjectFlags` / `@angular/router:Router` /
+   `@angular/core/rxjs-interop RxResourceOptions` into `package` + bare symbol,
+   split `Owner.member`, attach bare lower-case options to their rule's
+   replacement (or only class) symbol, map template operators to
+   `TemplateSyntax`, `NGxxxx` codes to `DiagnosticCode`, and dotted config keys
+   to their file (`engines.*` → `package.json`, `angularCompilerOptions.*` →
+   `tsconfig.json`, …). Spring Boot / WildFly are a no-op apart from computing
+   `key`; their names stay byte-for-byte as written.
+2. **Verify** (`api_index.py`) — for Angular, the golden public-API files
+   (`goldens/public-api/<entry-point>/index.api.md`, `index.md` before v19, in
+   `angular/angular`) are listed with one request
+   (`git/trees/<tag>:goldens/public-api?recursive=1`) at both hop version tags
+   and parsed from the API Extractor report: exported declarations, members at
+   brace depth 1 (including the inline option fields of a function signature),
+   `export { X as Y }` aliases of local declarations, and the members of the
+   type of `export const X: Y`. Re-exports of imported symbols are skipped, so
+   the declaring package owns the symbol. Indexes are cached under
+   `ARTIFACT_CACHE_DIR/api-index/angular/<version>.json` (keyed by parser
+   version) and fetched with `GITHUB_TOKEN`.
+   - Each symbol resolves to one entry point: the LLM `package` if the symbol is
+     there, else the only entry point, else the one matching a dependency of the
+     rule, else the primary entry point (`@angular/core` beats
+     `…/primitives/*` and `…/testing`). Otherwise `ambiguous`.
+   - Bare options get their owner from the index first (the one rule symbol
+     whose API lists the option), then the rule's replacement / only class.
+   - Unresolved packages get `npm:?#<symbol>` with `verified: false`; nothing is
+     dropped. When one version's goldens are missing (for example a `to` tag
+     that does not exist yet) the index is `partial` and still used; when none
+     load it is `unavailable` and every npm entity is `verified: false`.
+   - Maven entities are `verified: unchecked` (no API index yet).
+3. **Audit** (`run.py`) — one line per occurrence goes to
+   `runs/canonical/<framework>-<from>-to-<to>-canonical.jsonl` plus a
+   `…-summary.json` (counts per kind, verified percentages, collapsed raw
+   names, unverified keys for manual review). `--dry-run` writes both files
+   without graph writes — the cheap way to review a hop.
+
+Entity nodes (`Class`, `ApplicationProperty`, `Dependency`, and the new
+`TemplateSyntax` / `DiagnosticCode`) merge on the canonical `key` and carry
+`name`, `package`, `symbol`, `member`, `file`, `ecosystem`, `verified`. `name`
+remains the identifier the scanners and MCP queries match on.
+
+### Pre-write rule signals (spec 027)
+
+Right after canonicalization and before any graph write, every rule is
+classified by **how a service shows that the rule applies**:
+
+| `signal` | Decided by | Example |
+|---|---|---|
+| `symbol` | the code uses a named API | `TestBed.get` removed |
+| `config` | a config key is set | `angularCompilerOptions.strictStandalone` default changed |
+| `dependency` | a package is declared (optionally in a range) | `@angular/animations` deprecated |
+| `syntax` | template syntax is used | `in` is an operator |
+| `behavioral` | the API name is not enough; the code must be read or a person asked | `onDestroy` timing |
+| `universal` | every service on the hop is affected | minimum Node / TypeScript |
+
+The stage is one System-1 request per rule per question version (the same
+endpoint as triage), cached under `ARTIFACT_CACHE_DIR/signals/` by question
+version, model, framework and state — and the state contains the canonical
+keys, so a canonicalization change re-asks only the rules it affects. One
+`signal` choice plus one `feature.<id>` `noul` per feature travel in the same
+request, so the state goes on the wire once per rule. `--force-signals` ignores
+the cache.
+
+The model picks the type and the features; **code decides what to search for**.
+Only `removed` and `mentioned` entities count — finding the *replacement* in a
+service means it has already migrated — and only the kind the type searches
+(`symbol` → class/member, `config` → property with a known file, `dependency` →
+dependency, `syntax` → syntax token). Two rules keep a wrong type from
+excluding a rule that applies:
+
+- **The guard.** A type with no key to search for becomes `behavioral`
+  (`signalSource: guard`). A `config` key without a known file, or a symbol with
+  an unresolved package (`npm:?#X`), is not searchable by key.
+- **The floors.** `symbol` / `config` / `dependency` / `syntax` need
+  `SIGNAL_SEARCHABLE_MIN_PROB` (0.70); `universal` needs
+  `SIGNAL_UNIVERSAL_MIN_PROB` (0.60). Below the floor → `behavioral`
+  (`signalSource: low_confidence`). Features are tagged at or above
+  `SIGNAL_FEATURE_MIN_PROB` (0.50).
+
+A rule whose entities are all dependencies and whose change is a
+`component_upgrade` is `dependency` by rule, without asking the model for the
+type (`signalSource: rule`); its features are still requested.
+
+With Nimble unset or unreachable the stage logs once, writes no signal
+properties, and populate continues. `--skip-signals` does the same for one
+invocation. Either way the summary records `nimble: disabled` or `unavailable`,
+and hops already in the graph can be backfilled later (see below). A rule
+without the properties is read by the planner as `behavioral`.
+
+Written on `MigrationRule` in the same session as the rule: `signal`,
+`signalConfidence`, `signalSource`, `signalKeys`, `features`,
+`signalQuestionsVersion`, `signalModel`.
+
+`runs/signals/<framework>-<from>-to-<to>-signals.jsonl` holds one line per rule
+(rendered state, every probability, the chosen type, source, guard/floor reason,
+keys, features, cache hit, input tokens); `…-summary.json` counts rules per
+signal, per source and per feature plus guard, low-confidence, error and cache
+figures.
+
+**Backfill.** Hops already in the graph are never repopulated, so their rules
+would keep no classification. `scripts/classify_signals.py` reads the cached
+`runs/json/*-entities.json`, canonicalizes, classifies, and runs
+`MATCH (r:MigrationRule {ruleId: $id}) SET r += $props`. It sets only those
+properties, is idempotent, and reports `ruleId`s that are not in the graph:
+
+```bash
+python scripts/classify_signals.py --framework angular --all
+python scripts/classify_signals.py --framework spring-boot 3.5.0 4.0.0 --dry-run
+```
+
 ### Pre-write checks
  
 1. **Migration search indexes** are ensured (with unsupported index types silently ignored).
@@ -995,7 +1177,7 @@ The pipeline is designed for **incremental re-runs**. Each stage independently c
 | `--force-extract` only | Re-extract and overwrite raw MD; reuse filtered MD and JSON if present (with warning) |
 | `--force-llm` only | Re-run both LLM steps; reuse raw MD if present |
 | `--force` | Re-run everything |
-| `--dry-run` | Run all non-graph steps; skip graph write |
+| `--dry-run` | Run all non-graph steps; write the `runs/canonical/` audit artifacts; skip graph write |
  
 ### Stale artifact warnings
  
@@ -1035,7 +1217,7 @@ If raw Markdown was regenerated but cached JSON was reused, the pipeline prints 
 | `TRIAGE_TIMEOUT_SEC` | `30` | Per-request timeout |
 | `TRIAGE_MAX_CONCURRENT` | `2` | Parallel classifier calls. The server serialises work, so higher values only queue |
 | `TRIAGE_STATE_MAX_CHARS` | `6000` | Cap on the state string sent for one row |
-| `TRIAGE_DROP_MAX_ACTION_PROB` | `0.10` | Drop only when P(action) is below this |
+| `TRIAGE_DROP_MAX_ACTION_PROB` | `0.20` | Drop only when P(action) is below this |
 | `TRIAGE_DROP_MIN_CATEGORY_PROB` | `0.80` | Drop only when the chosen noise-side category is at least this confident |
 | `TRIAGE_DROP_MAX_IMPACT_SCORE` | `1.0` | Drop only when the impact score is below this |
 | `FILTER_MAX_INPUT_TOKENS` | `60000` | Above this, the filter LLM runs once per triage category group |
@@ -1052,7 +1234,16 @@ If raw Markdown was regenerated but cached JSON was reused, the pipeline prints 
 | `RESEARCH_SHARED_URL_MAX_ROWS` | `3` | A Source URL shared by more raw rows than this (release-notes page, release tag, `CHANGELOG.md`) is not used to attach raw statements |
 | `RESEARCH_RAW_CONTEXT_MAX_CHARS` | `8000` | Cap on the raw statements attached to one research row |
 | `TAVILY_API_KEY` | empty | Tavily Search key. Empty = fetch-only research (no `web_search`) |
-| `ENTITY_MAX_INPUT_TOKENS` | `60000` | Above this, the entity LLM runs once per filtered change section (summary sections are skipped) and the entities are concatenated |
+| `ENTITY_MAX_INPUT_TOKENS` | `60000` | Above this, the filter-mode entity LLM runs once per filtered change section (summary sections are skipped) and the entities are concatenated |
+| `ENTITY_SOURCE` | `dossier` when research ran, otherwise `filter` | `dossier` builds entities from research dossiers. `filter` keeps the filter LLM, then the document entity call. Overridden by `--entity-source` |
+| `ENTITY_CONCURRENCY` | `4` | Parallel dossier entity calls |
+| `CLUSTER_MAX_ROWS` | `4` | Clusters larger than this are split back to row-source edges, then to single rows |
+| `CLUSTER_CONFIRM` | `off` | `llm` asks the research model whether each multi-row cluster is one change |
+| `GATE_PROTECTED_CATEGORIES` | `breaking,deprecation,security` | Kept even when the dossier says `**Action:** none` |
+| `SIGNAL_STATE_MAX_CHARS` | `4000` | Cap on the state string sent for one rule to the signal classifier |
+| `SIGNAL_SEARCHABLE_MIN_PROB` | `0.70` | `symbol` / `config` / `dependency` / `syntax` below this probability become `behavioral` |
+| `SIGNAL_UNIVERSAL_MIN_PROB` | `0.60` | `universal` below this probability becomes `behavioral` |
+| `SIGNAL_FEATURE_MIN_PROB` | `0.50` | A feature is tagged on the rule at or above this probability |
 | `JBOSS_SKIP_PRERELEASE` | `1` | When `1`/`true`/`yes`, filter Maven versions to `.Final` suffix only |
 | `REDHAT_DOCS_DELAY_SEC` | `2.0` | Delay between Red Hat documentation requests (EAP) |
  

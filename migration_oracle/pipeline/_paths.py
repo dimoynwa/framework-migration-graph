@@ -8,6 +8,9 @@ RUNS_NODES = Path("runs/nodes")
 RUNS_JSON = Path("runs/json")
 RUNS_TRIAGE = Path("runs/triage")
 RUNS_RESEARCH = Path("runs/research")
+RUNS_CLUSTERS = Path("runs/clusters")
+RUNS_CANONICAL = Path("runs/canonical")
+RUNS_SIGNALS = Path("runs/signals")
 
 
 def artifact_key(framework: str, from_version: str, to_version: str) -> str:
@@ -57,9 +60,62 @@ def default_research_summary_path(
     return RUNS_RESEARCH / f"{artifact_key(framework, from_version, to_version)}-summary.json"
 
 
+def default_clusters_jsonl_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return RUNS_CLUSTERS / f"{artifact_key(framework, from_version, to_version)}-clusters.jsonl"
+
+
+def default_clusters_summary_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return RUNS_CLUSTERS / f"{artifact_key(framework, from_version, to_version)}-summary.json"
+
+
+def default_canonical_jsonl_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return (
+        RUNS_CANONICAL / f"{artifact_key(framework, from_version, to_version)}-canonical.jsonl"
+    )
+
+
+def default_canonical_summary_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return (
+        RUNS_CANONICAL / f"{artifact_key(framework, from_version, to_version)}-summary.json"
+    )
+
+
+def default_signals_jsonl_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return (
+        RUNS_SIGNALS / f"{artifact_key(framework, from_version, to_version)}-signals.jsonl"
+    )
+
+
+def default_signals_summary_path(
+    framework: str, from_version: str, to_version: str
+) -> Path:
+    return (
+        RUNS_SIGNALS / f"{artifact_key(framework, from_version, to_version)}-summary.json"
+    )
+
+
 def ensure_runs_directories() -> None:
     """Create runs artifact directories or raise if not writable."""
-    for directory in (RUNS_RAW, RUNS_NODES, RUNS_JSON, RUNS_TRIAGE, RUNS_RESEARCH):
+    for directory in (
+        RUNS_RAW,
+        RUNS_NODES,
+        RUNS_JSON,
+        RUNS_TRIAGE,
+        RUNS_RESEARCH,
+        RUNS_CLUSTERS,
+        RUNS_CANONICAL,
+        RUNS_SIGNALS,
+    ):
         try:
             directory.mkdir(parents=True, exist_ok=True)
         except OSError as exc:

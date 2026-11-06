@@ -135,6 +135,88 @@ def versions_in_range(
     return selected
 
 
+#: Version arguments that resolve against the discovered release list.
+LATEST_ALIASES: frozenset[str] = frozenset({"latest"})
+LATEST_GA_ALIASES: frozenset[str] = frozenset({"latest-ga", "latest-stable"})
+_SNAPSHOT_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)-SNAPSHOT$", re.IGNORECASE)
+
+
+def is_version_alias(version: str) -> bool:
+    """True for ``latest``, ``latest-ga``/``latest-stable`` and ``X.Y.Z-SNAPSHOT``."""
+    normalized = version.strip().lower()
+    return (
+        normalized in LATEST_ALIASES
+        or normalized in LATEST_GA_ALIASES
+        or bool(_SNAPSHOT_RE.match(version.strip()))
+    )
+
+
+def resolve_version_alias(versions: list[str], version: str) -> str:
+    """
+    Map a version alias to a concrete published release from ``versions``.
+
+    ``latest``             → newest discovered release (milestones/RCs included
+                             when the extractor discovers them).
+    ``latest-ga``          → newest GA release.
+    ``X.Y.Z-SNAPSHOT``     → newest published build of ``X.Y.Z`` (GA if out,
+                             else its newest milestone/RC). Snapshots are never
+                             published with release notes, so the last tagged
+                             build is the closest documented state.
+
+    Non-alias versions are returned unchanged.
+    """
+    raw = version.strip()
+    normalized = raw.lower()
+    ordered = sorted(versions, key=version_key)
+    if normalized in LATEST_ALIASES:
+        if not ordered:
+            raise ValueError("Cannot resolve 'latest': no versions discovered")
+        return ordered[-1]
+    if normalized in LATEST_GA_ALIASES:
+        ga = [v for v in ordered if not is_prerelease(v)]
+        if not ga:
+            raise ValueError(f"Cannot resolve {raw!r}: no GA versions discovered")
+        return ga[-1]
+    snapshot = _SNAPSHOT_RE.match(raw)
+    if snapshot:
+        triple = tuple(int(part) for part in snapshot.groups())
+        builds = [v for v in ordered if parse_version(v)[:3] == triple]
+        if not builds:
+            raise ValueError(
+                f"{raw}: no milestone, RC, or GA build of "
+                f"{'.'.join(map(str, triple))} is published yet. Snapshot builds "
+                "have no release notes; use the newest published version instead."
+            )
+        return builds[-1]
+    return raw
+
+
+def releases_covered_by_hop(
+    versions: list[str], from_version: str, to_version: str
+) -> tuple[str, ...]:
+    """
+    Releases whose notes document a ``from_version → to_version`` hop.
+
+    Every discovered release after ``from_version`` up to and including
+    ``to_version`` on the target's ``major.minor`` line. A minor hop
+    ``4.0.0 → 4.1.0`` therefore covers ``4.1.0-M1 … 4.1.0-RC1, 4.1.0``: the GA
+    release notes list only what changed since the last RC, so the milestones
+    carry most of the line's changes. Earlier-line patches (``4.0.x``) are left
+    out — their fixes reach the new line as forward ports listed in its notes.
+    """
+    to_line = parse_version(to_version)[:2]
+    covered = [
+        v
+        for v in sorted(versions, key=version_key)
+        if compare_versions(from_version, v) < 0
+        and compare_versions(v, to_version) <= 0
+        and parse_version(v)[:2] == to_line
+    ]
+    if to_version not in covered:
+        covered.append(to_version)
+    return tuple(covered)
+
+
 def compute_hops(versions: list[str]) -> list[tuple[str, str]]:
     if len(versions) < 2:
         raise ValueError("Need at least two versions to compute hops")

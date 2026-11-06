@@ -28,8 +28,11 @@ class ExtractionResult:
 
 class EntityKind(str, Enum):
     CLASS = "class"
+    MEMBER = "member"
     PROPERTY = "property"
     DEPENDENCY = "dependency"
+    SYNTAX = "syntax"
+    DIAGNOSTIC = "diagnostic"
 
 
 class EntityRole(str, Enum):
@@ -73,6 +76,29 @@ class AffectedEntity(BaseModel):
     kind: EntityKind
     name: str
     role: EntityRole
+    # Import path / entry point for npm symbols (spec 025 FR-6). Optional so
+    # entities JSON written before 025 stays valid.
+    package: str = Field(default="")
+
+
+class CanonicalEntity(BaseModel):
+    """Canonical identity of one affected entity (spec 025 FR-1).
+
+    Derived by code from the LLM's ``kind`` / ``name`` / ``package``; ``name``
+    stays the identifier scanners and MCP queries match on, ``key`` is the
+    merge identity used by the populator.
+    """
+
+    kind: EntityKind
+    ecosystem: Literal["npm", "maven"]
+    package: str = Field(default="")
+    symbol: str = Field(default="")
+    member: str = Field(default="")
+    file: str = Field(default="")
+    name: str
+    key: str
+    # "unchecked": no API index exists for the ecosystem yet (maven profiles).
+    verified: Literal["true", "false", "ambiguous", "unchecked"] = "false"
 
 
 class BreakingScopeInput(BaseModel):

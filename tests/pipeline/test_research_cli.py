@@ -230,7 +230,16 @@ def test_quota_stops_the_hop_and_rerun_researches_only_uncached_rows(
     }
     failed = CliRunner().invoke(
         export_extract_populate_framework,
-        ["--framework", "stub_framework", "1.0.0", "2.0.0", "--dry-run", "--skip-triage"],
+        [
+            "--framework",
+            "stub_framework",
+            "1.0.0",
+            "2.0.0",
+            "--dry-run",
+            "--skip-triage",
+            "--entity-source",
+            "filter",
+        ],
         env=env,
     )
     assert failed.exit_code == 2, failed.output
@@ -248,7 +257,16 @@ def test_quota_stops_the_hop_and_rerun_researches_only_uncached_rows(
     holder["search"] = FakeSearch()
     resumed = CliRunner().invoke(
         export_extract_populate_framework,
-        ["--framework", "stub_framework", "1.0.0", "2.0.0", "--dry-run", "--skip-triage"],
+        [
+            "--framework",
+            "stub_framework",
+            "1.0.0",
+            "2.0.0",
+            "--dry-run",
+            "--skip-triage",
+            "--entity-source",
+            "filter",
+        ],
         env=env,
     )
     assert resumed.exit_code == 0, resumed.output
@@ -419,7 +437,16 @@ def test_research_runs_before_the_filter_llm_and_feeds_it(
     monkeypatch.setattr(research_run, "build_fetcher", lambda _settings, force=False: FakeFetcher())
     result = CliRunner().invoke(
         export_extract_populate_framework,
-        ["--framework", "stub_framework", "1.0.0", "2.0.0", "--dry-run", "--skip-triage"],
+        [
+            "--framework",
+            "stub_framework",
+            "1.0.0",
+            "2.0.0",
+            "--dry-run",
+            "--skip-triage",
+            "--entity-source",
+            "filter",
+        ],
         env={
             "RESEARCH_BASE_URL": "http://research.example/v1",
             "RESEARCH_MODEL_ID": "fake-model",

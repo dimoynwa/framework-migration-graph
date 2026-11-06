@@ -209,6 +209,9 @@ _JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}")
 class ExtractionResult:
     batch: MigrationEntitiesBatch
     artifact_path: Path
+    # Dossier mode: clusters whose entity call failed. A hop with failures is
+    # not populated, because an existing Version node is never repopulated.
+    failed_clusters: int = 0
 
 
 def _parse_json_response(text: str) -> MigrationEntitiesBatch:

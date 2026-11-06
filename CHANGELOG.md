@@ -1,5 +1,83 @@
 # Changelog
 
+## [027-rule-signals] — 2026-11-06
+
+### New features
+
+- **Rule detection signals.** A new ingestion stage between canonicalization and the graph write classifies every rule by **how a service shows that the rule applies**: `symbol` (the code uses a named API), `config` (a config key is set), `dependency` (a package is declared), `syntax` (template syntax is used), `behavioral` (only code that relies on the old behaviour is affected) or `universal` (every service on the hop). System-1 picks the type and the feature tags; code decides what the planner can search for.
+- **Feature tags.** Each rule also gets the features it needs (`ssr`, `hydration`, `zoneless`, `zone`, `animations`, `router`, `forms`, `http`, `i18n`, `service-worker`, `testbed`, `karma`, `ngmodule`, `elements`, `upgrade`, `cli-build` for Angular; starters for Spring Boot; subsystems for WildFly). The vocabulary lives in `migration_oracle/pipeline/signals/features.py` as plain data with **evidence keys** — the profile keys from which the planner can tell, without asking, that a service has the feature. So the planner can rule out whole groups and ask one question ("Do you use SSR?") instead of one per rule.
+- **One System-1 request per rule.** A `signal` choice plus one `feature.<id>` `noul` per vocabulary entry, in a single body, so the state travels once per rule. Cached under `ARTIFACT_CACHE_DIR/signals/` by `SIGNAL_QUESTIONS_VERSION`, model, framework and state. The state contains the canonical keys, so a canonicalization change re-asks only the rules it affects. `--force-signals` ignores the cache.
+- **Contract guard and floors.** The expensive mistake is excluding a rule that applies, so every uncertain rule falls back to `behavioral`: a type with no key to search for (a rule that names only its replacement, a `config` key with no known file, an unresolved `npm:?#X` package) becomes `behavioral` / `guard`; a type below `SIGNAL_SEARCHABLE_MIN_PROB` (0.70) or `universal` below `SIGNAL_UNIVERSAL_MIN_PROB` (0.60) becomes `behavioral` / `low_confidence`. Only `removed` and `mentioned` entities count — finding the *replacement* means the service has already migrated.
+- **Deterministic shortcut.** A rule whose entities are all dependencies with `change_type: component_upgrade` is `dependency` by rule, without asking for the type; its features are still requested.
+- **Graph properties.** `MigrationRule` gains `signal`, `signalConfidence`, `signalSource`, `signalKeys`, `features`, `signalQuestionsVersion`, `signalModel`, written in the same session as the rule. A rule without them is read by the planner as `behavioral`, so a missing classification never excludes anything.
+- **`scripts/classify_signals.py`** backfills hops already in the graph: it reads `runs/json/*-entities.json`, canonicalizes, classifies, and `SET r += $props` on the matching `ruleId`. Sets only those properties, is idempotent, and reports `ruleId`s that are not in the graph.
+- `--skip-signals` writes the rules without signal properties. `--dry-run` runs the stage and writes `runs/signals/` without touching the graph.
+- New settings: `SIGNAL_STATE_MAX_CHARS` (4000), `SIGNAL_SEARCHABLE_MIN_PROB` (0.70), `SIGNAL_UNIVERSAL_MIN_PROB` (0.60), `SIGNAL_FEATURE_MIN_PROB` (0.50). The endpoint is the triage one (`TRIAGE_BASE_URL` / `TRIAGE_MODEL`); Nimble unset or unreachable logs once, writes no properties, and populate continues.
+- `migration_oracle/pipeline/rule_ids.py` holds the `pipeline://{framework}/{version}/{title}` format, so populate and the backfill agree on the id.
+
+## [025-entity-canonicalization] — 2026-11-06
+
+### New features
+
+- **Canonical entity identity.** Every affected entity gets one canonical identity before the graph write: `kind` (`class` · `member` · `property` · `dependency` · `syntax` · `diagnostic`), `ecosystem`, `package`, `symbol`, `member`, `file`, the matchable `name`, the merge `key`, and `verified`. Entity nodes now `MERGE` on `key`; `name` stays what scanners and MCP queries match on. Existing `runs/json/*-entities.json` files become canonical at populate time — no new LLM run is needed.
+- **Deterministic normalizer** (`migration_oracle/pipeline/canonical/`): cleans backticks/quotes/`@`/trailing `()`, splits the three Angular package spellings (`@angular/core InjectFlags`, `@angular/router:Router`, `@angular/core/rxjs-interop RxResourceOptions`) into package + bare symbol, gives `TestBed.get` one `member` key whether the model said `class` or `property`, attaches bare options to their rule's replacement symbol (`exhaustive` → `provideCheckNoChangesConfig.exhaustive`), maps template operators (`in`, `void`, `@defer`, …) to new `TemplateSyntax` nodes and `NGxxxx` codes to new `DiagnosticCode` nodes, and files dotted config keys under their file (`engines.node` → `package.json`). Spring Boot / WildFly names stay byte-for-byte; only the key is computed.
+- **Angular API verification.** For each hop the golden public-API files (`goldens/public-api/**/index.api.md` in `angular/angular`) are fetched at both version tags (GitHub token, cached under `ARTIFACT_CACHE_DIR/api-index/angular/<version>.json`) and each symbol is resolved to its entry point. Symbols found in several entry points pick the one matching a rule dependency, else stay `ambiguous` with `package: "?"`. Unverified entities are still written, marked `verified: false`; nothing is dropped. When the index cannot be fetched, populate continues with all npm entities unverified and the summary records `api_index: unavailable`.
+- **Canonical audit artifacts.** `runs/canonical/<framework>-<from>-to-<to>-canonical.jsonl` holds one line per entity occurrence (raw kind/name, canonical fields, the applied normalization steps); `…-summary.json` counts per kind, verified percentages, collapsed raw names, and the `unverified_keys` manual-review list. `--dry-run` writes both without graph writes — the cheap way to review a hop.
+- **Prompt naming rules.** `DOSSIER_ENTITY_PROMPT_VERSION` is 3: the Angular profile now asks for the bare exported symbol in `name`, the import path in the new optional `package` field, `Owner.member` for members, and `kind: "syntax" | "diagnostic"` where appropriate.
+
+### Changed
+
+- **Constraints.** The `class_name` / `property_name` / `dependency_name` uniqueness constraints are replaced by `*_key IS UNIQUE` constraints (plus new `template_syntax_key` and `diagnostic_code_key`); `name` gets plain indexes since it is no longer unique (`VERSION` exists in several Angular entry points). Startup drops the old name constraints automatically.
+- `seed_deprecated_classes` and step-entity writes merge on `maven:<FQCN>` / canonical keys.
+- After canonicalization no `Class` or `ApplicationProperty` name contains `:`, so the `groupId:artifactId` heuristic in `mcp/matching.py` only sees real dependencies. No MCP tool changed.
+
+### Fixes (review 2026-11-06)
+
+- **API index was always empty.** The golden parser expected `export declare` with two-space members, but the files are API Extractor reports (`export class X {`, four-space members). It now parses exported declarations, `export { X as Y }` aliases (`NgFor`, `Location`), the type of `export const TestBed: TestBedStatic`, and inline function option fields (`provideCheckNoChangesConfig.exhaustive`); re-exports of imported symbols are skipped. Test fixtures are real golden excerpts. On the 8 Angular hops verified npm occurrences go from 0% to 86%.
+- **Golden listing was always empty.** The Contents API returns `type: "dir"`, not `"tree"`, and subtree paths lost their entry point. One `git/trees/<tag>:goldens/public-api?recursive=1` request replaces it; pre-v19 `index.md` goldens are accepted.
+- **`GITHUB_TOKEN` was not used on populate**, so index fetches hit the 60/h anonymous limit.
+- A missing tag no longer drops the whole hop: the index is `partial` and the summary lists `missing_versions`.
+- `primitives/*` / `testing` entry points no longer make `Injector`, `InjectionToken`, `inject`, `Attribute` ambiguous.
+- Bare options take their owner from the API index first (`useNgZoneOnStable` → `provideExperimentalCheckNoChangesForDebug`, not its replacement).
+- `<pkg>#<sym>` is split; LLM `kind: syntax | diagnostic` is kept for tokens outside the profile list; non-identifiers such as `ng-reflect-*` get no owner.
+- An existing `Version` node is skipped before canonicalization (no index fetch, no audit rewrite) unless `--dry-run`.
+- Maven entities are `verified: "unchecked"` instead of an unchecked `"true"`.
+
+## [Unreleased] — 2026-11-06
+
+### New features
+
+- **Version aliases.** `FROM`/`TO` accept `latest`, `latest-ga` (`latest-stable`), and `X.Y.Z-SNAPSHOT`. A snapshot resolves to the newest published build of that version (for example `4.2.0-SNAPSHOT → 4.2.0-RC2`); an unpublished line is an error. Aliases are resolved before artifact paths and `Version` nodes are named.
+
+### Fixes
+
+- **Minor hops read every covered release.** A Spring Boot minor hop used to read only the `to` release notes, so `4.0.0 → 4.1.0` lost everything from `4.1.0-M1 … RC1` and `4.1.0 → 4.1.2` lost `4.1.1`. It now reads all releases after `from` up to `to` on the target line, keeping duplicated rows once.
+- **Stale raw files are re-extracted.** In hop-by-hop mode a raw file whose range or hop sections do not match the hop (old whole-range layout) is re-extracted instead of being reused.
+
+## [024-dossier-entities] — 2026-11-05
+
+### New features
+
+- **Dossier entities.** When research is enabled, graph entities are built from the research dossiers instead of the filter LLM. An action gate drops rows whose dossier says `**Action:** none`, except `breaking`, `deprecation`, and `security`. Rows that share a pull request, commit, issue, or JIRA key are clustered, and each cluster gets one entity call. `runs/nodes/*_filtered.md` is rendered from those entities, so `filteredMdPath` is unchanged.
+- `--entity-source dossier|filter` (env `ENTITY_SOURCE`). `filter`, research disabled, and `--skip-research` keep the previous filter-LLM path. `--entity-source dossier --skip-research` is an error.
+- `--stop-after-clusters` writes `runs/clusters/` (gate decisions and cluster membership) and stops before any entity call. It does not need `MODEL_*`.
+- Per-cluster entity cache under `ARTIFACT_CACHE_DIR/entities/`. A changed dossier re-runs only that cluster. `--force-llm` ignores the cache. Duplicate titles in one hop are suffixed with the source URL tail so distinct changes are not merged in the graph.
+- **Research reuses `runs/research/*-research.jsonl`.** Before the row cache, each research row is looked up by `row_key` in the hop's existing JSONL. A line is used when it is not `error` and its `prompt_version` and `model` match the current `PROMPT_VERSION` and `RESEARCH_MODEL_ID`, so a hop whose JSONL is complete makes no research model calls even with an empty `ARTIFACT_CACHE_DIR`. Hand edits to a dossier's text are used. `--force-research` ignores the JSONL. The summary has a new `artifact_hits` count.
+- `TRIAGE_DROP_MAX_ACTION_PROB` now defaults to `0.20` (was `0.10`).
+
+### Fixes (review)
+
+- A dossier run deletes `_filtered.md.input.sha256`, so switching back to `--entity-source filter` calls the filter LLM instead of reusing the rendered document.
+- A hop with any failed entity cluster writes its artifacts but is not populated; the run exits 3 after the remaining hops. Previously the partial batch was populated and the missing rules could not be added later.
+- GitHub `.patch` / `.diff` / `/files` / `/commits/<sha>` / `patch-diff` URLs are clustered with the plain pull, commit, or issue URL.
+- The per-cluster cache key covers the triage category, statement, and source, not only the dossier text. `DOSSIER_ENTITY_PROMPT_VERSION` is 2.
+- The cluster input puts `Triage:` under its `## Row n` heading; cluster splits and failures are no longer logged twice.
+
+### Configuration
+
+- `ENTITY_CONCURRENCY` (default 4), `CLUSTER_MAX_ROWS` (default 4), `CLUSTER_CONFIRM` (default `off`), `GATE_PROTECTED_CATEGORIES` (default `breaking,deprecation,security`).
+- Dedicated entity model: `ENTITY_MODEL_PROVIDER` (`openai` | `deepseek`), `ENTITY_MODEL_ID`, `ENTITY_BASE_URL`, `ENTITY_API_KEY`, `ENTITY_OUTPUT_FORMAT`, `ENTITY_THINKING`, `ENTITY_REASONING_EFFORT`, `ENTITY_MAX_OUTPUT_TOKENS`, `ENTITY_TIMEOUT_SEC`. OpenAI uses strict `json_schema` structured output with `reasoning_effort`; DeepSeek uses `json_object` with thinking enabled. Unset `ENTITY_MODEL_ID` keeps `MODEL_*`.
+
 ## [023-per-change-research] — 2026-11-04
 
 ### New features

@@ -128,7 +128,10 @@ Rows that describe the same change are grouped so that they produce one entity.
 
 A URL is **specific** when it matches `/pull/`, `/commit/`, `/issues/`, `/browse/<KEY>` or a
 `/compare/` anchor of one change. Release pages (`/releases/tag/`), `CHANGELOG.md`, docs and blog
-pages are never specific. URLs are compared after `normalize_url`.
+pages are never specific. URLs are compared after `normalize_url`. GitHub pull, commit and issue
+URLs collapse to `https://github.com/<owner>/<repo>/<kind>/<id>` (lower-case), so `.patch`, `.diff`,
+`/files`, `/commits/<sha>` and `patch-diff.githubusercontent.com/raw/…` variants meet the plain
+URL (review 2026-11-05: ~160 fetched sources on Angular were such variants).
 
 #### FR-2.2 Edges
 
@@ -209,6 +212,11 @@ may override the default when the research contradicts it.
 - A cluster that still fails after retries is logged, written to the cluster artifact with
   `status: error`, and left out of the entities file. Other clusters continue. The hop exits
   non-zero only when every cluster failed.
+- Amended 2026-11-05 (review): a hop with **any** failed cluster still writes its artifacts but is
+  **not populated**, because an existing `Version` node is never repopulated and the missing rules
+  could not be added later. `ExtractionResult.failed_clusters` carries the count; the CLI skips
+  `populate_graph` for that hop, continues with the next hops, and exits 3 at the end. A re-run
+  retries only the failed clusters (the rest are cached).
 
 #### FR-3.6 Title uniqueness
 
@@ -239,10 +247,16 @@ changes together. The rename is logged.
   table, `Impact` = first sentence of `reason`, `Sources` = member row sources. No summary
   sections. The file stays readable and keeps `filteredMdPath` working.
 - **Per-cluster cache**: `ARTIFACT_CACHE_DIR/entities/sha256(DOSSIER_ENTITY_PROMPT_VERSION + model
-  + framework_key + hop + cluster_key + member dossier texts)`. A changed dossier or membership
+  + framework_key + hop + cluster_key + member material)`. Member material is everything
+  `render_cluster_input` sends: triage category and impact, type, source, statement, dossier
+  status, text and sources (review 2026-11-05: a re-triage can change the category while `row_key`
+  stays the same). A changed dossier or membership
   re-runs only that cluster. Error results are not cached.
-- `entities.json` gets an `.input.sha256` sidecar over all cluster cache keys. When it matches,
-  the hop makes zero entity calls.
+- `entities.json` gets an `.input.sha256` sidecar over all cluster cache keys, for inspection.
+  Zero entity calls on a re-run come from the per-cluster cache.
+- A dossier run deletes `_filtered.md.input.sha256`. Otherwise a later `--entity-source filter` run
+  with unchanged kept rows would treat the rendered document as filter LLM output and skip the
+  filter call (review 2026-11-05).
 
 ### FR-6 Mode selection and CLI
 

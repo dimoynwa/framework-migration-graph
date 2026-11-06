@@ -111,7 +111,7 @@ TRIAGE_TIMEOUT_SEC: float = float(_optional("TRIAGE_TIMEOUT_SEC", "30"))
 TRIAGE_MAX_CONCURRENT: int = int(_optional("TRIAGE_MAX_CONCURRENT", "2"))
 TRIAGE_STATE_MAX_CHARS: int = int(_optional("TRIAGE_STATE_MAX_CHARS", "6000"))
 TRIAGE_DROP_MAX_ACTION_PROB: float = float(
-    _optional("TRIAGE_DROP_MAX_ACTION_PROB", "0.10")
+    _optional("TRIAGE_DROP_MAX_ACTION_PROB", "0.20")
 )
 TRIAGE_DROP_MIN_CATEGORY_PROB: float = float(
     _optional("TRIAGE_DROP_MIN_CATEGORY_PROB", "0.80")
