@@ -31,9 +31,10 @@ dependencies = [
 [project.scripts]
 migration-oracle = "migration_oracle.cli:main"
 export-extract-populate-framework = "migration_oracle.cli:export_extract_populate_framework"
+migration-scan = "migration_planner.scanner.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["migration_oracle"]
+packages = ["migration_oracle", "migration_planner", "migration_keys"]
 
 [tool.uv]
 package = true

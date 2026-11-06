@@ -11,6 +11,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from migration_keys.angular import DIAGNOSTIC_RE
+from migration_keys.keys import cfg_key, diag_key, maven_key, npm_key, syntax_key
 from migration_oracle.models.entities import (
     AffectedEntity,
     CanonicalEntity,
@@ -19,10 +21,7 @@ from migration_oracle.models.entities import (
     MigrationEntity,
 )
 from migration_oracle.pipeline.canonical.api_index import HopApiIndex
-from migration_oracle.pipeline.canonical.profiles import (
-    DIAGNOSTIC_RE,
-    FrameworkProfile,
-)
+from migration_oracle.pipeline.canonical.profiles import FrameworkProfile
 
 _QUOTE_CHARS = "`'\""
 
@@ -106,18 +105,18 @@ def _normalize_maven(occurrence: AffectedEntity, profile: FrameworkProfile) -> N
     member = ""
     file = ""
     if kind in _CLASSY_KINDS:
-        key = f"maven:{name}"
+        key = maven_key(name)
     elif kind == EntityKind.PROPERTY:
         file = profile.config_file
-        key = f"cfg:{file}#{name}" if file else f"cfg:{name}"
+        key = cfg_key(file, name)
     elif kind == EntityKind.DEPENDENCY:
         package = name
         symbol = ""
-        key = f"maven:{name}"
+        key = maven_key(name)
     elif kind == EntityKind.SYNTAX:
-        key = f"syntax:{profile.key}-template#{name}"
+        key = syntax_key(profile.key, name)
     else:  # diagnostic
-        key = f"diag:{name}"
+        key = diag_key(name)
     return NormalizedEntity(
         role=occurrence.role.value,
         raw_kind=occurrence.kind.value,
@@ -244,7 +243,7 @@ def _normalize_shape(
                 ecosystem=profile.ecosystem,
                 symbol=cleaned,
                 name=cleaned,
-                key=f"syntax:{profile.key}-template#{cleaned}",
+                key=syntax_key(profile.key, cleaned),
                 verified="true",
                 applied=steps + ["kind:syntax-token"],
             ),
@@ -262,7 +261,7 @@ def _normalize_shape(
                 ecosystem=profile.ecosystem,
                 symbol=cleaned,
                 name=cleaned,
-                key=f"diag:{cleaned}",
+                key=diag_key(cleaned),
                 verified="true",
                 applied=steps + ["kind:diagnostic"],
             ),
@@ -280,7 +279,7 @@ def _normalize_shape(
                 ecosystem=profile.ecosystem,
                 package=cleaned,
                 name=cleaned,
-                key=f"npm:{cleaned}",
+                key=npm_key(cleaned),
                 verified="true",
                 applied=steps,
             ),
@@ -337,7 +336,7 @@ def _normalize_shape(
                         ecosystem=profile.ecosystem,
                         symbol=bare,
                         name=bare,
-                        key=f"cfg:{bare}",
+                        key=cfg_key("", bare),
                         verified="false",
                         applied=steps + ["owner-skipped:not-identifier"],
                     ),
@@ -354,7 +353,7 @@ def _normalize_shape(
                     ecosystem=profile.ecosystem,
                     symbol=bare,
                     name=bare,
-                    key=f"cfg:{bare}",
+                    key=cfg_key("", bare),
                     applied=steps,
                 )
                 return entity, True
@@ -387,7 +386,7 @@ def _normalize_shape(
                     ecosystem=profile.ecosystem,
                     symbol=bare,
                     name=bare,
-                    key=f"cfg:{bare}",
+                    key=cfg_key("", bare),
                     verified="false",
                     applied=steps + ["owner-unresolved"],
                 ),
@@ -406,7 +405,7 @@ def _normalize_shape(
                     symbol=candidate,
                     file=file,
                     name=candidate,
-                    key=f"cfg:{file}#{candidate}",
+                    key=cfg_key(file, candidate),
                     verified="true",
                     applied=steps + [f"config-file:{file}"],
                 ),
@@ -422,7 +421,7 @@ def _normalize_shape(
                 ecosystem=profile.ecosystem,
                 symbol=candidate,
                 name=candidate,
-                key=f"cfg:{candidate}",
+                key=cfg_key("", candidate),
                 verified="false",
                 applied=steps + ["config-file:unknown"],
             ),
@@ -448,8 +447,7 @@ def _normalize_shape(
 
 
 def _class_key(package: str, symbol: str, member: str = "") -> str:
-    tail = f"{symbol}.{member}" if member else symbol
-    return f"npm:{package or '?'}#{tail}"
+    return npm_key(package, symbol, member)
 
 
 # --- Owner assignment for bare options (FR-2.4) ----------------------------

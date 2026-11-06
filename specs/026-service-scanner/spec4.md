@@ -1,0 +1,73 @@
+# Feature Specification 026.4: Barrel and Alias Resolution (TS / JS)
+
+**Feature Branch**: `026-service-scanner`
+
+**Created**: 2026-11-06 (split from the single 026 spec)
+
+**Status**: Draft
+
+**Depends on**: spec2 (effective tsconfig `paths` / `baseUrl`, workspace packages), spec3
+(per-file export maps and own-code import bindings). Shared context: see `spec1.md`.
+
+**Scope**: a post-pass that follows own-code imports through barrels and path aliases until an
+external package is reached, and records the external key at the original import site.
+
+## Requirements
+
+### FR-5 Barrels and aliases
+
+- When a file imports from its own code, the scanner resolves the target file: relative path,
+  `compilerOptions.paths` aliases (with `*` wildcards and multiple targets, first existing wins),
+  `baseUrl`, workspace package names (their `package.json` `main` / `module` / `types` / `exports`
+  `"."` entry, else `index.*`), trying `.ts`, `.tsx`, `.d.ts`, `.js`, `.mjs`, `.cjs`, `/index.*`.
+- It then follows `export { X } from '…'`, `export { X as Y } from '…'` and `export * from '…'`
+  until an external package is reached.
+- The external key is recorded at the **original import site**, so
+  `import { inject } from '@app/core'` with `core/index.ts → export { inject } from '@angular/core'`
+  gives `npm:@angular/core#inject` at the importing file.
+- Renames are applied along the chain: `export { inject as di } from '@angular/core'` and
+  `import { di } from '@app/core'` → `npm:@angular/core#inject`, and member tracking of the
+  local `di` records `npm:@angular/core#inject.<member>`.
+- Namespace imports of a barrel (`import * as core from '@app/core'`) resolve per member:
+  `core.inject(…)` → `npm:@angular/core#inject`.
+- Names that end in a local declaration (own class / function) are dropped silently: that is own
+  code.
+- Cycles and depth > 10 stop resolution and add a diagnostic (`barrel_cycle`,
+  `barrel_depth`). An unresolvable target file → diagnostic `unresolved_import`.
+
+### Execution
+
+- Runs after all per-file extraction, on the collected export maps (spec1 post-pass). Resolution
+  results are memoized per `(file, exported name)`.
+
+## Acceptance Criteria
+
+- **AC-2 Barrels**: `a.ts` imports `inject` from `@app/core`, `core/index.ts` re-exports from
+  `./di`, and `di.ts` re-exports from `@angular/core` → `npm:@angular/core#inject` at `a.ts`.
+  A barrel cycle gives a diagnostic and no crash.
+- **AC-2.2**: `export *` chain, rename chain (`as`), namespace import of a barrel, a
+  workspace-package import, and a `paths` alias with `*` → the expected keys at the import site.
+- **AC-2.3**: a name that resolves to a local class is not recorded; depth 11 → diagnostic.
+
+- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec3 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
+
+## How to test after spec4
+
+```bash
+migration-scan /path/to/angular-service --force
+grep -rn "from '@app/" src | head    # pick a few barrel imports
+jq '.symbols[] | select(.locations[].file == "src/app/<file>.ts") | .key' .migration/profile.json
+jq '[.diagnostics[] | select(.kind | startswith("barrel") or . == "unresolved_import")]' .migration/profile.json
+```
+
+Expected: the symbol count goes up compared to spec3 on a service that uses barrels, and the
+barrel-imported Angular symbols appear at the importing file.
+
+## Implementation Notes
+
+- Module: `migration_planner/scanner/ts_resolve.py` (part of FR-5; kept separate from `ts.py`
+  so the per-file extractor stays pure and cacheable).
+
+## Estimate
+
+~5 h: resolution 4 h; fixtures and tests 1 h.

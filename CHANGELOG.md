@@ -1,5 +1,31 @@
 # Changelog
 
+## [026.1-service-scanner] — 2026-11-06
+
+### New features
+
+- **`migration-scan`, the first part of the migration planner.** A new top-level package `migration_planner/` reads one service repository and writes `.migration/profile.json`: which files it scanned, how they group into modules, and the fact sections the later specs fill. It reads the service only — no graph, no LLM, no network — so it runs in a service repo with none of the ingestion dependencies installed. stderr carries a hint when `.migration/` is not in `.gitignore`; nothing is written to it. See [the scanner page](../docs/02-extraction-pipeline/service-scanner.md).
+- **Discovery and modules.** Inside a git work tree files come from `git ls-files --cached --others --exclude-standard`; outside git the tree is walked and `.gitignore` is applied, so both modes give the same file set. `node_modules`, `.angular`, `.gradle`, `.git` and `.migration` are never entered, and `dist`, `build`, `target`, `out` outside `src/`; files over 2 MB and generated / minified JS are skipped and counted in `diagnostics`. Every manifest and source file belongs to its nearest module root (`package.json`, `pom.xml`, `build.gradle(.kts)`), and the repo-level `framework` is the one found in most modules, with ties listed in `diagnostics`.
+- **Profile model and atomic writer.** The profile is pydantic (`Profile`, `ModuleEntry`, `SymbolEntry`, …) and is written through a temp file plus `rename`, so a crashed scan never leaves a half-written profile. Keys are sorted and lists are sorted, so two scans of an unchanged tree differ only in `generated.at`; `inputs_hash` changes when one byte changes. Every fact section that no spec fills yet is an empty list, so the schema is stable while specs 2–9 land.
+- **Extractor contract.** `migration_planner/scanner/contract.py` defines the seam the later specs plug into: manifest readers (`dependencies`, `config`, `frameworks`, `diagnostics`), per-file source extractors (pure functions of the file content, so spec9 can cache and parallelize them) and post-passes. A reader or extractor that raises becomes a diagnostic; one bad file never fails a scan.
+- **`migration_keys/`.** The canonical key builders (`npm_key`, `maven_key`, `cfg_key`, `syntax_key`, `diag_key`) and the Angular entry-point / template-token / config-prefix data moved out of `migration_oracle/pipeline/canonical/` into a dependency-free package that ingestion and the planner both import. 025 now reads them from there; no key or token changed.
+- **Exit codes and summary.** `0` profile written, `1` usage error, `2` no supported manifest under `PATH`. stdout is one stable line (`scanned 4812 files · angular 19.2.0 · 61 deps · …`) with every count printed even when zero; `--json-summary` prints the same numbers as one JSON object. New entry point `migration-scan = "migration_planner.scanner.cli:main"`.
+
+### Fixes (review 2026-11-06)
+
+- **Java packages named `build` / `target` / `out` / `dist` were not scanned.** Those names are now skipped only outside a `src/` directory; `node_modules`, `.angular`, `.gradle`, `.git`, `.migration` are still skipped at any depth.
+- **Files under no module root were dropped.** A root `tsconfig.json` or a shared `config/application.yml` next to `svc/pom.xml` now belongs to module `.`, which is listed in `modules[]` and reaches the manifest readers.
+- **Walk mode ignored intermediate `.gitignore` files.** Every `.gitignore` from the root down to a file's directory now applies.
+- **`config[]` merged entries by key only.** It now keeps one entry per occurrence `(key, module, file, profile, line)`, and `ConfigFact` / `ConfigEntry` carry `module`, `line`, `raw_key`, `profile`, `kind`, `test` for spec8.
+- **`dependencies[]` merged a BOM and a dependency on the same artifact.** `kind` (`dependency | bom | parent | plugin`) is added and entries are unique per `(key, module, scope, kind)`.
+- **`inputs_hash` ignored scan options.** `--max-locations` and `--include-tests` are now part of it, so spec9 cannot report `unchanged` after an option change.
+- AC-9a now states the real contract (`generated.at` and `generated.duration_ms` differ between scans), and its test no longer contains a no-op assertion.
+
+### Tests
+
+- `tests/scanner/` (101 tests) covers the CLI contract, discovery in git and walk modes, skipped and generated files, modules, profile merge and bounds, determinism (`AC-9a`), the extractor contract, and isolation (`AC-10`): an AST guard fails if anything under `migration_planner/` or `migration_keys/` imports `migration_oracle`, `neo4j`, `langchain*`, `httpx` or `socket`, and a scan runs with no `NEO4J_URI`, no `.env` and sockets blocked.
+- `tests/pipeline/test_shared_keys.py` guards `AC-1.4`: the 025 normalizer still produces byte-identical keys and uses the moved Angular data.
+
 ## [027-rule-signals] — 2026-11-06
 
 ### New features
