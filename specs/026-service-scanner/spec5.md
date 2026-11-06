@@ -4,7 +4,8 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Draft
+**Status**: Implemented (2026-11-06) — FR-6 and AC-4 complete; AC-11 partially met (no
+    ≥ 1 000-file Angular service reachable from this workspace, see `ac11-angular.md`).
 
 **Depends on**: spec3 (`@Component` detection for inline templates), spec4 (for the full
 real-service check). Shared context: see `spec1.md`.

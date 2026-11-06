@@ -1,5 +1,33 @@
 # Changelog
 
+## [026.5-service-scanner] — 2026-11-06
+
+### New features
+
+- **Angular template tokens (FR-6).** `migration_planner/scanner/templates.py` fills `templates[]` from the two places a template lives: `*.html` files and an inline `template:` / template literal of an `@Component`. Keys come from `migration_keys.angular.ANGULAR_SYNTAX_TOKENS`, the same list 025 canonicalizes a rule entity with, so a rule and a fact meet on `syntax:angular-template#…` without translation.
+- **Block keywords (FR-6).** `@if`, `@for`, `@switch`, `@defer`, `@let`, `@else`, `@else if`, `@empty`, `@case`, `@placeholder`, `@error`, `@loading` are counted where they really are blocks: not inside a word, and carrying block syntax (a `(condition)` or a `{` body, or for `@let` a name and `=`). `@defer` in a sentence is text.
+- **Expression tokens only in bindings.** `in`, `void`, `typeof`, `as`, `let` are counted in `{{ … }}`, `[prop]="…"`, `[(prop)]="…"`, `(event)="…"`, `*dir="…"`, a block condition and an interpolation inside any attribute (`title="{{ x | async }}"`). Prose between tags is never an expression, and string literals inside a binding are masked, so `[title]="'a in b'"` has no `in`.
+- **Structural directives and pipes.** `*ngFor`, `*ngIf`, `*ngSwitchCase`, … are `syntax:angular-template#*ngFor`; a pipe in a binding is `syntax:angular-template#pipe:date`. `a || b` is a logical or, not a pipe, and `*ngFor`'s microsyntax (`let item of items`) is a binding, so its `let` is a token.
+- **Inline templates keep their `.ts` location.** The spec3 decorator pass hands the string and its start line to the lexer, so a token inside a multi-line backtick template points at the line of the `.ts` file (AC-4), not at a line inside the string. A `\n` escape inside a quoted template starts a new *rendered* line while the file line stays correct.
+- **Only real templates count.** A `*.html` file of a module with no Angular framework is not a template (FR-6), which needs the new `ModuleEnv.framework_names` the scan fills from the module's detected frameworks. An inline template only comes from `@Component` — `@Directive` or an own-code decorator with a `template` option is not one — and a template literal with `${…}` substitutions is skipped, because its rendered text is not static.
+- HTML comments (`<!-- … -->`) are skipped whole, so a commented `@defer *ngFor in` contributes nothing.
+
+### Tests
+
+- `tests/scanner/test_templates.py` (49 tests): every AC-4 row, the block/binding gating (a keyword in prose or in an attribute value, `||` vs a pipe, a token inside a string literal and inside a comment), multi-line bindings and nested blocks at their own lines, the `(file, line)` site rule, the inline path (backtick, quoted, `${…}`, non-`@Component`, own-code decorator, a local class named `Component`), the Angular/non-Angular `.html` gate, the `test` flag, `--max-locations`, determinism and an unterminated `{{` that must not fail the scan.
+- New fixtures: `angular-templates/` (every block keyword, `*ngFor`, `{{ in }}`, `| date`, `a || b`, prose with `in`, a leading comment full of tokens, an inline multi-line and a single-line template) and `node-html/` (a Node module whose `index.html` is full of template syntax and must stay empty).
+- Whole scanner suite passes: 382 passed, 4 skipped. No spec1–spec4 test changed.
+- `tests/scanner/test_ts.py` / `test_ts_resolve.py` still pin `builtin.SOURCE_EXTRACTORS` to exactly the TS grammars, so the `html` extractor ships as `builtin.EXTRA_SOURCE_EXTRACTORS` and both are installed into the same registry. Relaxing those two assertions would have been an edit to an earlier spec's test.
+
+### Verification on a real Angular app
+
+`migration-scan` on `gothinkster/angular-realworld-example-app` (Angular 21.2.12, 66 files):
+counts agree with `grep` exactly — `@if` 25 (18 in `.html` + 7 inline in `.ts`), `@for` 8 (5 + 3),
+`| date` 3 (1 + 2) — and the stored locations match the `grep -n` line numbers, inline tokens
+included. A synthetic 1 800-file Angular tree scans in 0.6 s with a 48 KB profile, well inside
+the AC-11 budget of 30 s / 2 MB. The full AC-11 run needs a ≥ 1 000-file service, which is not
+available in this workspace; see `specs/026-service-scanner/ac11-angular.md`.
+
 ## [026.4-service-scanner] — 2026-11-06
 
 ### New features

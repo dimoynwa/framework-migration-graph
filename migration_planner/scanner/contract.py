@@ -150,6 +150,9 @@ class ModuleEnv:
 
     module: str = "."
     own_packages: tuple[str, ...] = ()
+    # Frameworks detected in this module (``angular``, spec2). A ``*.html`` file
+    # is only a template when its module is Angular (spec5 FR-6).
+    framework_names: tuple[str, ...] = ()
     path_map: PathMap | None = None
     # Entry names directly under ``compilerOptions.baseUrl`` (directories, and
     # files without their extension): ``'app/core/x'`` with ``baseUrl: "./src"``

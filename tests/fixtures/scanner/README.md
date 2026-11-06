@@ -30,9 +30,7 @@ The files those own imports name (`src/local.ts`, `src/app/shared.ts`, `packages
 exist too, because spec 026.4 resolves them: an own import with no file is an
 `unresolved_import` diagnostic, and this fixture has none.
 
-`tests/fixtures/scanner/ts-barrels/` covers spec 026.4, one fixture per acceptance criterion:
-
-- `src/app/core/` — a barrel (`index.ts`) that re-exports from `./di` and `export *` from
+`tests/fixtures/scanner/ts-barrels/` covers spec 026.4, one fixture per acceptance criterion:- `src/app/core/` — a barrel (`index.ts`) that re-exports from `./di` and `export *` from
   `./util`, with a rename (`export { inject as di }`) and a local class the barrel declares
   itself. `src/app/feature.ts` imports from `@app/core`, so the external keys land there.
 - `src/app/namespaced.ts` — `import * as core from '@app/core'`, then `core.inject(…)` and a
@@ -43,3 +41,18 @@ exist too, because spec 026.4 resolves them: an own import with no file is an
 - `src/deep/ok0…ok9.ts` (depth 10, resolves) and `deep0…deep10.ts` (depth 11, `barrel_depth`).
 - `src/app/mixed.ts` + `mixed-barrel.ts` — a name that ends in a local declaration next to one
   that reaches Angular.
+
+`tests/fixtures/scanner/angular-templates/` covers spec 026.5 (FR-6 / AC-4): one Angular module
+with every source of a template.
+
+- `src/app/app.component.html` — `@if` / `@else if` / `@else` / `@empty`, `@defer` /
+  `@placeholder` / `@loading` / `@error`, `@let`, `*ngFor`, `{{ in }}`, a `| date:` pipe, a
+  `a || b` that must not become a pipe, prose containing `in`, and a leading HTML comment that
+  holds `@defer *ngFor in void @switch` so a commented token has somewhere to be ignored.
+- `src/app/inline.component.ts` — an inline backtick template (multi-line, so token lines are
+  `.ts` lines), a single-quoted inline template with `*ngIf`, and a template whose text holds
+  `in` outside any binding.
+
+`tests/fixtures/scanner/node-html/` is the negative case: a Node module (no Angular framework)
+with an `index.html` full of template syntax, which must produce **no** `templates[]` entries
+because a non-Angular `.html` file is not a template.

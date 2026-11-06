@@ -70,11 +70,18 @@ from migration_planner.scanner.contract import (
     SourceContext,
     Usage,
 )
+from migration_planner.scanner.templates import template_usages
 
 # Discovery language tag → tree-sitter grammar. ``jsx`` shares the javascript
 # grammar, which parses JSX; ``tsx`` needs its own because ``<X>`` is a cast in
 # plain TypeScript.
 GRAMMARS: tuple[str, ...] = ("ts", "tsx", "js", "jsx", "mjs", "cjs")
+
+#: The decorator whose inline template is also a template (spec5 FR-6).
+_COMPONENT = "Component"
+
+#: The decorator option that holds an inline template.
+_TEMPLATE_OPTION = "template"
 
 #: Node types whose body is a scope for shadowing checks.
 _SHADOWING_SCOPES: frozenset[str] = frozenset(
@@ -530,11 +537,13 @@ class _Extractor:
         arguments = call.child_by_field_name("arguments")
         if arguments is None:
             return
+        component = (symbol or binding.symbol) == _COMPONENT
         for argument in arguments.named_children:
             if argument.type != "object":
                 continue
             for entry in argument.named_children:
                 option = ""
+                value = None
                 if entry.type == "pair":
                     key = entry.child_by_field_name("key")
                     if key is not None and key.type in (
@@ -542,6 +551,7 @@ class _Extractor:
                         "string",
                     ):
                         option = _string_value(key) or _text(key)
+                    value = entry.child_by_field_name("value")
                 elif entry.type == "shorthand_property_identifier":
                     option = _text(entry)  # ``@Component({ selector })``
                 elif entry.type == "method_definition":
@@ -551,7 +561,29 @@ class _Extractor:
                     self._add_member(
                         binding, local, option, entry.start_point.row + 1, symbol
                     )
+                if component and option == _TEMPLATE_OPTION and value is not None:
+                    self._inline_template(value)
             break  # only the first object argument carries the options
+
+    def _inline_template(self, value: Any) -> None:
+        """``@Component({ template: '…' })``: the spec5 template tokens (FR-6).
+
+        The tokens are located in the ``.ts`` file, not in the string: the line of
+        a token is its line in the file, which is why the string's own start line
+        is handed to the template lexer.
+        """
+        content, start_line = _string_content(value)
+        if content is None:
+            return
+        self.facts.templates.extend(
+            template_usages(
+                content,
+                file=self.context.relative,
+                test=self.context.test,
+                start_line=start_line,
+                escapes=True,
+            )
+        )
 
     def _decorator_binding(
         self, function: Any | None
@@ -727,6 +759,29 @@ def _string_value(node: Any | None) -> str | None:
     if node is None or node.type != "string":
         return None
     return _STRING_QUOTE_RE.sub("", _text(node))
+
+
+#: Node types that hold a string whose content can be a template.
+_STRING_NODE_TYPES: frozenset[str] = frozenset({"string", "template_string"})
+
+
+def _string_content(node: Any) -> tuple[str | None, int]:
+    """``(content, start line)`` of a string or a template literal.
+
+    An inline template is either ``template: '<div>…</div>'`` or a template
+    literal. A literal with substitutions (``${…}``) is not a static template:
+    its tokens would be a guess, so it is skipped. The start line is the line of
+    the opening quote — the first content character may sit a line further down,
+    which is why the content keeps its own leading newline.
+    """
+    if node is None or node.type not in _STRING_NODE_TYPES:
+        return None, 0
+    if node.type == "template_string" and _has_child(node, "template_substitution"):
+        return None, 0
+    text = _text(node)
+    if len(text) < 2:
+        return None, 0
+    return text[1:-1], node.start_point.row + 1
 
 
 def _export_name(node: Any) -> str:

@@ -208,7 +208,7 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | `framework`, `modules[].frameworks` | **026.2** (Angular), spec6 (Spring Boot) |
 | `modules[].angular_projects`, `modules[].own_packages`, npm `dependencies`, npm / angular / tsconfig `config` | **026.2** |
 | `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3**, barrel-resolved keys **026.4** |
-| `templates` | spec5 |
+| `templates` | **026.5** |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | spec6 |
 | `symbols`, `members`, `wildcard_imports` (Java) | spec7 |
 | Spring `config`, `modules[].spring_config_files` | spec8 |
@@ -338,6 +338,58 @@ shorter chain the same name.
 import site too, so an intermediate barrel of the codebase is listed alongside the file that
 imports it.
 
+## Angular templates (026.5)
+
+Templates are the one place Angular facts live outside TypeScript, so `migration_planner/scanner/templates.py`
+lexes them and fills `templates[]`. Two sources, one lexer:
+
+| Source | Where it is found | `file` / `line` |
+|---|---|---|
+| `*.html` | the `html` extractor, for modules whose framework is Angular | the `.html` file and its own line |
+| inline `template: '…'` / `` template: `…` `` | the spec3 `@Component` decorator pass | the **`.ts`** file, and the token's line in it |
+
+A `*.html` file of a module with no Angular framework is **not** a template (FR-6), so the
+`index.html` of a Node service or a static site contributes nothing. Only `@Component` carries an
+inline template — a `template` option on `@Directive` or on an own-code decorator is not one — and
+a template literal with `${…}` substitutions is skipped, because its rendered text is not static.
+
+### What becomes a fact
+
+| Shape | Key |
+|---|---|
+| `@if (a) { … }`, `@for (…)`, `@switch (…)`, `@defer`, `@let x = …`, `@else`, `@else if`, `@empty`, `@case`, `@placeholder`, `@error`, `@loading` | `syntax:angular-template#@if` … |
+| `*ngFor`, `*ngIf`, `*ngSwitchCase`, … | `syntax:angular-template#*ngFor` |
+| `{{ a in b }}`, `[x]="a as b"`, `(e)="typeof a"`, `@if (a in b)` | `syntax:angular-template#in`, `#as`, `#typeof` |
+| `{{ value \| date:'short' }}`, `\| async` | `syntax:angular-template#pipe:date` |
+| `@let` in a microsyntax (`*ngFor="let item of items"`) | `syntax:angular-template#let` |
+
+The token list comes from `migration_keys/angular.py` (`ANGULAR_SYNTAX_TOKENS`), the same list 025
+canonicalizes a rule entity with, so a rule and a fact meet on one key.
+
+**Where a token must sit.** A block keyword only counts as a block: it is not inside a word
+(`a@if.example`, prose) and it carries block syntax — a `(condition)` or a `{` body, or, for
+`@let`, a name and `=`. Expression tokens only count **inside a binding**: `{{ … }}`,
+`[prop]="…"`, `[(prop)]="…"`, `(event)="…"`, `*dir="…"`, the condition of a block keyword, and an
+interpolation in any attribute (`title="{{ x | async }}"`). Plain text between tags is never an
+expression, so:
+
+- `The word in a sentence` → no `in`;
+- `<p>the @defer block is new</p>` → no `@defer`;
+- `{{ a || b }}` → no pipe (it is a logical or), and neither bar of `||` starts one;
+- `[title]="'a in b'"` → no `in` (string literals are masked);
+- `<!-- @defer *ngFor in -->` → nothing (comments are skipped whole).
+
+**Locations.** `templates[]` follows the same bound as the other fact sections: `{key, count,
+files, locations, truncated}`, one site per `(file, line)` — a location has no column (spec1
+FR-1), so two `in` tokens on one line are one site — and at most `--max-locations` stored. The
+`test` flag comes from the file: a `*.spec.html` or an inline template in a `src/test/**` /
+`*.spec.ts` file is flagged `true`.
+
+```bash
+jq '.templates[] | {key, count}' .migration/profile.json
+grep -rn "@defer\|\*ngFor" src --include=*.html | wc -l   # compare with the counts
+```
+
 ## Canonical keys
 
 The profile uses the same key formats as the graph (spec 025), so the matcher compares sets
@@ -385,6 +437,7 @@ migration_planner/            planner: runs in a service repo
     npm_manifests.py          package.json / lock / angular.json / tsconfig (026.2)
     ts.py                     TS / JS imports, members, decorators (026.3)
     ts_resolve.py             barrels, aliases, workspace entry points (026.4)
+    templates.py              Angular template tokens, .html + inline (026.5)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
@@ -413,4 +466,6 @@ declared npm dependency with its lockfile version,
 `members[]` filled from the TypeScript sources. Compare `framework.version` with
 `npm ls @angular/core`, and a `symbols[]` entry with `grep -rn "from '@angular/core'" src`.
 
-`templates` stay `0` until spec5, and Java facts until specs 6–8.
+After 026.5 `templates[]` is filled too: compare one `@defer` / `*ngFor` count with
+`grep -rn "@defer\|\*ngFor" src --include=*.html`, and one `pipe:` key with
+`grep -rn "| date" src`. Java facts stay empty until specs 6–8.

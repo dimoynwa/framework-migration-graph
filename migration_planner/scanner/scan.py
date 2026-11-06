@@ -223,6 +223,12 @@ def scan(
         environments[module_path] = ModuleEnv(
             module=module_path,
             own_packages=repo_packages,
+            framework_names=tuple(
+                sorted(
+                    framework.name
+                    for framework in accumulator.frameworks.get(module_path, [])
+                )
+            ),
             path_map=environment.path_map,
             base_url_roots=_base_url_roots(root, environment.path_map),
             declared_dependencies=declared_dependencies,
