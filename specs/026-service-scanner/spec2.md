@@ -77,7 +77,7 @@ Shared context (problem, principles, non-goals, profile schema): see `spec1.md`.
   - the build target's `tsConfig` wins over later targets, whatever their names;
   - `>1` → `2.0.0`, `>1.2` → `1.3.0`, `>1.2.3` → `1.2.4`.
 
-- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec1 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
+- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec1 in the default order) must still pass. A failing earlier test that checks **behavior** is a regression, not an outdated test. A test that pins an internal detail (the exact contents of a registry, a private helper's shape) may be changed deliberately when this spec extends that detail; such a change is named in the spec's CHANGELOG entry.
 
 ## How to test after spec2
 

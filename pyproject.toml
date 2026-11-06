@@ -28,7 +28,10 @@ dependencies = [
     "tqdm>=4.66",
     # Parser for the scanner's TS / JS extraction (spec 026.3). Prebuilt wheels
     # for CPython 3.11+, so no compiler is needed.
-    "tree-sitter>=0.25",
+    # <0.26: py-tree-sitter 0.26.0 segfaults in Node access on larger files
+    # (an 800-line spec file is enough; 0.24 / 0.25 are fine). Guarded by
+    # tests/scanner/test_ts_native_stability.py.
+    "tree-sitter>=0.25,<0.26",
     "tree-sitter-typescript>=0.23",
     "tree-sitter-javascript>=0.25",
 ]

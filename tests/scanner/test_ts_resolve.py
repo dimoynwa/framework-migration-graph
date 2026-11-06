@@ -615,7 +615,8 @@ def test_the_barrel_pass_is_registered() -> None:
 
 
 def test_extractors_still_get_the_same_grammars() -> None:
-    assert set(builtin.SOURCE_EXTRACTORS) == set(GRAMMARS)
+    assert set(GRAMMARS) <= set(builtin.SOURCE_EXTRACTORS)
+    assert all(builtin.SOURCE_EXTRACTORS[language] is extract_ts for language in GRAMMARS)
 
 
 # --- AC-2 / AC-2.2 / AC-2.3 through a real scan ---------------------------

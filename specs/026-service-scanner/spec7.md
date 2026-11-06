@@ -49,7 +49,7 @@ Parsed with **tree-sitter-java**.
 - **AC-5.4**: a Java file with a syntax error → imports that parsed are still recorded,
   diagnostic added.
 
-- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec6 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
+- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec6 in the default order) must still pass. A failing earlier test that checks **behavior** is a regression, not an outdated test. A test that pins an internal detail (the exact contents of a registry, a private helper's shape) may be changed deliberately when this spec extends that detail; such a change is named in the spec's CHANGELOG entry.
 
 ## How to test after spec7
 

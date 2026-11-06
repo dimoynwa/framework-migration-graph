@@ -21,16 +21,10 @@ MANIFEST_READERS: dict[str, contract.ManifestReader] = {
     **dict.fromkeys(npm_manifests.MANIFEST_KINDS, npm_manifests.read_npm_manifests),
 }
 
-# ``{discovery language tag: extractor}`` — spec3 TS / JS, spec7 Java.
+# ``{discovery language tag: extractor}`` — spec3 TS / JS, spec5 Angular
+# templates, spec7 Java.
 SOURCE_EXTRACTORS: dict[str, contract.SourceExtractor] = {
     **dict.fromkeys(ts.GRAMMARS, ts.extract_ts),
-}
-
-# Extractors for languages a later spec adds (spec5 templates, spec7 Java).
-# They are kept beside ``SOURCE_EXTRACTORS`` only because spec3's test pins that
-# mapping to the TS grammars; both are installed into the same registry, which is
-# what the scan loop reads.
-EXTRA_SOURCE_EXTRACTORS: dict[str, contract.SourceExtractor] = {
     "html": templates.extract_html_template,
 }
 
@@ -46,7 +40,7 @@ def install() -> None:
             contract.register_manifest_reader(kind, reader)
 
     installed = contract.source_extractors()
-    for language, extractor in {**SOURCE_EXTRACTORS, **EXTRA_SOURCE_EXTRACTORS}.items():
+    for language, extractor in SOURCE_EXTRACTORS.items():
         if language not in installed:
             contract.register_source_extractor(language, extractor)
 
@@ -64,7 +58,6 @@ install()
 
 
 __all__ = [
-    "EXTRA_SOURCE_EXTRACTORS",
     "MANIFEST_READERS",
     "POST_PASSES",
     "SOURCE_EXTRACTORS",

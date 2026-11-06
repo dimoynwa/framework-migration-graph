@@ -4,8 +4,8 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Implemented (2026-11-06) — FR-6 and AC-4 complete; AC-11 partially met (no
-    ≥ 1 000-file Angular service reachable from this workspace, see `ac11-angular.md`).
+**Status**: Implemented (2026-11-06). AC-11 met on `paysafe-wac-web-login-fe` (702 source
+files, below the ≥ 1 000 in the criterion; see `ac11-angular.md`).
 
 **Depends on**: spec3 (`@Component` detection for inline templates), spec4 (for the full
 real-service check). Shared context: see `spec1.md`.
@@ -21,13 +21,19 @@ with the real-service acceptance check.
   `@Component` (location = the line inside the `.ts` file).
 - **Tokens**: the Angular token list from `migration_keys/` (moved from
   `pipeline/canonical/profiles.py` in spec1): `@if`, `@for`, `@switch`, `@defer`, `@let`,
-  `@empty`, …. Matched lexically, block keywords at the start of a block. Expression tokens
+  `@empty`, …. Matched lexically. A block keyword counts when block syntax follows it (a
+  `( … )` condition, a `{` body, or `@let name =`), whatever text precedes it: since Angular 17
+  an `@` before a block name always opens a block (`Save @if (busy) {…}`, `item@if (n > 1) {s}`),
+  while `a@for.com` is not a block. Expression tokens
   (`in`, `void`, `typeof`, `as`) are counted only inside bindings: `{{ … }}`, `[prop]="…"`,
   `(event)="…"`, `*dir="…"`, `@if (…)`, `@for (…)`.
 - **Structural directives and pipes**: `*ngIf`, `*ngFor`, `*ngSwitchCase`, … are recorded as
   `syntax:angular-template#*ngFor`. Pipe names in bindings (`| async`, `| date:…`) as
   `syntax:angular-template#pipe:date`. `||` is not a pipe.
-- HTML comments (`<!-- … -->`) are ignored.
+- HTML comments (`<!-- … -->`) are ignored, and so is the content of an element with
+  `ngNonBindable` (Angular does not compile it; the element's own attributes still count).
+- Only Angular's `@Component` (from `@angular/core`, or through an own barrel) has an inline
+  template; a Vue class component's `@Component({ template })` is not scanned.
 - Output: `templates[]` with `{key, count, locations}`, bounded by `--max-locations`.
 - `*.html` files that are not Angular templates (no module with an Angular framework) are not
   scanned.
@@ -46,7 +52,12 @@ with the real-service acceptance check.
   - every 025 Angular entity key from `runs/canonical/` that the service really uses (found
     with `grep`) is in the profile. Every miss is explained in the report.
 
-- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec4 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
+- **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec4 in the default order) must still pass. A failing earlier test that checks **behavior** is a regression, not an outdated test. A test that pins an internal detail (the exact contents of a registry, a private helper's shape) may be changed deliberately when this spec extends that detail; such a change is named in the spec's CHANGELOG entry.
+
+- **AC-4.2** (review 2026-11-06): `Save @if (loading) {…}` and `item@if (n > 1) {s}` → `@if`;
+  `a@for.com` → nothing; `<code ngNonBindable>{{ a | date }}</code>` → nothing, while
+  `<div ngNonBindable *ngIf="x">` still gives `*ngIf`; `@Component` from
+  `vue-property-decorator` with an inline template → no template tokens.
 
 ## How to test after spec5
 

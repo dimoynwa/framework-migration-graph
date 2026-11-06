@@ -14,9 +14,13 @@ construct:
 
 - **Block keywords** (``@if``, ``@for``, ``@switch``, ``@defer``, ``@let``,
   ``@else``, ``@else if``, ``@empty``, ``@case``, ``@placeholder``, ``@error``,
-  ``@loading``) only at the **start of a block**: after ``{``, after ``}``,
-  after a tag, or at the start of the template. ``@if`` in the middle of a word
-  or of a paragraph is text, not a block.
+  ``@loading``) wherever they carry block syntax: a ``( … )`` condition, a
+  ``{`` body, or ``@let name =``. Text before them does not matter —
+  ``Save @if (busy) {…}`` and ``item@if (n > 1) {s}`` are blocks, because since
+  Angular 17 an ``@`` before a block name always opens one (a literal ``@`` in
+  text must be written ``&#64;``). ``a@for.com`` is not: no block syntax follows.
+- An element with ``ngNonBindable`` is not compiled by Angular, so its content
+  yields no tokens (its own attributes still do).
 - **Expression tokens** (``in``, ``void``, ``typeof``, ``as``, ``let``) only
   inside a **binding**: ``{{ … }}``, ``[prop]="…"``, ``(event)="…"``,
   ``[(prop)]="…"``, ``*dir="…"`` and the condition of a block keyword. Text
@@ -66,9 +70,7 @@ _Emit = Callable[[str, int], None]
 def _block_pattern(tokens: tuple[str, ...]) -> re.Pattern[str]:
     """``@(else\\s+if|if|for|…)``: longest name first, so ``@else if`` wins."""
     names = sorted((token[1:] for token in tokens), key=len, reverse=True)
-    alternatives = "|".join(
-        re.escape(name).replace(r"\ ", r"\s+") for name in names
-    )
+    alternatives = "|".join(re.escape(name).replace(r"\ ", r"\s+") for name in names)
     return re.compile(r"@" + "(?:" + alternatives + r")\b")
 
 
@@ -79,9 +81,7 @@ _BLOCK_RE = _block_pattern(BLOCK_TOKENS)
 _EXPRESSION_RE = re.compile(
     r"(?<![\w$.])("
     + "|".join(
-        sorted(
-            (re.escape(token) for token in EXPRESSION_TOKENS), key=len, reverse=True
-        )
+        sorted((re.escape(token) for token in EXPRESSION_TOKENS), key=len, reverse=True)
     )
     + r")(?![\w$])"
 )
@@ -218,18 +218,14 @@ def _mask_escapes(text: str) -> str:
 def _starts_block(text: str, index: int, after: int) -> bool:
     """Whether an ``@keyword`` at ``index`` (ending at ``after``) is a block.
 
-    Two things make a keyword a block keyword: it is not inside a word
-    (``a@if.example``, ``a@if`` in prose), and it carries block syntax — a
-    parenthesized condition (``@if (a)``, ``@for (…; track …)``), a body
-    (``@else {``, ``@empty {``, ``@placeholder {``) or, for ``@let``, a name and
-    an ``=``. That is what "block keywords at the start of a block" means:
-    ``@defer`` in a sentence is text even though it looks like a token.
+    A keyword is a block keyword when it carries block syntax: a parenthesized
+    condition (``@if (a)``, ``@for (…; track …)``), a body (``@else {``,
+    ``@empty {``, ``@placeholder {``) or, for ``@let``, a name and an ``=``.
+    What precedes it does not matter: since Angular 17 an ``@`` before a block
+    name always opens a block, so ``Save @if (busy) {…}`` and the pluralization
+    idiom ``item@if (n > 1) {s}`` are blocks, while ``a@for.com`` (no block
+    syntax after the name) and ``@defer`` in a sentence are not.
     """
-    previous = index - 1
-    while previous >= 0 and text[previous] in " \t\r":
-        previous -= 1
-    if previous >= 0 and (text[previous].isalnum() or text[previous] in "_$@."):
-        return False
     cursor = after
     while cursor < len(text) and text[cursor] in " \t\r":
         cursor += 1
@@ -331,14 +327,19 @@ def _tag(text: str, start: int, add: _Emit) -> int:
     if index < length and text[index] == "/":
         end = text.find(">", index)
         return length if end < 0 else end + 1
+    name_begin = index
     while index < length and (text[index].isalnum() or text[index] in _NAME_CHARS):
         index += 1
+    tag_name = text[name_begin:index]
+    non_bindable = False
     while index < length:
         while index < length and text[index].isspace():
             index += 1
         if index >= length:
             return length
         if text[index] == ">":
+            if non_bindable and tag_name:
+                return _skip_element(text, index + 1, tag_name)
             return index + 1
         if text.startswith("/>", index):
             return index + 2
@@ -348,10 +349,36 @@ def _tag(text: str, start: int, add: _Emit) -> int:
         name = text[name_start:index]
         value, value_start, index = _attribute_value(text, index)
         if name:
+            if name.lower() == _NON_BINDABLE:
+                non_bindable = True
             _attribute(name, name_start, value, value_start, add)
         else:
             index += 1  # never stall on a character no rule consumes
     return length
+
+
+#: The attribute that switches Angular compilation off for an element's content.
+_NON_BINDABLE = "ngnonbindable"
+
+
+def _skip_element(text: str, start: int, tag_name: str) -> int:
+    """The index after the ``</tag_name>`` that closes an element opened before ``start``.
+
+    Same-name elements nested inside are counted, so
+    ``<div ngNonBindable><div>…</div>{{ x }}</div>`` skips to the outer close. An
+    unclosed element runs to the end of the text.
+    """
+    pattern = re.compile(r"<(/?)" + re.escape(tag_name) + r"(?=[\s/>])", re.IGNORECASE)
+    depth = 1
+    for match in pattern.finditer(text, start):
+        if match.group(1):
+            depth -= 1
+            if depth == 0:
+                end = text.find(">", match.end())
+                return len(text) if end < 0 else end + 1
+        else:
+            depth += 1
+    return len(text)
 
 
 def _attribute_value(text: str, index: int) -> tuple[str, int, int]:
@@ -455,7 +482,9 @@ def _mask_strings(expression: str) -> str:
         if quote:
             if char == "\\" and index + 1 < length:
                 masked[index] = " "
-                masked[index + 1] = expression[index + 1] if expression[index + 1] == "\n" else " "
+                masked[index + 1] = (
+                    expression[index + 1] if expression[index + 1] == "\n" else " "
+                )
                 index += 2
                 continue
             if char == quote:

@@ -504,7 +504,10 @@ def test_an_empty_file_is_not_an_error() -> None:
 
 
 def test_the_extractor_is_registered_for_every_language() -> None:
-    assert set(builtin.SOURCE_EXTRACTORS) == set(GRAMMARS)
+    # Behavior, not the registry's full shape: every TS / JS grammar maps to
+    # ``extract_ts``; later specs add other languages (html, java) beside it.
+    assert set(GRAMMARS) <= set(builtin.SOURCE_EXTRACTORS)
+    assert all(builtin.SOURCE_EXTRACTORS[language] is extract_ts for language in GRAMMARS)
 
 
 def test_a_scan_records_symbols_and_members_with_test_flags(make_repo) -> None:

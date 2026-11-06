@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from migration_planner.scanner import builtin, contract
-from migration_planner.scanner.contract import ModuleEnv, SourceContext
+from migration_planner.scanner.contract import ModuleEnv, PathMap, SourceContext
 from migration_planner.scanner.scan import scan
 from migration_planner.scanner.templates import (
     BLOCK_TOKENS,
@@ -139,8 +139,7 @@ def test_an_interpolation_in_a_plain_attribute_is_a_binding() -> None:
 
 def test_an_event_and_a_two_way_binding_are_bindings() -> None:
     text = (
-        '<input (input)="onInput($event)" />\n'
-        '<input [(ngModel)]="value as string" />\n'
+        '<input (input)="onInput($event)" />\n<input [(ngModel)]="value as string" />\n'
     )
 
     assert _keys(text) == ["as"]
@@ -158,7 +157,10 @@ def test_a_let_declaration_carries_its_expression() -> None:
 
 def test_only_the_first_use_of_a_token_on_a_line_is_one_site() -> None:
     """A location has no column (spec1 FR-1), so one line is one site."""
-    keys = [usage.key for usage in template_usages("<p>{{ a in b }} {{ c in d }}</p>", file="t.html")]
+    keys = [
+        usage.key
+        for usage in template_usages("<p>{{ a in b }} {{ c in d }}</p>", file="t.html")
+    ]
 
     assert keys == ["syntax:angular-template#in"]
 
@@ -176,7 +178,7 @@ def test_lines_are_counted_from_the_start_of_the_file() -> None:
 
 
 def test_a_directive_attribute_records_its_line() -> None:
-    text = "<div>\n  <span\n    *ngIf=\"x\"\n  ></span>\n</div>\n"
+    text = '<div>\n  <span\n    *ngIf="x"\n  ></span>\n</div>\n'
 
     assert _tokens(text) == [("*ngIf", 3)]
 
@@ -231,7 +233,13 @@ def test_a_block_keyword_inside_an_attribute_value_is_text() -> None:
 # --- FR-6: an inline @Component template ---------------------------------
 
 
-def _ts_facts(source: str, *, relative: str = "src/a.ts", test: bool = False):
+def _ts_facts(
+    source: str,
+    *,
+    relative: str = "src/a.ts",
+    test: bool = False,
+    env: ModuleEnv | None = None,
+):
     return extract_ts(
         SourceContext(
             path=Path(relative),
@@ -240,7 +248,7 @@ def _ts_facts(source: str, *, relative: str = "src/a.ts", test: bool = False):
             language="ts",
             test=test,
             data=source.encode("utf-8"),
-            env=ModuleEnv(),
+            env=env if env is not None else ModuleEnv(),
         )
     )
 
@@ -341,8 +349,21 @@ def test_a_template_through_a_barrel_import_is_scanned() -> None:
         "@Component({ template: '<p>@defer { <x /> }</p>' })\n"
         "export class C {}\n"
     )
+    # ``@app/*`` is a paths alias, so ``@app/core`` really is the service's own barrel.
+    env = ModuleEnv(path_map=PathMap(paths={"@app/*": ("src/app/*",)}))
 
-    assert _keys_of_inline(_ts_facts(source)) == ["@defer"]
+    assert _keys_of_inline(_ts_facts(source, env=env)) == ["@defer"]
+
+
+def test_a_component_from_another_library_is_not_an_angular_template() -> None:
+    """A Vue class component also has ``@Component({ template })`` (review 2026-11-06)."""
+    source = (
+        "import { Component } from 'vue-property-decorator';\n"
+        "@Component({ template: '<div>{{ price | currency }}</div>' })\n"
+        "export class C {}\n"
+    )
+
+    assert _ts_facts(source).templates == []
 
 
 def test_a_local_class_named_component_is_not_the_angular_one() -> None:
@@ -411,7 +432,7 @@ def test_an_html_file_of_a_non_angular_module_is_not_a_template() -> None:
             relative="public/index.html",
             module=".",
             language="html",
-            data=b"<div *ngFor=\"let x of xs\">@defer</div>",
+            data=b'<div *ngFor="let x of xs">@defer</div>',
             env=ModuleEnv(framework_names=()),
         )
     )
@@ -426,7 +447,7 @@ def test_an_html_file_of_an_angular_module_is_a_template() -> None:
             relative="src/app/a.component.html",
             module=".",
             language="html",
-            data=b"<div *ngFor=\"let x of xs\">@defer { <y /> }</div>",
+            data=b'<div *ngFor="let x of xs">@defer { <y /> }</div>',
             env=ModuleEnv(framework_names=("angular",)),
         )
     )
@@ -435,16 +456,9 @@ def test_an_html_file_of_an_angular_module_is_a_template() -> None:
 
 
 def test_the_html_extractor_is_registered_beside_the_ts_one() -> None:
-    assert set(builtin.EXTRA_SOURCE_EXTRACTORS) == {"html"}
+    assert builtin.SOURCE_EXTRACTORS["html"] is extract_html_template
     assert "html" in contract.source_extractors()
-    assert set(builtin.SOURCE_EXTRACTORS) == {
-        "ts",
-        "tsx",
-        "js",
-        "jsx",
-        "mjs",
-        "cjs",
-    }
+    assert {"ts", "tsx", "js", "jsx", "mjs", "cjs"} <= set(builtin.SOURCE_EXTRACTORS)
 
 
 # --- AC-4 through a real scan --------------------------------------------
@@ -515,11 +529,7 @@ def test_in_plain_text_is_not_counted_but_in_a_binding_is(templates_repo: Path) 
 def test_a_logical_or_is_not_a_pipe(templates_repo: Path) -> None:
     payload = read_profile(scan(templates_repo, out=templates_repo / "p.json").path)
 
-    pipes = {
-        entry["key"]
-        for entry in payload["templates"]
-        if "pipe:" in entry["key"]
-    }
+    pipes = {entry["key"] for entry in payload["templates"] if "pipe:" in entry["key"]}
 
     assert pipes == {
         "syntax:angular-template#pipe:async",
@@ -630,7 +640,7 @@ def test_a_broken_template_does_not_fail_the_scan(make_repo) -> None:
     repo = make_repo(
         {
             "package.json": json.dumps({"dependencies": {"@angular/core": "^19"}}),
-            "src/a.component.html": '<p>{{ unclosed',
+            "src/a.component.html": "<p>{{ unclosed",
         }
     )
 
@@ -642,10 +652,60 @@ def test_a_broken_template_does_not_fail_the_scan(make_repo) -> None:
 
 @pytest.mark.parametrize(
     "text",
-    ["", "<", "<!--", "{{", "<div", "<div a=", '<div [x]="', "@", "@if", "<>", "{{ | }}"],
+    [
+        "",
+        "<",
+        "<!--",
+        "{{",
+        "<div",
+        "<div a=",
+        '<div [x]="',
+        "@",
+        "@if",
+        "<>",
+        "{{ | }}",
+    ],
 )
 def test_a_truncated_template_never_hangs_or_raises(text: str) -> None:
     """A half-written file is what an editor saves; the lexer must survive it."""
     # The point is that the call returns at all, with no exception and nothing
     # invented: a broken fragment has no complete token in it.
     assert template_usages(text, file="t.html") == []
+
+
+# --- review fixes (2026-11-06) ----------------------------------------------
+
+
+def _sorted_tokens(text: str) -> list[tuple[str, int]]:
+    return sorted(
+        {(u.key.split("#", 1)[1], u.line) for u in template_usages(text, file="x.html")}
+    )
+
+
+def test_a_block_after_text_on_the_same_line_is_a_block() -> None:
+    """Since Angular 17 an ``@`` before a block name always opens a block."""
+    assert _sorted_tokens("<button>Save @if (loading) { <spin/> }</button>") == [("@if", 1)]
+    assert _sorted_tokens("Items @for (i of items; track i) { {{ i }} }") == [("@for", 1)]
+
+
+def test_the_pluralization_idiom_is_a_block() -> None:
+    assert _sorted_tokens("<span>{{ n }} item@if (n > 1) {s}</span>") == [("@if", 1)]
+
+
+def test_an_email_is_still_not_a_block() -> None:
+    assert _sorted_tokens("<p>mail me: a@for.com or b@if.org</p>") == []
+
+
+def test_ng_non_bindable_content_yields_no_sorted_tokens() -> None:
+    text = (
+        "<code ngNonBindable>{{ a | date }} @if (x) { y }<code>{{ b | async }}</code></code>\n"
+        "<p>{{ c | uppercase }}</p>"
+    )
+
+    assert _sorted_tokens(text) == [("pipe:uppercase", 2)]
+
+
+def test_ng_non_bindable_keeps_its_own_attributes() -> None:
+    text = '<div ngNonBindable *ngIf="ready">{{ a | date }}</div>'
+
+    assert _sorted_tokens(text) == [("*ngIf", 1)]

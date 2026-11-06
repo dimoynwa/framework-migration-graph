@@ -349,9 +349,11 @@ lexes them and fills `templates[]`. Two sources, one lexer:
 | inline `template: '…'` / `` template: `…` `` | the spec3 `@Component` decorator pass | the **`.ts`** file, and the token's line in it |
 
 A `*.html` file of a module with no Angular framework is **not** a template (FR-6), so the
-`index.html` of a Node service or a static site contributes nothing. Only `@Component` carries an
-inline template — a `template` option on `@Directive` or on an own-code decorator is not one — and
-a template literal with `${…}` substitutions is skipped, because its rendered text is not static.
+`index.html` of a Node service or a static site contributes nothing. Only Angular's `@Component`
+(from `@angular/core`, or re-exported through the service's own barrel) carries an inline
+template — a `template` option on `@Directive`, on an own-code decorator or on a Vue class
+component (`vue-property-decorator`) is not one — and a template literal with `${…}`
+substitutions is skipped, because its rendered text is not static.
 
 ### What becomes a fact
 
@@ -366,9 +368,12 @@ a template literal with `${…}` substitutions is skipped, because its rendered 
 The token list comes from `migration_keys/angular.py` (`ANGULAR_SYNTAX_TOKENS`), the same list 025
 canonicalizes a rule entity with, so a rule and a fact meet on one key.
 
-**Where a token must sit.** A block keyword only counts as a block: it is not inside a word
-(`a@if.example`, prose) and it carries block syntax — a `(condition)` or a `{` body, or, for
-`@let`, a name and `=`. Expression tokens only count **inside a binding**: `{{ … }}`,
+**Where a token must sit.** A block keyword counts when it carries block syntax — a
+`(condition)` or a `{` body, or, for `@let`, a name and `=`. Text before it does not matter:
+since Angular 17 an `@` before a block name always opens a block, so `Save @if (busy) {…}` and
+the pluralization idiom `item@if (n > 1) {s}` are blocks, while `a@for.com` is not (no block
+syntax follows). The content of an element with `ngNonBindable` is not compiled by Angular and
+yields no tokens; the element's own attributes still do. Expression tokens only count **inside a binding**: `{{ … }}`,
 `[prop]="…"`, `[(prop)]="…"`, `(event)="…"`, `*dir="…"`, the condition of a block keyword, and an
 interpolation in any attribute (`title="{{ x | async }}"`). Plain text between tags is never an
 expression, so:

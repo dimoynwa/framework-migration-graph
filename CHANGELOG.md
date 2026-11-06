@@ -12,12 +12,25 @@
 - **Only real templates count.** A `*.html` file of a module with no Angular framework is not a template (FR-6), which needs the new `ModuleEnv.framework_names` the scan fills from the module's detected frameworks. An inline template only comes from `@Component` — `@Directive` or an own-code decorator with a `template` option is not one — and a template literal with `${…}` substitutions is skipped, because its rendered text is not static.
 - HTML comments (`<!-- … -->`) are skipped whole, so a commented `@defer *ngFor in` contributes nothing.
 
+### Fixes (review 2026-11-06)
+
+- **A block after text on the same line was not counted.** `Save @if (loading) {…}` and the pluralization idiom `item@if (n > 1) {s}` gave no `@if`, because a letter before the `@` was read as "inside a word". Since Angular 17 an `@` before a block name always opens a block, so the block syntax after the keyword (`(`, `{`, `@let name =`) is now the only test; `a@for.com` is still not a block.
+- **`ngNonBindable` content was scanned.** `<code ngNonBindable>{{ a | date }}</code>` recorded `pipe:date`; Angular does not compile that content, so it now yields nothing (the element's own attributes still do).
+- **Any `@Component` with a `template` was read as Angular.** A Vue class component (`vue-property-decorator`) produced `syntax:angular-template#pipe:currency`. Only `@Component` from `@angular/core` (or an own-code barrel re-export) is scanned now.
+- **`html` is in `builtin.SOURCE_EXTRACTORS`**; `EXTRA_SOURCE_EXTRACTORS` is gone. `test_ts.py::test_the_extractor_is_registered_for_every_language` and `test_ts_resolve.py::test_extractors_still_get_the_same_grammars` pinned the registry to exactly the TS grammars, an internal detail; they now assert behavior (every TS grammar maps to `extract_ts`). The Regression rule in spec1–spec9 now says such detail-pinning tests may change deliberately when named here.
+- `test_a_template_through_a_barrel_import_is_scanned` gave the extractor no `paths` alias, so `@app/core` was an external package rather than the own barrel its docstring describes; it now sets `@app/*` and tests what it says.
+
+### AC-11 on a real service (2026-11-06)
+
+- **AC-11 run on `paysafe-wac-web-login-fe`** (Angular 20.3.27, 709 files): 1.35 s cold, 441 KB profile, 0 diagnostics; 10 / 10 random import sites and 1 443 / 1 443 single-line imports correct; every template count equals `grep`; 40 of the 43 025 Angular keys the service uses are in the profile, the 3 misses explained. Report: `specs/026-service-scanner/ac11-angular.md`; key check: `specs/026-service-scanner/ac11/keys025.py`.
+- **Fixed: py-tree-sitter 0.26.0 segfaults the scan.** The first AC-11 run exited 139 on 22 of 631 TS / JS files. 0.24 / 0.25 are fine; `pyproject.toml` pins `tree-sitter>=0.25,<0.26` (lock: 0.25.2). `tests/scanner/test_ts_native_stability.py` reproduces the crash with a synthetic 813-line spec file in a subprocess and asserts the installed version.
+
 ### Tests
 
-- `tests/scanner/test_templates.py` (49 tests): every AC-4 row, the block/binding gating (a keyword in prose or in an attribute value, `||` vs a pipe, a token inside a string literal and inside a comment), multi-line bindings and nested blocks at their own lines, the `(file, line)` site rule, the inline path (backtick, quoted, `${…}`, non-`@Component`, own-code decorator, a local class named `Component`), the Angular/non-Angular `.html` gate, the `test` flag, `--max-locations`, determinism and an unterminated `{{` that must not fail the scan.
+- `tests/scanner/test_templates.py` (66 tests): every AC-4 row, the block/binding gating (a keyword in prose or in an attribute value, `||` vs a pipe, a token inside a string literal and inside a comment), multi-line bindings and nested blocks at their own lines, the `(file, line)` site rule, the inline path (backtick, quoted, `${…}`, non-`@Component`, own-code decorator, a local class named `Component`), the Angular/non-Angular `.html` gate, the `test` flag, `--max-locations`, determinism and an unterminated `{{` that must not fail the scan.
 - New fixtures: `angular-templates/` (every block keyword, `*ngFor`, `{{ in }}`, `| date`, `a || b`, prose with `in`, a leading comment full of tokens, an inline multi-line and a single-line template) and `node-html/` (a Node module whose `index.html` is full of template syntax and must stay empty).
-- Whole scanner suite passes: 382 passed, 4 skipped. No spec1–spec4 test changed.
-- `tests/scanner/test_ts.py` / `test_ts_resolve.py` still pin `builtin.SOURCE_EXTRACTORS` to exactly the TS grammars, so the `html` extractor ships as `builtin.EXTRA_SOURCE_EXTRACTORS` and both are installed into the same registry. Relaxing those two assertions would have been an edit to an earlier spec's test.
+- Whole scanner suite passes: 405 passed in `tests/scanner`, 73 in the 025 key and canonicalization files. The review fixes add AC-4.2 cases to `test_templates.py` (49 → 66 tests) and a new `tests/scanner/test_ts_native_stability.py` (2 tests, subprocess) for the tree-sitter pin.
+- ~~`html` shipped as `builtin.EXTRA_SOURCE_EXTRACTORS` because two spec3 / spec4 tests pinned `SOURCE_EXTRACTORS` to the TS grammars.~~ Closed in the review fixes below.
 
 ### Verification on a real Angular app
 

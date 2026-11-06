@@ -83,6 +83,9 @@ _COMPONENT = "Component"
 #: The decorator option that holds an inline template.
 _TEMPLATE_OPTION = "template"
 
+#: Packages whose ``Component`` decorator takes an Angular template.
+_ANGULAR_COMPONENT_PACKAGES: frozenset[str] = frozenset({"@angular/core"})
+
 #: Node types whose body is a scope for shadowing checks.
 _SHADOWING_SCOPES: frozenset[str] = frozenset(
     {
@@ -537,7 +540,13 @@ class _Extractor:
         arguments = call.child_by_field_name("arguments")
         if arguments is None:
             return
-        component = (symbol or binding.symbol) == _COMPONENT
+        # Only Angular's ``@Component`` carries an Angular template: a Vue class
+        # component (``vue-property-decorator``) has a ``template`` option too.
+        # An own-code binding (a barrel re-export of ``Component``) is trusted,
+        # since spec4 is what follows it to ``@angular/core``.
+        component = (symbol or binding.symbol) == _COMPONENT and (
+            binding.own or binding.package in _ANGULAR_COMPONENT_PACKAGES
+        )
         for argument in arguments.named_children:
             if argument.type != "object":
                 continue
