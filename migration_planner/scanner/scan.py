@@ -14,11 +14,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from migration_planner.scanner import contract
+from migration_planner.scanner import builtin, contract
 from migration_planner.scanner.contract import (
     Diagnostic,
     ManifestContext,
     ManifestFile,
+    ModuleEnv,
+    PathMap,
     SCANNER_VERSION,
     SourceContext,
 )
@@ -76,6 +78,7 @@ def _manifest_contexts(discovery: DiscoveryResult) -> dict[str, ManifestContext]
             files=tuple(
                 sorted(by_module.get(module.path, []), key=lambda item: item.name)
             ),
+            scan_root=discovery.root,
         )
         for module in discovery.modules
     }
@@ -128,6 +131,7 @@ def scan(
     discovery = discover(root, include_tests=include_tests)
     if not discovery.has_supported_manifest:
         raise NoSupportedManifest(f"no supported manifest under {root}")
+    builtin.install()
 
     target = Path(out) if out is not None else default_profile_path(root)
     accumulator = FactAccumulator(max_locations=max_locations)
@@ -138,8 +142,12 @@ def scan(
 
     # --- manifests (spec2 npm, spec6 maven/gradle, spec8 spring config) ---
     contexts = _manifest_contexts(discovery)
+    environments: dict[str, ModuleEnv] = {}
+    angular_projects: dict[str, set[str]] = {}
     for module_path, context in sorted(contexts.items()):
         present = {manifest.kind for manifest in context.files}
+        own_packages: set[str] = set()
+        path_map: PathMap | None = None
         for reader, kinds in _registered_readers():
             if not present & kinds:
                 continue
@@ -162,6 +170,43 @@ def scan(
                 accumulator.add_framework(module_path, framework)
             for diagnostic in facts.diagnostics:
                 diagnostics.append(diagnostic)
+            own_packages.update(facts.own_packages)
+            if facts.angular_projects:
+                angular_projects.setdefault(module_path, set()).update(
+                    facts.angular_projects
+                )
+            if facts.path_map is not None and path_map is None:
+                path_map = facts.path_map
+        environments[module_path] = ModuleEnv(
+            module=module_path,
+            own_packages=tuple(sorted(own_packages)),
+            path_map=path_map,
+        )
+
+    # Own-code detection is repo-scoped, not module-scoped: an import of
+    # ``@demo/ui`` inside ``packages/core`` is still the repo's own code, and a
+    # package is importable under its name from any module (AC-8.2).
+    repo_packages = tuple(
+        sorted(
+            {
+                package
+                for environment in environments.values()
+                for package in environment.own_packages
+            }
+        )
+    )
+    # The profile records each module's own names; extractors get the repo-wide
+    # set (above), since any module may import any sibling package.
+    module_packages = {
+        module_path: environment.own_packages
+        for module_path, environment in environments.items()
+    }
+    for module_path, environment in environments.items():
+        environments[module_path] = ModuleEnv(
+            module=module_path,
+            own_packages=repo_packages,
+            path_map=environment.path_map,
+        )
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
     extractors = contract.source_extractors()
@@ -179,6 +224,7 @@ def scan(
                     language=file.kind,
                     test=file.test,
                     data=data,
+                    env=environments.get(file.module, ModuleEnv(module=file.module)),
                 )
             )
         except Exception as exc:  # one unparsable file never fails the scan
@@ -217,6 +263,8 @@ def scan(
                 accumulator.frameworks.get(module.path, []),
                 key=lambda item: (item.name, item.version),
             ),
+            angular_projects=sorted(angular_projects.get(module.path, ())),
+            own_packages=list(module_packages.get(module.path, ())),
         )
         for module in discovery.modules
     ]

@@ -10,7 +10,8 @@ Public entry points:
 - :func:`scan` — discover, read, merge, write ``.migration/profile.json``
 - :func:`discover` — file discovery and module roots
 - :mod:`migration_planner.scanner.contract` — the extractor contract that
-  specs 2–8 plug into
+  specs 2–8 plug into (``ModuleEnv`` / ``PathMap`` carry what spec2 read about a
+  module to the source extractors of specs 3–5)
 """
 
 from migration_planner.scanner.contract import (
@@ -24,6 +25,8 @@ from migration_planner.scanner.contract import (
     ManifestContext,
     ManifestFacts,
     ManifestFile,
+    ModuleEnv,
+    PathMap,
     SourceContext,
     Usage,
     register_manifest_reader,
@@ -60,7 +63,9 @@ __all__ = [
     "ManifestFacts",
     "ManifestFile",
     "Module",
+    "ModuleEnv",
     "NoSupportedManifest",
+    "PathMap",
     "Profile",
     "ScanResult",
     "SourceContext",

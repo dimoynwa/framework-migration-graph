@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Draft
+**Status**: Implemented (2026-11-06)
 
 **Depends on**: spec1 (CLI, discovery, modules, profile writer, extractor contract).
 Shared context (problem, principles, non-goals, profile schema): see `spec1.md`.
@@ -16,10 +16,13 @@ Shared context (problem, principles, non-goals, profile schema): see `spec1.md`.
 
 ### FR-3 Framework detection (Angular part)
 
-- **Angular version**, per module:
+- **Angular module**: only a module whose `package.json` declares `@angular/core` in any
+  dependency scope. A hoisted `node_modules/@angular/core` in a shared workspace lockfile does
+  not make a sibling package (a Node `server`) Angular.
+- **Angular version**, per Angular module:
   1. `package-lock.json` `packages["node_modules/@angular/core"].version`;
-  2. else `package.json` `dependencies["@angular/core"]` with its range kept as written
-     (`"^19.2.0"`) and a normalized `19.2.0` (lowest version satisfying the range).
+  2. else the declared `@angular/core` range kept as written (`"^19.2.0"`) and a normalized
+     `19.2.0` (lowest version satisfying the range; `>1.2` → `1.3.0` as in npm).
 - Result → `modules[].frameworks[] = {name: "angular", version, raw, source}`; the repo-level
   `framework` is chosen as in spec1 FR-3.
 
@@ -27,13 +30,18 @@ Shared context (problem, principles, non-goals, profile schema): see `spec1.md`.
 
 **`package.json`**
 - `dependencies`, `devDependencies`, `peerDependencies`, `optionalDependencies` →
-  `dependencies[]` with `{key: "npm:<name>", name, range, version, scope, module}`. `version`
-  comes from `package-lock.json` when present.
+  `dependencies[]` with `{key: "npm:<name>", name, range, version, version_source, scope,
+  module}`. `version` comes from `package-lock.json` when present (`version_source: lockfile`),
+  else the lowest version the range allows (`range`), else `null`.
+- **Lockfile lookup**: the module's own `package-lock.json`, else the nearest one in a parent
+  directory up to the scan root (an npm workspace root need not be the scan root:
+  `frontend/package-lock.json` serves `frontend/packages/ui`).
 - Config keys (scalars only, values truncated to 200 chars): `engines.*`, `type`,
   `browserslist`, `overrides.*`, `resolutions.*`, `workspaces` →
   `cfg:package.json#<dotted path>`.
-- `workspaces` package names are collected as **own packages** (used by spec3 to skip own-code
-  imports).
+- The package `name` and `workspaces` package names are collected as **own packages**.
+  `modules[].own_packages` lists each module's own names; source extractors get the repo-wide
+  union (used by spec3 to skip own-code imports of any sibling package).
 
 **`angular.json`**
 - Every scalar leaf → `cfg:angular.json#<dotted path>`, with the project name replaced by `*`:
@@ -60,6 +68,14 @@ Shared context (problem, principles, non-goals, profile schema): see `spec1.md`.
 - **AC-8.2**: an npm workspace fixture (root + two packages) → three modules, workspace
   package names recorded as own packages, each module with its own dependencies.
 - **AC-8.3**: a broken `package.json` → diagnostic, the scan continues and exits `0`.
+- **AC-8.4** (review 2026-11-06):
+  - a workspace with a hoisted `@angular/core` in the root lockfile → only the package that
+    declares it is an Angular module;
+  - `frontend/package-lock.json` gives the installed version to `frontend/packages/ui`;
+  - a lockfile > 2 MB is read, not skipped;
+  - `version_source` is `lockfile`, `range` or `null`;
+  - the build target's `tsConfig` wins over later targets, whatever their names;
+  - `>1` → `2.0.0`, `>1.2` → `1.3.0`, `>1.2.3` → `1.2.4`.
 
 - **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec1 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
 

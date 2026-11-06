@@ -19,7 +19,7 @@ Requirement IDs (FR-x, AC-x) are kept from the original single spec, so referenc
 | Spec | Part | FRs | ACs | Test after it lands | Effort |
 |---|---|---|---|---|---|
 | **spec1** | Package split, CLI, discovery, module roots, profile model + writer, determinism, isolation | FR-1, FR-2, FR-3 (module roots, repo framework), FR-9 | AC-9a, AC-10 | `migration-scan` on any repo writes a valid, deterministic profile with `modules[]` | ~7 h |
-| spec2 | npm manifests, tsconfig, Angular version | FR-3 (Angular), FR-4 | AC-8 | Angular repo: framework, `dependencies[]`, `cfg:package.json/angular.json/tsconfig.json` keys | ~3.5 h |
+| **spec2** | npm manifests, tsconfig, Angular version | FR-3 (Angular), FR-4 | AC-8 | Angular repo: framework, `dependencies[]`, `cfg:package.json/angular.json/tsconfig.json` keys | ~3.5 h |
 | spec3 | TS/JS imports, members, decorators (no barrels) | FR-5 (minus barrels) | AC-1, AC-3 | Angular repo: `symbols[]`, `members[]`, `side_effect_imports[]` | ~6 h |
 | spec4 | Barrel / alias resolution | FR-5 (barrels) | AC-2 | `@app/*` imports resolve to the external package at the import site | ~5 h |
 | spec5 | Angular templates + Angular real-service check | FR-6 | AC-4, AC-11 (Angular) | Angular repo: `templates[]`; full Angular profile validated on a real service | ~5.5 h |
@@ -178,7 +178,9 @@ migration-scan [PATH] [--out FILE] [--force] [--max-locations N] [--include-test
 - Build-output names `dist`, `build`, `target`, `out` are skipped only when no ancestor
   directory is `src`. Inside `src/` they are Java packages or app folders
   (`src/main/java/com/x/build/`), not build output.
-- Any file > 2 MB is skipped (counted in `diagnostics`).
+- Any source file > 2 MB is skipped (counted in `diagnostics`). Manifests get a 50 MB cap
+  instead: a real `package-lock.json` is often > 2 MB, and skipping it would replace installed
+  versions with range floors.
 - Outside git, the walk applies every `.gitignore` from the root down to the file's directory.
 - Generated / minified JS (`*.min.js`, a first line > 1 000 chars) is skipped and counted.
 - Each discovered file is classified as `manifest:<kind>` or `source:<lang>` or ignored, so
@@ -222,7 +224,7 @@ The full schema is defined now; sections whose spec is not implemented yet are e
   ],
   "dependencies": [
     { "key": "npm:@angular/platform-server", "range": "^19.2.0", "version": "19.2.4",
-      "scope": "dependencies", "module": ".", "kind": "dependency" }
+      "scope": "dependencies", "module": ".", "kind": "dependency", "version_source": "lockfile" }
   ],
   "symbols": [
     { "key": "npm:@angular/core#inject", "count": 1840, "files": 912, "type_only": false,

@@ -27,6 +27,22 @@ def polyglot_repo(tmp_path: Path) -> Path:
 
 
 @pytest.fixture()
+def angular_app(tmp_path: Path) -> Path:
+    """Copy of the angular-app fixture: package.json + lock + angular.json + 3 tsconfigs."""
+    target = tmp_path / "angular-app"
+    shutil.copytree(FIXTURES / "angular-app", target)
+    return target
+
+
+@pytest.fixture()
+def npm_workspace(tmp_path: Path) -> Path:
+    """Copy of the npm-workspace fixture: one root lockfile, two package modules."""
+    target = tmp_path / "npm-workspace"
+    shutil.copytree(FIXTURES / "npm-workspace", target)
+    return target
+
+
+@pytest.fixture()
 def make_repo(tmp_path: Path) -> "callable":
     """Build a throwaway tree from ``{relative path: content}``."""
 

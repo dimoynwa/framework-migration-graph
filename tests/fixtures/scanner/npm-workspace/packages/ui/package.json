@@ -1,0 +1,8 @@
+{
+  "name": "@demo/ui",
+  "version": "0.1.0",
+  "dependencies": {
+    "@angular/core": "^19.2.0",
+    "@demo/core": "workspace:*"
+  }
+}

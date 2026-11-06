@@ -66,9 +66,14 @@ class ModuleEntry(BaseModel):
     path: str = "."
     manifests: list[str] = Field(default_factory=list)
     frameworks: list[FrameworkInfo] = Field(default_factory=list)
-    # Filled by spec2 (angular.json), spec8 (Spring config files).
+    # Filled by spec2 (npm manifests), spec8 (Spring config files).
     angular_projects: list[str] = Field(default_factory=list)
     spring_config_files: list[str] = Field(default_factory=list)
+    # The names this module's own code is importable under: its ``package.json``
+    # ``name`` plus the npm workspace package names it declares (spec2). Spec3
+    # skips imports of every module's own packages (repo-wide) as own code, and
+    # the profile says why a symbol that appears in the codebase is not listed.
+    own_packages: list[str] = Field(default_factory=list)
 
 
 class DependencyEntry(BaseModel):
@@ -79,6 +84,8 @@ class DependencyEntry(BaseModel):
     scope: str = "dependencies"
     module: str = "."
     kind: str = "dependency"  # dependency | bom | parent | plugin (spec6)
+    # "lockfile" (installed) | "range" (lowest version the range allows) | None
+    version_source: str | None = None
 
 
 class LocationEntry(BaseModel):
@@ -241,6 +248,7 @@ class FactAccumulator:
                 scope=dependency.scope,
                 module=dependency.module,
                 kind=dependency.kind,
+                version_source=dependency.version_source,
             )
         )
 

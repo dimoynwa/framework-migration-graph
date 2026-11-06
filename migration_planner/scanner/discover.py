@@ -52,8 +52,13 @@ SKIPPED_DIRECTORIES: frozenset[str] = (
 
 _SOURCE_TREE_DIRECTORY = "src"
 
-# A file above this size is not read; it is counted as a diagnostic (FR-2).
+# A source file above this size is not read; it is counted as a diagnostic (FR-2).
 MAX_FILE_BYTES = 2 * 1024 * 1024
+
+# Manifests get a higher cap: a real Angular ``package-lock.json`` is often well
+# over 2 MB, and dropping it would silently replace installed versions with
+# range floors. The cap only guards against pathological files.
+MAX_MANIFEST_BYTES = 50 * 1024 * 1024
 
 # A first line longer than this marks generated / minified JS (FR-2).
 MAX_JS_FIRST_LINE = 1000
@@ -505,13 +510,14 @@ def discover(
             size = absolute.stat().st_size
         except OSError:
             continue
-        if size > MAX_FILE_BYTES:
+        limit = MAX_MANIFEST_BYTES if manifest_kind is not None else MAX_FILE_BYTES
+        if size > limit:
             result.skipped += 1
             result.diagnostics.append(
                 Diagnostic(
                     kind="file_too_large",
                     file=relative,
-                    detail=f"{size} bytes > {MAX_FILE_BYTES}",
+                    detail=f"{size} bytes > {limit}",
                 )
             )
             continue
@@ -584,6 +590,7 @@ __all__ = [
     "ALWAYS_SKIPPED_DIRECTORIES",
     "BUILD_OUTPUT_DIRECTORIES",
     "MAX_FILE_BYTES",
+    "MAX_MANIFEST_BYTES",
     "MAX_JS_FIRST_LINE",
     "MODULE_ROOT_MANIFESTS",
     "SKIPPED_DIRECTORIES",

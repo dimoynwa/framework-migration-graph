@@ -63,8 +63,9 @@ Nothing is written to `.gitignore`.
   directory. Inside `src/` they are ordinary Java packages or app folders
   (`src/main/java/com/x/build/`) and are scanned.
 - Walk mode applies every `.gitignore` from the root down to the file's directory.
-- A file over 2 MB is not read; a `*.min.js` or a JS file whose first line exceeds 1000
-  characters is treated as generated. Both are counted in `diagnostics`.
+- A source file over 2 MB is not read; a manifest gets a 50 MB cap instead, because a real
+  `package-lock.json` is often over 2 MB. A `*.min.js` or a JS file whose first line exceeds
+  1000 characters is treated as generated. Both are counted in `diagnostics`.
 - Each remaining file is classified `manifest:<kind>` or `source:<lang>`; anything else is
   ignored, so a later spec only registers a handler for its own kind.
 
@@ -80,7 +81,82 @@ The repo-level `framework` is the one detected in most modules; a tie is listed 
 `diagnostics` and broken deterministically by name. With no detection at all the summary says
 `no framework`.
 
-## Profile schema
+## npm manifests (026.2)
+
+One reader handles `package.json`, `package-lock.json`, `angular.json` and `tsconfig*.json`
+together, because they answer one question: what does this npm module declare, install and
+compile with? It runs once per module with all of that module's npm manifests.
+
+### `package.json`
+
+- `dependencies`, `devDependencies`, `peerDependencies` and `optionalDependencies` become
+  `dependencies[]` entries with `{key: "npm:<name>", range, version, scope, module}`. `range` is
+  the specifier exactly as written (`"^19.2.0"`); `version` is the **installed** version from
+  `package-lock.json` when it is known.
+- Config keys (scalars only, values truncated to 200 chars) come from `engines.*`, `type`,
+  `browserslist`, `overrides.*`, `resolutions.*` and `workspaces`:
+  `cfg:package.json#engines.node = ">=18.19.0"`. Lists keep their index
+  (`browserslist.0`), so no two facts collide on one key.
+- The package's own `name` and the names of its npm workspace packages are recorded in
+  `modules[].own_packages` (each module lists its own names). Source extractors get the
+  repo-wide union, so a later spec can tell an import of the repo's own code (any sibling
+  package) from an import of an external package.
+
+### `package-lock.json`
+
+Only versions are read: `packages["node_modules/<name>"].version`, with the module's own
+`node_modules` preferred over a hoisted one. Lockfile v1 `dependencies` is the fallback. A
+module without its own lockfile uses the nearest one in a parent directory up to the scan root,
+so `frontend/packages/ui` reads `frontend/package-lock.json`. `dependencies[].version_source` is
+`lockfile` (installed), `range` (the lowest version the range allows) or `null`.
+
+### Angular version (FR-3)
+
+Only a module whose `package.json` declares `@angular/core` (any scope) is an Angular module; a
+hoisted `@angular/core` in a shared lockfile does not make a sibling `server` package Angular.
+Its version is the lockfile's installed one, else the declared range kept as `raw` and
+normalized to the **lowest** version it allows (`>1.2` → `1.3.0`, as in npm). The repo-level `framework` is then
+the one found in most modules (026.1).
+
+| Range | Normalized |
+|---|---|
+| `^19.2.0` | `19.2.0` |
+| `~1.4` | `1.4.0` |
+| `>=18` | `18.0.0` |
+| `19.x` | `19.0.0` |
+| `^19.2.0 \|\| ^20.0.0` | `19.2.0` |
+| `*`, `latest`, `workspace:*`, `file:…` | `null` (no floor to normalize) |
+| anything else | `null` + an `unsupported_range` diagnostic |
+
+The floor is the right answer because the profile answers "which version *could* this service be
+on": with `^19.2.0` it may be any 19.x, and a rule that applies from 19.2 applies.
+
+### `angular.json`
+
+Every scalar leaf becomes a config key with the project name replaced by `*`, so one key
+describes every project:
+
+```text
+cfg:angular.json#projects.*.architect.build.builder = "@angular-devkit/build-angular:application"
+```
+
+Builders (`…architect.<target>.builder`) therefore land one key per target, which is what most
+rules are written against. The real project names go to `modules[].angular_projects`.
+
+### `tsconfig*.json`
+
+- JSON with comments and trailing commas is accepted (`strip_jsonc`, no dependency).
+- `extends` is followed inside the repo, giving the **effective** config. A config that
+  extends something in `node_modules` or outside the repo is not followed and produces a
+  `tsconfig_extends_outside_repo` diagnostic; a cycle produces `tsconfig_cycle`.
+- Scalar leaves of the effective `compilerOptions.*` and `angularCompilerOptions.*` become
+  `cfg:tsconfig.json#<dotted path>` — one file name, because `tsconfig.app.json` and
+  `tsconfig.spec.json` canonicalize to the same key in 025. Each key is emitted once, with
+  `file` saying which config it came from.
+- `compilerOptions.paths` and `baseUrl` are kept on the module as the **effective path map**
+  (`PathMap`, passed to source extractors), for import resolution in spec3 / spec4.
+
+
 
 `.migration/profile.json` is UTF-8 JSON with sorted keys and sorted lists: two scans of an
 unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
@@ -93,8 +169,10 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
   "inputs_hash": "sha256:…",
   "framework": { "name": "angular", "version": "19.2.0", "raw": "^19.2.0", "source": "package-lock.json" },
   "modules": [
-    { "path": ".", "manifests": ["package.json", "tsconfig.json"],
-      "frameworks": [{ "name": "angular", "version": "19.2.0" }], "angular_projects": ["payments-ui"] }
+    { "path": ".", "manifests": ["package.json", "angular.json", "tsconfig.json"],
+      "frameworks": [{ "name": "angular", "version": "19.2.0", "raw": "^19.2.0",
+                       "source": "package-lock.json" }],
+      "angular_projects": ["payments-ui"], "own_packages": ["payments-ui"] }
   ],
   "dependencies": [
     { "key": "npm:@angular/platform-server", "range": "^19.2.0", "version": "19.2.4",
@@ -127,8 +205,8 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | Section | Filled by |
 |---|---|
 | `generated`, `inputs_hash`, `modules[].path/manifests`, discovery `diagnostics` | **026.1** (this page) |
-| `framework`, `modules[].frameworks` | spec2 (Angular), spec6 (Spring Boot) |
-| `modules[].angular_projects`, npm `dependencies`, npm / angular / tsconfig `config` | spec2 |
+| `framework`, `modules[].frameworks` | **026.2** (Angular), spec6 (Spring Boot) |
+| `modules[].angular_projects`, `modules[].own_packages`, npm `dependencies`, npm / angular / tsconfig `config` | **026.2** |
 | `symbols`, `members`, `side_effect_imports` (TS/JS) | spec3, spec4 |
 | `templates` | spec5 |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | spec6 |
@@ -178,17 +256,20 @@ the two sides cannot drift.
 
 ## Extractor contract
 
-Each later 026 spec adds one module and registers it; the scan loop never changes.
+Each later 026 spec adds one module and registers it in `builtin.py`; the scan loop never
+changes.
 
-- **Manifest readers** receive a module root and its manifest files, and return `dependencies`,
-  `config`, `frameworks` and `diagnostics` fragments.
-- **Source extractors** receive one file (path, bytes, module, `test` flag) and return per-file
-  facts. They are pure functions of the file content, so spec9 can cache them and run them in a
-  process pool.
+- **Manifest readers** receive a module root, its manifest files and the scan root, and return
+  `dependencies`, `config`, `frameworks`, `diagnostics`, plus what source extractors need:
+  `own_packages` (own-code names) and `path_map` (the effective tsconfig import map). One reader
+  registered for several manifest kinds runs once per module with all of them.
+- **Source extractors** receive one file (path, bytes, module, `test` flag, and the module's
+  `ModuleEnv`) and return per-file facts. They are pure functions of the file content, so spec9
+  can cache them and run them in a process pool.
 - **Post-passes** run on the collected facts, before the profile is built (barrel resolution in
   spec4, own-package filtering in spec7).
 
-See `migration_planner/scanner/contract.py`.
+See `migration_planner/scanner/contract.py` and `migration_planner/scanner/builtin.py`.
 
 ## Package layout and isolation
 
@@ -197,9 +278,11 @@ migration_planner/            planner: runs in a service repo
   scanner/
     cli.py                    migration-scan
     discover.py               file discovery, classification, module roots
+    npm_manifests.py          package.json / lock / angular.json / tsconfig (026.2)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
+    builtin.py                the readers / extractors this package ships
 migration_keys/               pure key builders + Angular data (shared with ingestion)
   keys.py
   angular.py
@@ -212,10 +295,14 @@ it runs a scan with no `NEO4J_URI`, no `.env` and sockets blocked.
 ## Verifying a scan
 
 ```bash
-migration-scan /path/to/any/repo
-jq '.modules, .generated, .diagnostics' /path/to/repo/.migration/profile.json
+migration-scan /path/to/angular-service
+jq '.framework, (.dependencies | length), [.config[].key] | unique' .migration/profile.json
 migration-scan /tmp/empty-dir; echo $?    # → 2
 ```
 
-After 026.1, every fact count is `0` and `framework` is `null` on any repository: the readers
-and extractors arrive with specs 2–8.
+Expected on an Angular service after 026.2: `angular <version>` in the summary line, every
+declared npm dependency with its lockfile version, and
+`cfg:angular.json#projects.*.architect.build.builder` among the config keys. Compare
+`framework.version` with `npm ls @angular/core`.
+
+Symbols and members stay `0` until specs 3–7 land.

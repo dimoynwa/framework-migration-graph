@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence
 
 # Bumped whenever a parser or the merge rules change: it is part of
-# ``inputs_hash`` and invalidates the incremental cache (spec9).
+# ``inputs_hash`` and invalidates the incremental cache (spec9). Spec1's test
+# pins the value on purpose, so it only moves with a deliberate edit.
 SCANNER_VERSION = "026.1"
 
 
@@ -81,6 +82,9 @@ class DependencyFact:
     scope: str = "dependencies"
     module: str = "."
     kind: str = "dependency"
+    # Where ``version`` came from: ``"lockfile"`` (installed), ``"range"`` (the
+    # lowest version the declared range allows) or ``None`` (no version).
+    version_source: str | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +119,45 @@ class FrameworkFact:
     source: str = ""
 
 
+@dataclass(frozen=True)
+class PathMap:
+    """The effective TypeScript import map of one module (spec2 → spec3 / spec4).
+
+    ``base_url`` and ``paths_dir`` are scan-root-relative, so resolution never
+    depends on where the repo sits. ``paths`` keeps the targets as written
+    (``{"@app/*": ("src/app/*",)}``); ``paths_dir`` is the directory they are
+    relative to — ``baseUrl`` when the config sets one, else the directory of
+    the config file that declared ``paths`` (TypeScript's own rule).
+    """
+
+    base_url: str = ""  # "" when the config sets none
+    paths: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    paths_dir: str = "."
+    tsconfig: str = ""  # module-relative file the map came from
+
+
+@dataclass(frozen=True)
+class ModuleEnv:
+    """What the manifest readers learned about a module that source extractors need.
+
+    Not part of the profile: the profile records facts about *use*, while these
+    are the rules for deciding what counts as an import at all (spec3, spec4).
+    ``own_packages`` are the names this repo is importable under; ``path_map``
+    is the effective tsconfig import map.
+    """
+
+    module: str = "."
+    own_packages: tuple[str, ...] = ()
+    path_map: PathMap | None = None
+
+    def owns(self, specifier: str) -> bool:
+        """Whether a bare specifier names this repo's own code (``@demo/ui``)."""
+        for package in self.own_packages:
+            if specifier == package or specifier.startswith(package + "/"):
+                return True
+        return False
+
+
 # --- manifest readers ------------------------------------------------------
 
 
@@ -147,6 +190,9 @@ class ManifestContext:
     root: Path  # absolute module root
     module: str  # module path relative to the scan root ("." at the root)
     files: tuple[ManifestFile, ...]  # sorted by name
+    # Absolute scan root, so a reader can follow a reference that leaves the
+    # module but stays inside the repo (``tsconfig`` ``extends``, spec2).
+    scan_root: Path | None = None
 
     def by_kind(self, *kinds: str) -> tuple[ManifestFile, ...]:
         return tuple(manifest for manifest in self.files if manifest.kind in kinds)
@@ -164,6 +210,16 @@ class ManifestFacts:
     config: list[ConfigFact] = field(default_factory=list)
     frameworks: list[FrameworkFact] = field(default_factory=list)
     diagnostics: list[Diagnostic] = field(default_factory=list)
+    # ``modules[].angular_projects`` (spec2): the real project names of
+    # ``angular.json``, while the config keys carry ``*`` in their place.
+    angular_projects: list[str] = field(default_factory=list)
+    # Names the module's own code is importable under (``package.json`` ``name``
+    # plus npm workspace package names, spec2). Recorded in
+    # ``modules[].own_packages`` and handed to source extractors, so spec3 can
+    # tell an import of the repo's own code from an external package.
+    own_packages: list[str] = field(default_factory=list)
+    # The module's effective TypeScript path map (spec2), used by spec3 / spec4.
+    path_map: PathMap | None = None
 
 
 # --- source extractors -----------------------------------------------------
@@ -181,6 +237,9 @@ class SourceContext:
     )
     test: bool = False
     data: bytes = b""
+    # Own-package names and the tsconfig path map of the owning module (spec2),
+    # so an extractor can tell an external import from the repo's own code.
+    env: ModuleEnv = field(default_factory=ModuleEnv)
 
 
 @dataclass
@@ -220,7 +279,13 @@ _POST_PASSES: list[PostPass] = []
 
 
 def register_manifest_reader(kind: str, reader: ManifestReader) -> None:
-    """Handle one manifest classification (``"package.json"``, ``"pom.xml"``, …)."""
+    """Handle one manifest classification (``"package.json"``, ``"pom.xml"``, …).
+
+    Registering one reader for several kinds is how a reader that needs the
+    whole manifest family (npm: ``package.json`` + ``package-lock.json`` +
+    ``angular.json`` + ``tsconfig*.json``) is called once per module with all of
+    them in ``context.files``, instead of once per kind.
+    """
     _MANIFEST_READERS[kind] = reader
 
 

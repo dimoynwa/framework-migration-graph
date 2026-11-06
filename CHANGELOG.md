@@ -1,5 +1,38 @@
 # Changelog
 
+## [026.2-service-scanner] — 2026-11-06
+
+### New features
+
+- **npm manifests.** `migration_planner/scanner/npm_manifests.py` reads `package.json`, `package-lock.json`, `angular.json` and `tsconfig*.json` in one pass per module. All four dependency scopes (`dependencies`, `devDependencies`, `peerDependencies`, `optionalDependencies`) become `dependencies[]` entries with the range exactly as written and the **installed** version from the lockfile, so `npm:@angular/core` says `range: "^19.2.0"` and `version: "19.2.4"`. A module with no lockfile of its own reads the nearest one in a parent directory, which is how an npm workspace is installed.
+- **Config keys.** `package.json` `engines.*`, `type`, `browserslist`, `overrides.*`, `resolutions.*` and `workspaces` become `cfg:package.json#<dotted path>`, lists keeping their index. Every scalar leaf of `angular.json` becomes a key with the project name replaced by `*` — `cfg:angular.json#projects.*.architect.build.builder` — so one rule matches a repo with any number of projects, while the real names go to a new `modules[].angular_projects`. `tsconfig*.json` accepts comments and trailing commas, follows `extends` inside the repo, and emits `cfg:tsconfig.json#compilerOptions.*` / `angularCompilerOptions.*` from the **effective** config.
+- **Angular version (FR-3).** `package-lock.json` beats the `package.json` range: the framework version is what the build installs, not what the manifest wishes for. With no lockfile the range is kept as `raw` and normalized to the **lowest** version it allows (`^19.2.0` → `19.2.0`, `~1.4` → `1.4.0`, `>=18` → `18.0.0`, `19.x` → `19.0.0`, a `||` union → its lowest alternative). `*`, `latest`, `workspace:*` and `file:` carry no floor and stay `null` without a diagnostic; anything else is `unsupported_range`.
+- **Own packages.** A module's `package.json` `name` and its npm workspace package names are recorded in a new `modules[].own_packages` (per module) and handed to source extractors, as a repo-wide union, through the new `ModuleEnv`. That is the input spec3 needs to skip imports of the service's own code instead of recording them as external.
+- **Effective path map.** `compilerOptions.paths` and `baseUrl` are resolved across `extends` into a `PathMap` on the module — `paths` as written, `paths_dir` the directory they are relative to (`baseUrl` when set, else the config file that declared them, which is TypeScript's own rule) — for import resolution in spec3 / spec4.
+- **`builtin.py`.** The readers and extractors this package ships live in one registry list, so the scan loop still knows nothing about npm, Maven or Angular and a later spec only adds an entry.
+
+### Fixes
+
+- A `tsconfig` cycle or an `extends` pointing at `node_modules` used to be unresolvable; both are now diagnostics (`tsconfig_cycle`, `tsconfig_extends_outside_repo`) and the scan continues.
+- A `package.json` dependency whose value is not a string is a diagnostic (`invalid_dependency`) instead of a silently missing entry.
+
+### Fixes (review 2026-11-06)
+
+- **A hoisted `@angular/core` made every workspace package Angular.** A module is now Angular only when its `package.json` declares `@angular/core`; the lockfile supplies the exact version.
+- **A nested workspace root's lockfile was not found.** A module without its own `package-lock.json` now uses the nearest one in a parent directory up to the scan root (`frontend/package-lock.json` for `frontend/packages/ui`), not only the scan root's.
+- **A `package-lock.json` over 2 MB was skipped**, so versions fell back to range floors. Manifests now have a 50 MB cap; the 2 MB cap applies to sources.
+- **`modules[].own_packages` listed every package of the repo in every module**, a Maven module included. It now lists the module's own names; extractors still get the repo-wide union.
+- **`dependencies[].version_source`** (`lockfile` | `range` | `null`) says whether `version` is installed or a range floor.
+- The `tsconfig` of `angular.json` targets is chosen in declaration order (build first), not by file name.
+- `>1` / `>1.2` normalize to `2.0.0` / `1.3.0` as in npm (was `1.0.1` / `1.2.1`).
+- Removed the unused `npm_manifests.register()`; registration lives in `builtin.py`.
+
+### Tests
+
+- `tests/scanner/test_npm_manifests.py` (71 tests) covers AC-8 (lockfile beats range, all four scopes, `*`-normalized `angular.json` keys and per-target builders, comments / trailing commas / `extends`, effective paths), AC-8.2 (the npm workspace fixture → three modules, own packages, per-module dependencies) and AC-8.3 (a broken `package.json` → diagnostic, scan continues, exit `0`), plus the range normalizer and the JSONC stripper.
+- Two new fixtures: `tests/fixtures/scanner/angular-app/` (lockfile, two Angular projects, three tsconfigs) and `tests/fixtures/scanner/npm-workspace/` (root lockfile, two package modules).
+- The whole scanner suite and the 025 shared-key tests pass unchanged: 181 passed (`tests/scanner` 173, the 025 `test_shared_keys.py` 8), no regressions in the spec1 tests.
+
 ## [026.1-service-scanner] — 2026-11-06
 
 ### New features

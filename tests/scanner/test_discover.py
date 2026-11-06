@@ -286,3 +286,18 @@ def test_walk_mode_applies_every_ancestor_gitignore(make_repo) -> None:
     assert "a/b/x.gen.ts" not in relatives
     assert "a/b/y.ts" in relatives
     assert "c/z.gen.ts" in relatives
+
+
+def test_a_manifest_over_two_megabytes_is_not_skipped(make_repo) -> None:
+    """Lockfiles are routinely > 2 MB; only sources get the 2 MB cap (FR-2)."""
+    repo = make_repo(
+        {
+            "package.json": "{}\n",
+            "package-lock.json": b"{" + b" " * (MAX_FILE_BYTES + 1) + b"}",
+        }
+    )
+
+    result = discover(repo)
+
+    assert "package-lock.json" in _relatives(result)
+    assert not [d for d in result.diagnostics if d.kind == "file_too_large"]
