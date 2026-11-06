@@ -2,11 +2,14 @@
 
 from unittest.mock import MagicMock
 
-import neo4j
-import pytest
 from neo4j.exceptions import ClientError
 
-from migration_oracle.graph.indexes import _INDEXES, ensure_indexes
+from migration_oracle.graph.indexes import _DROPS, _INDEXES, ensure_indexes
+
+
+def _statement_count() -> int:
+    # Startup drops the pre-025 name constraints before creating the key ones.
+    return len(_DROPS) + len(_INDEXES)
 
 
 def _make_mock_driver(run_side_effect=None) -> MagicMock:
@@ -24,11 +27,19 @@ def _make_mock_driver(run_side_effect=None) -> MagicMock:
 def test_all_statements_run() -> None:
     mock_driver, mock_session = _make_mock_driver()
     ensure_indexes(mock_driver)
-    assert mock_session.run.call_count == len(_INDEXES)
+    assert mock_session.run.call_count == _statement_count()
+
+
+def test_drops_run_before_creates() -> None:
+    mock_driver, mock_session = _make_mock_driver()
+    ensure_indexes(mock_driver)
+    statements = [call.args[0] for call in mock_session.run.call_args_list]
+    assert statements[: len(_DROPS)] == list(_DROPS)
+    assert statements[len(_DROPS) :] == list(_INDEXES)
 
 
 def test_partial_failure_continues() -> None:
-    fulltext_stmt = _INDEXES[9]
+    fulltext_stmt = next(statement for statement in _INDEXES if "FULLTEXT" in statement)
 
     def run_side_effect(statement: str, **kwargs):
         if statement == fulltext_stmt:
@@ -36,11 +47,11 @@ def test_partial_failure_continues() -> None:
 
     mock_driver, mock_session = _make_mock_driver(run_side_effect=run_side_effect)
     ensure_indexes(mock_driver)
-    assert mock_session.run.call_count == len(_INDEXES)
+    assert mock_session.run.call_count == _statement_count()
 
 
 def test_idempotent_second_call() -> None:
     mock_driver, mock_session = _make_mock_driver()
     ensure_indexes(mock_driver)
     ensure_indexes(mock_driver)
-    assert mock_session.run.call_count == len(_INDEXES) * 2
+    assert mock_session.run.call_count == _statement_count() * 2

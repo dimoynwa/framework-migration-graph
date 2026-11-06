@@ -1,0 +1,396 @@
+{
+  "entities": [
+    {
+      "source_section": "behavioral",
+      "title": "Skip Hydration diagnostic NG8108 is now active",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/5b20bab96d20fe89b5cc4b4af28edbaae2604da1",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The extended diagnostic skipHydrationNotStatic (NG8108) existed but was never registered in the list of diagnostics that run, so referencing it in extendedDiagnostics.checks failed with TS-994005 as an unknown check. It is now wired into the running diagnostic list, so templates with strictTemplates enabled that bind ngSkipHydration dynamically will start reporting NG8108 and fail compilation until the attribute is made static.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "diagnostic",
+          "name": "NG8108",
+          "role": "mentioned",
+          "package": ""
+        },
+        {
+          "kind": "property",
+          "name": "extendedDiagnostics.checks",
+          "role": "mentioned",
+          "package": ""
+        },
+        {
+          "kind": "member",
+          "name": "ngSkipHydration",
+          "role": "mentioned",
+          "package": ""
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Recompile templates to surface new NG8108 errors",
+          "instruction": "Run a build or serve with `strictTemplates` enabled and inspect the output for NG8108 (`skipHydrationNotStatic`) errors on host elements using `ngSkipHydration`.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "The compiler output either reports no NG8108 errors or lists each offending `ngSkipHydration` usage.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Make ngSkipHydration a static attribute",
+          "instruction": "**Before/after:**\n```html\n<!-- Before: dynamic binding (now reported as NG8108) -->\n<div app-component [ngSkipHydration]=\"shouldSkip\"></div>\n\n<!-- After: static attribute, or conditional via *ngIf -->\n<div app-component ngSkipHydration></div>\n```\nIf the skip must be conditional, wrap the component in `*ngIf`. To suppress, disable the check via `extendedDiagnostics.checks`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [
+            0
+          ],
+          "verification": "Rebuilding produces no NG8108 `skipHydrationNotStatic` errors for the affected templates.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "setThrowInvalidWriteToSignalError handler receives the signal node",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/2588985f433b20a6a5a8d239347291f5d6fb2451",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "throwInvalidWriteToSignalError now takes the SignalNode<T> being written and forwards it to the handler, so setThrowInvalidWriteToSignalError's callback signature changed from () => never to <T>(node: SignalNode<T>) => never. Only code that installs a custom throw handler through this undocumented @angular/core/primitives/signals API is affected; ordinary signal()/computed() usage is unchanged. The extra parameter is runtime-compatible, so the risk is limited to type-checking of existing handlers.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "member",
+          "name": "setThrowInvalidWriteToSignalError",
+          "role": "removed",
+          "package": "@angular/core/primitives/signals"
+        },
+        {
+          "kind": "member",
+          "name": "throwInvalidWriteToSignalError",
+          "role": "mentioned",
+          "package": "@angular/core/primitives/signals"
+        },
+        {
+          "kind": "class",
+          "name": "SignalNode",
+          "role": "co-required",
+          "package": "@angular/core/primitives/signals"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Add SignalNode parameter to custom throw handler",
+          "instruction": "Update the handler passed to `setThrowInvalidWriteToSignalError` so it accepts the signal node.\n\n**Before/after:**\n```ts\n// before (19.1)\nsetThrowInvalidWriteToSignalError(() => { throw new Error('write to signal'); });\n// after (19.2)\nsetThrowInvalidWriteToSignalError(<T>(node: SignalNode<T>) => { throw new Error(`write to signal: ${node}`); });\n```",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compiles without an assignability error on the setThrowInvalidWriteToSignalError call, and a write to a readonly signal throws the error produced by the updated handler.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "feat(core): support streaming resources (#59573)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/bc2ad7bfd37a61992b550943de5da0eab2eec98b",
+      "change_type": "breaking_change",
+      "reason_type": "other",
+      "reason": "`resource()` gains a streaming variant: `ResourceOptions<T, R>` is now a union of `PromiseResourceOptions` and `StreamingResourceOptions` extending a new `BaseResourceOptions`, and `RxResourceOptions` no longer extends `Omit<ResourceOptions, 'loader'>`. Code that explicitly extends or annotates these interfaces is source-breaking, and `rxResource()` loaders whose Observable emits multiple values now stream every emission into `value()`/`error()` instead of only the first.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "medium"
+        },
+        {
+          "scope": "runtime",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "ResourceOptions",
+          "role": "removed",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "class",
+          "name": "PromiseResourceOptions",
+          "role": "replacement",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "class",
+          "name": "StreamingResourceOptions",
+          "role": "replacement",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "class",
+          "name": "BaseResourceOptions",
+          "role": "replacement",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "class",
+          "name": "ResourceStreamingLoader",
+          "role": "mentioned",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "class",
+          "name": "RxResourceOptions",
+          "role": "mentioned",
+          "package": "@angular/core/rxjs-interop"
+        },
+        {
+          "kind": "member",
+          "name": "StreamingResourceOptions.stream",
+          "role": "mentioned",
+          "package": ""
+        },
+        {
+          "kind": "member",
+          "name": "PromiseResourceOptions.loader",
+          "role": "mentioned",
+          "package": ""
+        },
+        {
+          "kind": "member",
+          "name": "rxResource",
+          "role": "mentioned",
+          "package": "@angular/core/rxjs-interop"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Use PromiseResourceOptions instead of ResourceOptions",
+          "instruction": "Replace explicit `ResourceOptions<T, R>` declarations with `PromiseResourceOptions<T, R>` from `@angular/core`.\n\n**Before/after:**\n```ts\n// before (19.1)\nexport interface MyResourceOptions<T, R> extends ResourceOptions<T, R> {}\n\n// after (19.2)\nexport interface MyResourceOptions<T, R> extends PromiseResourceOptions<T, R> {}\n```",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds and no reference to `ResourceOptions` as an extendable interface remains.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Extend BaseResourceOptions in RxResourceOptions declarations",
+          "instruction": "Where `RxResourceOptions<T, R>` is explicitly extended or referenced as base, use `BaseResourceOptions<T, R>` from `@angular/core`.\n\n**Before/after:**\n```ts\n// before (19.1)\nexport interface RxResourceOptions<T, R> extends Omit<ResourceOptions<T, R>, 'loader'> { ... }\n\n// after (19.2)\nexport interface RxResourceOptions<T, R> extends BaseResourceOptions<T, R> { loader: (params: ResourceLoaderParams<R>) => Observable<T>; }\n```",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation succeeds with `BaseResourceOptions` imported from `@angular/core`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Re-verify rxResource loaders emitting multiple values",
+          "instruction": "Check every `rxResource()` call whose `loader` Observable emits more than one value. Previously only the first value resolved the resource; now each `next` updates `resource.value()` and an `error` notification sets `resource.error()`. Adjust component state handling if it assumed a single resolution.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Tests covering the `rxResource()` observable show `resource.value()` updating on each emission and `resource.error()` set on error notifications.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Defer afterRender until after first CD",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/6789c7ef947952551d7598fe37a3d86093b75720",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Angular re-applied the fix that defers registration of view-associated afterRender/afterNextRender hooks until after the view's first render pass, storing the sequences on the LView and adding them via addAfterRenderSequencesForView during refreshView. Applications that registered such hooks (or afterRender-phase effects) in a component constructor/ngOnInit and relied on them running during the very first change detection cycle of that view may see different timing, and hooks that previously never fired may now fire.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "member",
+          "name": "afterRender",
+          "role": "mentioned",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "member",
+          "name": "afterNextRender",
+          "role": "mentioned",
+          "package": "@angular/core"
+        },
+        {
+          "kind": "member",
+          "name": "effect",
+          "role": "mentioned",
+          "package": "@angular/core"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-verify afterRender and afterNextRender callbacks",
+          "instruction": "Audit afterRender/afterNextRender callbacks and afterRender-phase effects registered in a component's constructor or ngOnInit. **Before/after:** hooks previously could run during the current change detection run of the view; now they are only added after the view's first render completes, so adjust any callback that measured DOM too early or counted hook invocations.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The callback observes a populated DOM when it fires, and any invocation-count assertions match the new single registration after the view's first render.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "platform-server decoupled from animations; animations auto-disable on server",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/e6cb411e4393a4b1f5852d3d7c5b9622504399b1",
+      "change_type": "behavior_change",
+      "reason_type": "dependency_alignment",
+      "reason": "On the server, `provideAnimations()` now resolves `AnimationDriver` to `NoopAnimationDriver` and `ANIMATION_MODULE_TYPE` to `'NoopAnimations'` because `ngServerMode` is set, so `@angular/platform-server` no longer imports `NoopAnimationsModule` and drops its `@angular/animations` peer dependency. Upgraders relying on the implicit animations import, on `'BrowserAnimations'` during SSR, or on the transitive `@angular/animations` install will see changed rendering or a missing dependency.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "medium"
+        },
+        {
+          "scope": "build",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "provideAnimations",
+          "role": "mentioned",
+          "package": "@angular/platform-browser/animations"
+        },
+        {
+          "kind": "class",
+          "name": "provideAnimationsAsync",
+          "role": "mentioned",
+          "package": "@angular/platform-browser/animations"
+        },
+        {
+          "kind": "class",
+          "name": "NoopAnimationsModule",
+          "role": "replacement",
+          "package": "@angular/platform-browser/animations"
+        },
+        {
+          "kind": "class",
+          "name": "BrowserAnimationsModule",
+          "role": "replacement",
+          "package": "@angular/platform-browser/animations"
+        },
+        {
+          "kind": "class",
+          "name": "ServerModule",
+          "role": "mentioned",
+          "package": "@angular/platform-server"
+        },
+        {
+          "kind": "class",
+          "name": "provideServerRendering",
+          "role": "mentioned",
+          "package": "@angular/platform-server"
+        },
+        {
+          "kind": "class",
+          "name": "ANIMATION_MODULE_TYPE",
+          "role": "mentioned",
+          "package": "@angular/animations"
+        },
+        {
+          "kind": "dependency",
+          "name": "@angular/animations",
+          "role": "co-required",
+          "package": ""
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Keep @angular/animations as explicit dependency",
+          "instruction": "**Before/after:** before — `@angular/animations` was pulled in transitively through `@angular/platform-server` peerDependencies; after — add `@angular/animations` to `package.json` dependencies if any code imports `@angular/animations` or `@angular/platform-browser/animations`.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`npm ls @angular/animations` resolves the package from the project root after a clean install and `ng build` does not error with a missing module.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "replace",
+          "summary": "Import animations module explicitly instead of implicit server import",
+          "instruction": "**Before/after:** before — animations were loaded implicitly by `ServerModule` (which imported `NoopAnimationsModule`); after — `ServerModule` has no animations import, so import `BrowserAnimationsModule` or `NoopAnimationsModule` explicitly in your application or test module.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [
+            0
+          ],
+          "verification": "The application (and `ServerTestingModule`-based tests) compile and render with the animations directives resolved without relying on `ServerModule` imports.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "replace",
+          "summary": "Use 'NoopAnimations' for server-side ANIMATION_MODULE_TYPE checks",
+          "instruction": "**Before/after:** `ANIMATION_MODULE_TYPE === 'BrowserAnimations'` → `ANIMATION_MODULE_TYPE === 'NoopAnimations'` in any code path executed during server rendering.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "An SSR unit test asserting the injected `ANIMATION_MODULE_TYPE` value returns `'NoopAnimations'`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 3,
+          "step_type": "verify",
+          "summary": "Re-verify SSR rendering of animated views",
+          "instruction": "Render the SSR/prerender output of views that use animations or animation-driven directives; animations are now no-op on the server even when `provideAnimations()` or `provideAnimationsAsync()` are used.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [
+            1,
+            2
+          ],
+          "verification": "`ng build` with prerendering/SSR completes and the generated server HTML matches the expected markup without depending on animation state.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    }
+  ]
+}

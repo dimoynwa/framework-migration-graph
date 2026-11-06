@@ -193,9 +193,8 @@ class SpringBootExtractor(BaseExtractor):
     async def extract(
         self, from_version: str, to_version: str, *, hop_context: HopContext | None = None
     ) -> ExtractionResult:
-        tag_candidates = [f"v{to_version}", to_version]
-        source_url, body = await self.fetch_github_release(
-            SPRING_BOOT_REPO, to_version, tag_candidates
+        release_changes, source_url = await self._fetch_release_changes(
+            from_version, to_version, hop_context
         )
         # The wiki page is a whole minor line ("Spring-Boot-3.3-Release-Notes"), so
         # it belongs to the hop that enters that line. Attaching it to every patch
@@ -216,7 +215,7 @@ class SpringBootExtractor(BaseExtractor):
             else ("", [])
         )
 
-        changes = self.parse_github_release_text(body, source_url)
+        changes = release_changes
         try:
             changes = await self._enrich_release_changes(changes)
         except Exception as exc:
@@ -234,6 +233,61 @@ class SpringBootExtractor(BaseExtractor):
                 f"from {source_url}"
             )
         return ExtractionResult(changes=changes, metadata={})
+
+    async def _fetch_release_changes(
+        self,
+        from_version: str,
+        to_version: str,
+        hop_context: HopContext | None,
+    ) -> tuple[list[DocumentedChange], str]:
+        """
+        Parse the GitHub release notes of every release the hop covers.
+
+        A minor hop ``4.0.0 → 4.1.0`` reads ``4.1.0-M1 … 4.1.0-RC1`` and ``4.1.0``:
+        the GA notes alone only list what changed since the last RC. Missing
+        intermediate releases are logged and skipped; a missing ``to_version``
+        release raises as before. Rows repeated across releases are kept once.
+        """
+        releases = (
+            hop_context.release_versions
+            if hop_context is not None and hop_context.to_version == to_version
+            else (to_version,)
+        )
+        changes: list[DocumentedChange] = []
+        seen: set[str] = set()
+        to_source_url = ""
+        for version in releases:
+            try:
+                source_url, body = await self.fetch_github_release(
+                    SPRING_BOOT_REPO, version, [f"v{version}", version]
+                )
+            except RuntimeError:
+                if version == to_version:
+                    raise
+                logger.warning(
+                    "Spring Boot: no release notes for %s (hop %s → %s), skipped",
+                    version,
+                    from_version,
+                    to_version,
+                )
+                continue
+            if version == to_version:
+                to_source_url = source_url
+            for change in self.parse_github_release_text(body, source_url):
+                key = change.statement.strip()
+                if key in seen:
+                    continue
+                seen.add(key)
+                changes.append(change)
+        if len(releases) > 1:
+            logger.info(
+                "Spring Boot: hop %s → %s read release notes of %d releases (%s)",
+                from_version,
+                to_version,
+                len(releases),
+                ", ".join(releases),
+            )
+        return changes, to_source_url
 
     async def build_range_metadata(
         self, from_version: str, to_version: str

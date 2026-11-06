@@ -310,6 +310,7 @@ def build_commit_change(
     meta["angular_package"] = commit["scope"]
     meta["angular_commit_type"] = commit["type"]
     meta["github_fixes"] = list(commit["fixes"])
+    meta["github_files"] = list(commit["files"])
     meta["has_schematic"] = has_schematic(commit["files"])
     if commit["pr"] is not None:
         meta["github_pr"] = commit["pr"]

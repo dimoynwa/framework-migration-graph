@@ -78,9 +78,23 @@ def test_minor_granularity_keeps_line_starts_and_endpoints() -> None:
     ]
 
 
-def test_granularity_defaults_to_patch() -> None:
+def test_select_hop_versions_defaults_to_patch() -> None:
+    """The library default stays patch; the CLI default (HOP_GRANULARITY) is minor."""
     assert validate_hop_granularity("PATCH") == "patch"
     assert select_hop_versions(VERSIONS, "3.2.0", "3.2.4") == ["3.2.0", "3.2.1", "3.2.4"]
+
+
+def test_cli_default_granularity_is_minor(monkeypatch: pytest.MonkeyPatch) -> None:
+    import importlib
+
+    from migration_oracle import config
+
+    monkeypatch.delenv("HOP_GRANULARITY", raising=False)
+    try:
+        assert importlib.reload(config).HOP_GRANULARITY == "minor"
+    finally:
+        monkeypatch.undo()
+        importlib.reload(config)
 
 
 def test_unknown_granularity_rejected() -> None:
@@ -195,12 +209,12 @@ def _stub_llm_stages(monkeypatch: pytest.MonkeyPatch) -> list[dict]:
     """Replace filter/entity/populate stages and record populate calls per hop."""
     populate_calls: list[dict] = []
 
-    def _filter(raw_md: str, *, output_path: Path, flags) -> FilterResult:
+    def _filter(raw_md: str, *, output_path: Path, flags, research=None) -> FilterResult:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("## 🔴 Breaking Changes\n", encoding="utf-8")
         return FilterResult(filtered_md="## 🔴 Breaking Changes\n", artifact_path=output_path)
 
-    def _entity(filtered_md: str, *, framework_display: str, output_path: Path, flags):
+    def _entity(filtered_md: str, *, framework_display: str, output_path: Path, flags, **_extra):
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(MINIMAL_BATCH.model_dump_json(indent=2), encoding="utf-8")
         return LLMExtractionResult(batch=MINIMAL_BATCH, artifact_path=output_path)
@@ -293,6 +307,8 @@ def test_cli_hop_by_hop_extract_only_writes_per_hop_raw_files(
             "3.2.4",
             "--hop-by-hop",
             "--extract-only",
+            "--hop-granularity",
+            "patch",
         ],
         env={"NEO4J_URI": "bolt://localhost:7687", "NEO4J_PASSWORD": "test"},
     )
@@ -397,6 +413,8 @@ def test_cli_hop_by_hop_populates_milestone_hops(
             "4.0.6",
             "4.1.0-RC1",
             "--hop-by-hop",
+            "--hop-granularity",
+            "patch",
         ],
         env={"NEO4J_URI": "bolt://localhost:7687", "NEO4J_PASSWORD": "test"},
     )

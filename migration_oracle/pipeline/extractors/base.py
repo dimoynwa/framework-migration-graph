@@ -37,6 +37,9 @@ __all__ = [
 from migration_oracle.pipeline.extractors.parsing import (
     compute_hops,
     enters_new_minor_line,
+    is_version_alias,
+    releases_covered_by_hop,
+    resolve_version_alias,
     select_hop_versions,
     validate_hop_granularity,
 )
@@ -70,6 +73,14 @@ class HopContext:
     from_version: str
     to_version: str
     granularity: str = "patch"
+    #: Releases whose notes document this hop (intermediate milestones/patches
+    #: on the target line plus ``to_version``). Empty means ``(to_version,)``.
+    covered_versions: tuple[str, ...] = ()
+
+    @property
+    def release_versions(self) -> tuple[str, ...]:
+        """Releases to read notes from, oldest first; always ends at ``to_version``."""
+        return self.covered_versions or (self.to_version,)
 
     @property
     def enters_minor_line(self) -> bool:
@@ -489,6 +500,8 @@ class BaseExtractor(ABC):
         """Discover releases and plan the hop boundaries for ``granularity``."""
         granularity = validate_hop_granularity(granularity)
         versions = await self.discover_versions()
+        from_version = resolve_version_alias(versions, from_version)
+        to_version = resolve_version_alias(versions, to_version)
         boundaries = select_hop_versions(
             versions, from_version, to_version, granularity
         )
@@ -497,9 +510,22 @@ class BaseExtractor(ABC):
                 from_version=hop_from,
                 to_version=hop_to,
                 granularity=granularity,
+                covered_versions=releases_covered_by_hop(versions, hop_from, hop_to),
             )
             for hop_from, hop_to in compute_hops(boundaries)
         ]
+
+    async def resolve_versions(
+        self, from_version: str, to_version: str
+    ) -> tuple[str, str]:
+        """Resolve ``latest`` / ``latest-ga`` / ``X.Y.Z-SNAPSHOT`` to published releases."""
+        if not (is_version_alias(from_version) or is_version_alias(to_version)):
+            return from_version, to_version
+        versions = await self.discover_versions()
+        return (
+            resolve_version_alias(versions, from_version),
+            resolve_version_alias(versions, to_version),
+        )
 
     async def extract_contexts(
         self,

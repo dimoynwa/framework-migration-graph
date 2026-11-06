@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from pydantic import ValidationError
@@ -25,22 +27,19 @@ Your job is to decompose each table row into a typed, machine-readable entity fo
 
 ---
 
-## INTERNET RESEARCH (mandatory)
+## RESEARCH APPENDIX
 
-Before writing steps[].instruction and steps[].verification, search the internet for authoritative \
-migration guidance whenever the source text is thin, ambiguous, or references an API without \
-explaining how to migrate it. Do not skip this even when a change looks obvious.
+The document may end with a `## Research` section written by a research step that read the \
+row's sources and the official documentation. Each block in it is headed \
+`### <section heading> #<row number> — <Title>` and is evidence for exactly that table row \
+(same section heading, same `#`, same Title). Research blocks are NOT rows: never create an \
+entity from a research block, and never count its heading as a section.
 
-Search targets (priority order):
-1. Official framework migration guide for this version range
-2. Official Javadoc / TypeDoc for removed and replacement types
-3. GitHub issues, release notes, or PR descriptions linked from the JIRA key
-4. Stack Overflow accepted/highly-voted answers for the specific API change
-
-Use search findings to confirm the exact replacement API, fill in method signatures or config \
-structure omitted by the source text, identify co-required changes, and write a verification \
-signal that is observable without ambiguity. If findings extend or correct the source text, use \
-the richer information (you may add a parenthetical such as "per {framework} migration guide").
+Use a row's research block as your evidence. Prefer its cited facts over memory. Do not invent \
+APIs, properties or coordinates absent from the row and its research block. When the block says \
+`no_action`, emit the entity with no steps unless the row text clearly requires one. A row \
+without a research block uses only its own table text. The `## Summary by Priority` and \
+`## 🚨 Most Critical Items for Migration` sections restate rows; do not create entities from them.
 
 ---
 
@@ -63,7 +62,7 @@ Copy the Title column verbatim. Do not paraphrase. Maximum 15 words.
 Copy the JIRA column. Split on comma. Strip whitespace. "N/A" → [].
 
 ### source_url
-URL of the source document or GitHub release page. Empty string if not available.
+The first URL in the row's Sources column. Empty string when Sources is missing, empty, or N/A.
 
 ### change_type
 One of: breaking_change | mandatory_migration | dependency_upgrade | deprecation |
@@ -82,7 +81,7 @@ dependency_alignment | bugfix | other | "" (if unclear).
 
 ### reason
 1–3 sentences: what changed, why it matters for upgraders, and what migration risk it introduces.
-Use only information present in the source text. Do not invent.
+Use only information present in the row and its research block. Do not invent.
 
 ### scopes
 At least one { "scope": ..., "severity": ... } entry.
@@ -103,7 +102,7 @@ severity values:
 A single change may have multiple scope entries (e.g. api-surface/critical + build/high).
 
 ### entities
-One entry per class, property, or dependency named in the source text. Do not invent names.
+One entry per class, property, or dependency named in the row or its research block. Do not invent names.
 
   kind: "class" | "property" | "dependency"
   name: FQCN (e.g. org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter)
@@ -126,7 +125,7 @@ Fields per step:
   index        — 0-based position in this entity's sequence
   step_type    — "remove" | "rename" | "replace" | "configure" | "verify" | "namespace"
   summary      — ≤10 words naming the specific API, property, or artifact (not a generic label)
-  instruction  — Full concrete action enriched by internet research. Name the exact class,
+  instruction  — Full concrete action. When a Research appendix is present, use its cited facts. Name the exact class,
                  method signature, property key, or dependency coordinate to change; the exact
                  replacement; and any co-required changes. Must not be vague.
   effort       — "mechanical" | "moderate" | "architectural"
@@ -136,12 +135,12 @@ Fields per step:
   automatable  — true only for rename/namespace/configure steps that are purely mechanical
   requires     — list of prerequisite step indices within this entity. [] if none.
   verification — observable signal that confirms success. Must not be vague.
-  cli_operation — WildFly CLI fragment only. Empty string for {framework}.
+  cli_operation — {cli_rule}
 
 Step decomposition:
   Two sequential actions (remove X then add Y) → two steps; second has requires: [0]
   Two parallel actions → two steps; both with requires: []
-  Do not invent steps not supported by the source text.
+  Do not invent steps not supported by the row or its research block.
 
 GOOD instruction examples:
   "Rename `spring.datasource.url` to `spring.datasource.jdbc-url` in all application*.yml and \
@@ -166,7 +165,7 @@ BAD verifications (never write these):
   "Validate the change."
 
 ### subsystem
-Empty string "" for {framework}. (WildFly subsystem names only.)
+{subsystem_rule}
 
 ---
 
@@ -186,7 +185,7 @@ Empty string "" for {framework}. (WildFly subsystem names only.)
 - Every entity has non-empty source_section, title, change_type, and reason
 - source_section is one of the seven valid literals
 - Every entity has at least one scopes entry with valid scope and severity
-- Internet research performed for every step where source text was thin or omitted exact API names
+- Prefer cited facts from the Research appendix over memory. Do not invent APIs, properties, or coordinates absent from the row and its research
 - steps[].summary names the specific API, property, or artifact — not a generic label
 - steps[].instruction names exact class names, method signatures, property keys, coordinates
 - steps[].verification is observable
@@ -194,7 +193,7 @@ Empty string "" for {framework}. (WildFly subsystem names only.)
 - entities[].name uses FQCN / dotted key / groupId:artifactId
 - role: "removed" entities have a corresponding role: "replacement" when a replacement is named
 - No test-only, CI-only, or doc-only entries unless they carry production impact
-- subsystem is empty string for {framework}
+- {subsystem_check}
 - JSON is valid — no trailing commas, all strings double-quoted, arrays properly closed
 - Output is ONLY the JSON object — no surrounding markdown, no explanations
 
@@ -210,6 +209,9 @@ _JSON_BLOCK_RE = re.compile(r"\{[\s\S]*\}")
 class ExtractionResult:
     batch: MigrationEntitiesBatch
     artifact_path: Path
+    # Dossier mode: clusters whose entity call failed. A hop with failures is
+    # not populated, because an existing Version node is never repopulated.
+    failed_clusters: int = 0
 
 
 def _parse_json_response(text: str) -> MigrationEntitiesBatch:
@@ -223,9 +225,92 @@ def _parse_json_response(text: str) -> MigrationEntitiesBatch:
         return MigrationEntitiesBatch.model_validate_json(match.group(0))
 
 
+def entity_input_digest_path(output_path: Path) -> Path:
+    """Sidecar holding the sha256 of the filtered Markdown plus research appendix."""
+    return output_path.with_name(output_path.name + ".input.sha256")
+
+
+def entity_max_input_tokens() -> int:
+    raw = os.environ.get("ENTITY_MAX_INPUT_TOKENS", "").strip()
+    if not raw:
+        return 60000
+    return max(1, int(raw))
+
+
+def refresh_flags_for_entity_input(
+    flags: CacheFlags,
+    document: str,
+    output_path: Path,
+    *,
+    has_appendix: bool,
+) -> CacheFlags:
+    """Re-run the entity LLM when the research appendix changed the input."""
+    if not flags.skip_entity_llm or not output_path.exists():
+        return flags
+    digest_path = entity_input_digest_path(output_path)
+    if digest_path.exists():
+        changed = digest_path.read_text(encoding="utf-8").strip() != _digest(document)
+    else:
+        changed = has_appendix
+    if not changed:
+        return flags
+    print(
+        "Entity input changed since the cached entities JSON was built "
+        f"({output_path}); re-running the entity LLM step.",
+        file=sys.stderr,
+    )
+    return replace(flags, skip_entity_llm=False, stale_json_warning=False)
+
+
+def _estimate_tokens(text: str) -> int:
+    return len(text) // 4
+
+
+def _digest(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _write_input_digest(document: str, output_path: Path) -> None:
+    entity_input_digest_path(output_path).write_text(_digest(document) + "\n", encoding="utf-8")
+
+
+_WILDFLY_RULES = {
+    "{subsystem_rule}": (
+        'The WildFly subsystem the change belongs to, as named in the management model '
+        '(e.g. "undertow", "elytron", "messaging-activemq", "datasources"). '
+        'Empty string "" when the change is not specific to one subsystem.'
+    ),
+    "{cli_rule}": (
+        "A jboss-cli.sh operation that performs this step when one exists "
+        '(e.g. "/subsystem=undertow/server=default-server:write-attribute(name=..., value=...)"). '
+        "Empty string when the step is not a management-model change."
+    ),
+    "{subsystem_check}": (
+        "subsystem names the WildFly subsystem when the change belongs to one; "
+        "cli_operation is set for management-model steps"
+    ),
+}
+
+_OTHER_RULES = {
+    "{subsystem_rule}": 'Always the empty string "" for this framework.',
+    "{cli_rule}": "Always the empty string for this framework.",
+    "{subsystem_check}": "subsystem and cli_operation are empty strings for this framework",
+}
+
+
+def _render_prompt(framework: str, changes_text: str) -> str:
+    """Plain substitution. The document is inserted last so its braces are never parsed."""
+    rules = _WILDFLY_RULES if "wildfly" in framework.lower() else _OTHER_RULES
+    prompt = EXTRACTION_PROMPT
+    for placeholder, text in rules.items():
+        prompt = prompt.replace(placeholder, text)
+    prompt = prompt.replace("{framework}", framework)
+    return prompt.replace("{changes_text}", changes_text)
+
+
 def _invoke_structured(filtered_md: str, framework: str) -> MigrationEntitiesBatch:
     llm = get_llm()
-    prompt = EXTRACTION_PROMPT.format(framework=framework, changes_text=filtered_md)
+    prompt = _render_prompt(framework, filtered_md)
     try:
         structured = llm.with_structured_output(MigrationEntitiesBatch)
         result = structured.invoke(prompt)
@@ -245,7 +330,14 @@ def run_extraction(
     framework_display: str,
     output_path: Path,
     flags: CacheFlags,
+    section_documents: list[str] | None = None,
+    max_input_tokens: int | None = None,
 ) -> ExtractionResult:
+    """Extract entities from ``filtered_md``, which may include a Research appendix.
+
+    When that document is larger than ``ENTITY_MAX_INPUT_TOKENS``, each filtered
+    section is sent on its own and the entities are concatenated.
+    """
     if flags.skip_entity_llm and output_path.exists():
         try:
             batch = MigrationEntitiesBatch.model_validate_json(
@@ -266,8 +358,12 @@ def run_extraction(
             raise SystemExit(1)
         return ExtractionResult(batch=batch, artifact_path=output_path)
 
+    limit = entity_max_input_tokens() if max_input_tokens is None else max_input_tokens
+    parts = [filtered_md]
+    if _estimate_tokens(filtered_md) > limit and section_documents:
+        parts = list(section_documents)
     try:
-        batch = _invoke_structured(filtered_md, framework_display)
+        batches = [_invoke_structured(part, framework_display) for part in parts]
     except ValidationError as exc:
         print(f"Entity extraction JSON validation failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
@@ -278,6 +374,9 @@ def run_extraction(
         print(f"Entity extraction failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
+    batch = MigrationEntitiesBatch(
+        entities=[entity for item in batches for entity in item.entities]
+    )
     if not batch.entities:
         print("Entity extraction returned zero entities.", file=sys.stderr)
         raise SystemExit(1)
@@ -287,4 +386,5 @@ def run_extraction(
         json.dumps(batch.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+    _write_input_digest(filtered_md, output_path)
     return ExtractionResult(batch=batch, artifact_path=output_path)

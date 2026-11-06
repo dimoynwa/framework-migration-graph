@@ -166,7 +166,7 @@ def test_cli_skips_filter_llm_when_nodes_file_exists(
         filter_calls += 1
         raise AssertionError("filter LLM must be skipped")
 
-    def _mock_entity_extraction(filtered_md, *, framework_display, output_path, flags):
+    def _mock_entity_extraction(filtered_md, *, framework_display, output_path, flags, **_extra):
         from migration_oracle.pipeline.extractor import ExtractionResult
 
         batch = MigrationEntitiesBatch.model_validate_json(_minimal_entities_json())

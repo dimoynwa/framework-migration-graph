@@ -11,6 +11,7 @@ build/
 # Environment
 .env
 .env.*
+!.env.example
 
 # Test / coverage
 .pytest_cache/
@@ -35,3 +36,15 @@ artifacts/
 probe-results/
 .agents/
 .claude/worktrees/
+
+# Per-change research dossiers. Kept local: a later run reuses a hop's
+# *-research.jsonl before the row cache (artifacts/research/), but the files
+# are regenerated output, so they stay out of the repo.
+runs/research/
+
+# Review/audit output of the dossier, canonicalization and signal stages
+# (specs 024/025/027). Regenerated at every populate; the resumable caches
+# live under ARTIFACT_CACHE_DIR (artifacts/), so these stay out of the repo.
+runs/clusters/
+runs/canonical/
+runs/signals/

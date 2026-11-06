@@ -65,14 +65,14 @@ def test_quickstart_dry_run_creates_artifacts(
     json_path = tmp_path / "entities.json"
 
     monkeypatch.chdir(tmp_path)
-    def _mock_filter(raw_md: str, output_path: Path, flags) -> FilterResult:
+    def _mock_filter(raw_md: str, output_path: Path, flags, research=None) -> FilterResult:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text("## 🔴 Breaking Changes\n", encoding="utf-8")
         return FilterResult(
             filtered_md="## 🔴 Breaking Changes\n", artifact_path=output_path
         )
 
-    def _mock_extract(filtered_md: str, framework_display: str, output_path: Path, flags) -> ExtractionResult:
+    def _mock_extract(filtered_md: str, framework_display: str, output_path: Path, flags, **_extra) -> ExtractionResult:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         batch = _sample_batch()
         output_path.write_text(batch.model_dump_json(indent=2) + "\n", encoding="utf-8")

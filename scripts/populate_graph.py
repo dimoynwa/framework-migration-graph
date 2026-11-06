@@ -84,6 +84,7 @@ def _populate_one(
     result = populate_graph(
         batch=batch,
         framework_display=display_name,
+        framework_key=framework,
         to_version=to_version,
         from_version=from_version,
         raw_md_path=str(raw_path),

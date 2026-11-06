@@ -90,11 +90,52 @@ FINDIT_CACHE_LOAD_TIMEOUT_SECONDS: float = float(
 
 # --- Pipeline hop configuration -------------------------------------------
 # Version-hop granularity for export-extract-populate-framework runs.
+#   minor — one hop per minor line (3.1.12 → 3.2.0 → 3.2.4). Default.
 #   patch — one hop per released version (3.1.0 → 3.1.1 → … → 3.2.0)
-#   minor — one hop per minor line (3.1.12 → 3.2.0 → 3.2.4)
 # Overridden per run by --hop-granularity.
-HOP_GRANULARITY: str = _optional("HOP_GRANULARITY", "patch").strip().lower()
+HOP_GRANULARITY: str = _optional("HOP_GRANULARITY", "minor").strip().lower()
 # When true, the filter LLM, entity LLM, and graph population run once per
 # version hop instead of once per requested range, producing one Version node
 # (and one ruleset) per hop. Overridden per run by --hop-by-hop/--no-hop-by-hop.
 HOP_BY_HOP: bool = _parse_bool_flag(_optional("HOP_BY_HOP", "0"))
+
+# --- System-1 change triage ------------------------------------------------
+# Triage runs only when both TRIAGE_BASE_URL and TRIAGE_MODEL are non-empty.
+# Leaving either empty is the off switch: every row is kept and the raw file
+# stays in the historical 4-column shape.
+TRIAGE_BASE_URL: str = _optional("TRIAGE_BASE_URL", "")
+TRIAGE_ENDPOINT_PATH: str = _optional("TRIAGE_ENDPOINT_PATH", "/v1/systemone")
+TRIAGE_MODEL: str = _optional("TRIAGE_MODEL", "")
+TRIAGE_API_KEY: str = _optional("TRIAGE_API_KEY", "")
+TRIAGE_TIMEOUT_SEC: float = float(_optional("TRIAGE_TIMEOUT_SEC", "30"))
+TRIAGE_MAX_CONCURRENT: int = int(_optional("TRIAGE_MAX_CONCURRENT", "2"))
+TRIAGE_STATE_MAX_CHARS: int = int(_optional("TRIAGE_STATE_MAX_CHARS", "6000"))
+TRIAGE_DROP_MAX_ACTION_PROB: float = float(
+    _optional("TRIAGE_DROP_MAX_ACTION_PROB", "0.20")
+)
+TRIAGE_DROP_MIN_CATEGORY_PROB: float = float(
+    _optional("TRIAGE_DROP_MIN_CATEGORY_PROB", "0.80")
+)
+TRIAGE_DROP_MAX_IMPACT_SCORE: float = float(
+    _optional("TRIAGE_DROP_MAX_IMPACT_SCORE", "1.0")
+)
+FILTER_MAX_INPUT_TOKENS: int = int(_optional("FILTER_MAX_INPUT_TOKENS", "60000"))
+
+# --- Per-change research ----------------------------------------------------
+# Research runs when RESEARCH_BASE_URL and RESEARCH_MODEL_ID are non-empty.
+# TAVILY_API_KEY is optional (empty = fetch_url only). The live reader is
+# migration_oracle.pipeline.research.settings.load_settings.
+RESEARCH_BASE_URL: str = _optional("RESEARCH_BASE_URL", "")
+RESEARCH_MODEL_ID: str = _optional("RESEARCH_MODEL_ID", "")
+RESEARCH_API_KEY: str = _optional("RESEARCH_API_KEY", "")
+RESEARCH_ENABLE_THINKING: bool = _parse_bool_flag(
+    _optional("RESEARCH_ENABLE_THINKING", "false")
+)
+RESEARCH_MAX_CONCURRENT: int = int(_optional("RESEARCH_MAX_CONCURRENT", "4"))
+RESEARCH_MAX_TOOL_CALLS: int = int(_optional("RESEARCH_MAX_TOOL_CALLS", "12"))
+RESEARCH_TIMEOUT_SEC: float = float(_optional("RESEARCH_TIMEOUT_SEC", "240"))
+RESEARCH_MODEL_TIMEOUT_SEC: float = float(_optional("RESEARCH_MODEL_TIMEOUT_SEC", "60"))
+RESEARCH_SEARCH_RESULTS: int = int(_optional("RESEARCH_SEARCH_RESULTS", "5"))
+RESEARCH_FETCH_MAX_CHARS: int = int(_optional("RESEARCH_FETCH_MAX_CHARS", "20000"))
+TAVILY_API_KEY: str = _optional("TAVILY_API_KEY", "")
+ENTITY_MAX_INPUT_TOKENS: int = int(_optional("ENTITY_MAX_INPUT_TOKENS", "60000"))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -58,9 +59,19 @@ class FakeResult:
         return self._data[0] if self._data else None
 
 
+_LABELS = ("TemplateSyntax", "DiagnosticCode", "ApplicationProperty", "Dependency", "Class")
+
+
 class FakeSession:
     def __init__(self, state: GraphState) -> None:
         self.state = state
+
+    @staticmethod
+    def _label(q: str) -> str:
+        for label in _LABELS:
+            if f"(e:{label}" in q or f"(old:{label}" in q or f"(new:{label}" in q or f"(c:{label}" in q:
+                return label
+        raise AssertionError(f"no known entity label in query: {q}")
 
     def run(self, query: str, **params: Any) -> FakeResult:
         q = " ".join(query.split())
@@ -80,7 +91,7 @@ class FakeSession:
             rule_key = next(k for label, k in self.state.nodes if label == "MigrationRule")
             self.state.merge_edge("MigrationRule", rule_key, "HAS_SCOPE", "BreakingScope", scope_key)
             return FakeResult()
-        if "MERGE (s:MigrationStep" in q:
+        if "MERGE (s:MigrationStep" in q and "AUTOMATED_BY" not in q:
             step_key = f"{params['rule_id']}:{params['step_index']}"
             self.state.merge_node("MigrationStep", step_key, {"stepType": params["step_type"]})
             rule_nodes = [k for label, k in self.state.nodes if label == "MigrationRule"]
@@ -92,43 +103,28 @@ class FakeSession:
             pre = f"{params['rule_id']}:{params['prereq']}"
             self.state.merge_edge("MigrationStep", cur, "REQUIRES", "MigrationStep", pre)
             return FakeResult()
-        if "MATCH (s:MigrationStep" in q and "MERGE (e:" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            edge = "AFFECTS_CLASS" if label == "Class" else "AFFECTS_PROPERTY" if label == "ApplicationProperty" else "AFFECTS_DEPENDENCY"
-            step_key = f"{params['rule_id']}:{params['step_index']}"
-            self.state.merge_node(label, params["name"], {})
-            self.state.merge_edge("MigrationStep", step_key, edge, label, params["name"])
-            return FakeResult()
-        if "MERGE (e:Class" in q or "MERGE (e:ApplicationProperty" in q or "MERGE (e:Dependency" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            self.state.merge_node(label, params["name"], {})
-            rule_nodes = [k for label_name, k in self.state.nodes if label_name == "MigrationRule"]
-            if rule_nodes and "AFFECTS_" in q:
-                edge = "AFFECTS_CLASS" if "AFFECTS_CLASS" in q else "AFFECTS_PROPERTY" if "AFFECTS_PROPERTY" in q else "AFFECTS_DEPENDENCY"
-                self.state.merge_edge("MigrationRule", rule_nodes[-1], edge, label, params["name"])
+        # Step / rule → entity writes merge on the canonical {key}
+        if "MERGE (e:" in q and "key: $key" in q:
+            label = self._label(q)
+            self.state.merge_node(label, params["key"], {"name": params.get("name")})
+            if "MATCH (s:MigrationStep" in q:
+                step_key = f"{params['rule_id']}:{params['step_index']}"
+                self.state.merge_edge("MigrationStep", step_key, "AFFECTS_EDGE", label, params["key"])
+            elif "MATCH (rule:MigrationRule" in q:
+                rule_nodes = [k for label_name, k in self.state.nodes if label_name == "MigrationRule"]
+                if rule_nodes:
+                    self.state.merge_edge("MigrationRule", rule_nodes[-1], "AFFECTS_EDGE", label, params["key"])
             return FakeResult()
         if "MERGE (old)-[:REPLACED_BY]->(new)" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            self.state.merge_edge(label, params["removed_name"], "REPLACED_BY", label, params["replacement_name"])
+            label = self._label(q)
+            self.state.merge_edge(label, params["removed_key"], "REPLACED_BY", label, params["replacement_key"])
             return FakeResult()
-        if "REMOVED_IN" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            version_key = f"{params['framework']}:{params['version']}"
-            self.state.merge_edge(label, params["name"], "REMOVED_IN", "Version", version_key)
-            self.state.merge_edge("Version", version_key, "REMOVES", label, params["name"])
-            return FakeResult()
-        if "INTRODUCED_IN" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            version_key = f"{params['framework']}:{params['version']}"
-            self.state.merge_edge(label, params["name"], "INTRODUCED_IN", "Version", version_key)
-            self.state.merge_edge("Version", version_key, "INTRODUCES", label, params["name"])
-            return FakeResult()
-        if "DEPRECATED_IN" in q:
-            label = "Class" if "Class" in q else "ApplicationProperty" if "ApplicationProperty" in q else "Dependency"
-            version_key = f"{params['framework']}:{params['version']}"
-            self.state.merge_edge(label, params["name"], "DEPRECATED_IN", "Version", version_key)
-            self.state.merge_edge("Version", version_key, "DEPRECATES", label, params["name"])
-            return FakeResult()
+        for rel in ("REMOVED_IN", "INTRODUCED_IN", "DEPRECATED_IN"):
+            if f"MERGE (e)-[:{rel}]" in q:
+                label = self._label(q)
+                version_key = f"{params['framework']}:{params['version']}"
+                self.state.merge_edge(label, params["key"], rel, "Version", version_key)
+                return FakeResult()
         if "AUTOMATED_BY" in q:
             step_key = f"{params['rule_id']}:{params['step_index']}"
             stub = params["stub_id"]
@@ -189,7 +185,11 @@ def _count_edges(state: GraphState, rel: str) -> int:
     return sum(1 for edge in state.edges if edge[2] == rel)
 
 
-def test_populator_is_idempotent(sample_batch: MigrationEntitiesBatch, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_populator_is_idempotent(
+    sample_batch: MigrationEntitiesBatch,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
     state = GraphState()
 
     class FakeWriteSession:
@@ -214,6 +214,10 @@ def test_populator_is_idempotent(sample_batch: MigrationEntitiesBatch, monkeypat
         filtered_md_path="runs/nodes/x.md",
         entities_json_path="runs/json/x.json",
         skip_if_version_exists=False,
+        canonical_jsonl_path=tmp_path / "canonical.jsonl",
+        canonical_summary_path=tmp_path / "summary.json",
+        # Signal artifacts stay out of runs/: this test is about node merging.
+        skip_signals=True,
     )
     populator.populate_graph(**kwargs)
     first_nodes = dict(state.nodes)
@@ -226,7 +230,9 @@ def test_populator_is_idempotent(sample_batch: MigrationEntitiesBatch, monkeypat
     assert _count_nodes(state, "MigrationRule") == 1
     assert _count_nodes(state, "MigrationStep") == 1
     assert _count_nodes(state, "BreakingScope") == 1
+    # Class nodes merge on the canonical maven:<FQCN> key and keep their name
     assert _count_nodes(state, "Class") == 2
+    assert state.nodes[("Class", "maven:com.example.LegacyApi")]["name"] == "com.example.LegacyApi"
     assert _count_edges(state, "REQUIRES_STEP") == 1
     assert _count_edges(state, "REPLACED_BY") == 1
     assert _count_edges(state, "REMOVED_IN") == 1

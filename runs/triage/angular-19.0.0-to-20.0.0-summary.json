@@ -1,0 +1,35 @@
+{
+  "model": "nimble",
+  "questions_version": 1,
+  "kept": 364,
+  "dropped": 12,
+  "error": 0,
+  "rows": 376,
+  "by_source": {
+    "model": 274,
+    "rule": 102
+  },
+  "by_decision": {
+    "keep": 364,
+    "drop": 12
+  },
+  "by_category": {
+    "internal_fix": 48,
+    "behavior_change": 144,
+    "\u2014": 102,
+    "breaking": 18,
+    "dependency_upgrade": 8,
+    "noise": 2,
+    "new_optional_feature": 41,
+    "security": 12,
+    "deprecation": 1
+  },
+  "input_tokens": 708679,
+  "wall_time_sec": 144.053,
+  "cache_hits": 0,
+  "thresholds": {
+    "drop_max_action_prob": 0.1,
+    "drop_min_category_prob": 0.8,
+    "drop_max_impact_score": 1.0
+  }
+}

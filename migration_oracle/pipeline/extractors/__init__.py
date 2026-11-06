@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Type
 
 from migration_oracle.models.entities import DocumentedChange, ExtractionResult
+from migration_oracle.pipeline.triage.markdown import (
+    parse_raw_markdown,
+    render_raw_markdown,
+)
 from migration_oracle.pipeline.extractors.angular import AngularExtractor
 from migration_oracle.pipeline.extractors.base import BaseExtractor
 from migration_oracle.pipeline.extractors.eap import EAPExtractor
@@ -63,57 +66,6 @@ def supported_framework_keys() -> list[str]:
     return sorted(_EXTRACTOR_CLASSES)
 
 
-def render_raw_markdown(
-    *,
-    framework_key: str,
-    framework_display: str,
-    from_version: str,
-    to_version: str,
-    hop_changes: list[tuple[str, str, list[DocumentedChange]]],
-    metadata: dict | None = None,
-) -> str:
-    """Render multi-hop raw Markdown from extraction output."""
-    timestamp = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    lines = [
-        f"# {framework_display} — documented changes (extract-only)",
-        "",
-        f"- **Framework key:** `{framework_key}`",
-        f"- **Resolved range:** `{from_version}` → `{to_version}`",
-        f"- **Generated (UTC):** {timestamp}",
-        "",
-        "---",
-        "",
-    ]
-    if metadata:
-        for key, value in metadata.items():
-            if key in ("bom_diff", "blog_insights") and value:
-                lines.append(f"- **{key}:** present in extraction metadata")
-        lines.append("")
-
-    for hop_from, hop_to, changes in hop_changes:
-        lines.extend(
-            [
-                f"## `{hop_from}` → `{hop_to}`",
-                "",
-                "| Type | Confidence | Source | Statement |",
-                "|------|------------|--------|-----------|",
-            ]
-        )
-        for change in changes:
-            statement = (
-                change.statement.replace("|", " ")
-                .replace("\r", " ")
-                .replace("\n", " ")
-            )
-            lines.append(
-                f"| {change.type} | {change.confidence} | "
-                f"{change.source_url} | {statement} |"
-            )
-        lines.append("")
-
-    return "\n".join(lines) + "\n"
-
-
 __all__ = [
     "BaseExtractor",
     "DocumentedChange",
@@ -121,6 +73,7 @@ __all__ = [
     "FRAMEWORK_DISPLAY_NAMES",
     "REGISTRY_KEYS",
     "get_extractor",
+    "parse_raw_markdown",
     "render_raw_markdown",
     "supported_framework_keys",
 ]
