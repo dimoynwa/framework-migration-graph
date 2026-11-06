@@ -17,10 +17,14 @@ from typing import Iterable
 from migration_planner.scanner import contract
 from migration_planner.scanner.contract import (
     Diagnostic,
+    FileFacts,
     ManifestContext,
     ManifestFile,
     ModuleEnv,
+    OwnPackage,
     PathMap,
+    PostPassContext,
+    ResolutionEnv,
     SCANNER_VERSION,
     SourceContext,
 )
@@ -143,9 +147,10 @@ def scan(
     contexts = _manifest_contexts(discovery)
     environments: dict[str, ModuleEnv] = {}
     angular_projects: dict[str, set[str]] = {}
+    own_packages: dict[str, OwnPackage] = {}
     for module_path, context in sorted(contexts.items()):
         present = {manifest.kind for manifest in context.files}
-        own_packages: set[str] = set()
+        module_own_packages: set[str] = set()
         path_map: PathMap | None = None
         for reader, kinds in _registered_readers():
             if not present & kinds:
@@ -169,7 +174,12 @@ def scan(
                 accumulator.add_framework(module_path, framework)
             for diagnostic in facts.diagnostics:
                 diagnostics.append(diagnostic)
-            own_packages.update(facts.own_packages)
+            module_own_packages.update(facts.own_packages)
+            for package in facts.own_package_sources:
+                # Two modules may declare the same workspace name (a root
+                # ``workspaces`` list and the package itself): keep one, so a
+                # specifier resolves to one directory.
+                own_packages.setdefault(package.name, package)
             if facts.angular_projects:
                 angular_projects.setdefault(module_path, set()).update(
                     facts.angular_projects
@@ -178,7 +188,7 @@ def scan(
                 path_map = facts.path_map
         environments[module_path] = ModuleEnv(
             module=module_path,
-            own_packages=tuple(sorted(own_packages)),
+            own_packages=tuple(sorted(module_own_packages)),
             path_map=path_map,
         )
 
@@ -220,6 +230,8 @@ def scan(
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
     extractors = contract.source_extractors()
+    file_facts: dict[str, FileFacts] = {}
+    module_of: dict[str, str] = {}
     for file in discovery.sources:
         extractor = extractors.get(file.kind)
         if extractor is None:
@@ -247,18 +259,34 @@ def scan(
             )
             continue
         accumulator.add_file(facts)
+        file_facts[file.relative] = facts
+        module_of[file.relative] = file.module
 
-    for post_pass in contract.post_passes():
-        try:
-            post_pass(accumulator)
-        except Exception as exc:
-            diagnostics.append(
-                Diagnostic(
-                    kind="post_pass_error",
-                    detail=f"{getattr(post_pass, '__name__', 'post_pass')}: "
-                    f"{type(exc).__name__}: {exc}",
+    # --- post-passes (spec4 barrels, spec7 own-package filtering) ---
+    if contract.post_passes():
+        context = PostPassContext(
+            root=root,
+            files=file_facts,
+            resolution=ResolutionEnv(
+                module_of=module_of,
+                environments=environments,
+                packages=own_packages,
+            ),
+        )
+        for post_pass in contract.post_passes():
+            try:
+                fragment = post_pass(context)
+            except Exception as exc:
+                diagnostics.append(
+                    Diagnostic(
+                        kind="post_pass_error",
+                        detail=f"{getattr(post_pass, '__name__', 'post_pass')}: "
+                        f"{type(exc).__name__}: {exc}",
+                    )
                 )
-            )
+                continue
+            if fragment is not None:
+                accumulator.add_file(fragment)
 
     framework, framework_diagnostics = choose_framework(accumulator.frameworks)
     diagnostics.extend(framework_diagnostics)

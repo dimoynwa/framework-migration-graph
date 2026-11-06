@@ -57,6 +57,7 @@ from migration_keys.keys import npm_key
 from migration_keys.specifiers import (
     is_node_builtin,
     is_own_code,
+    own_path_aliases,
     package_of_specifier,
 )
 
@@ -65,6 +66,7 @@ from migration_planner.scanner.contract import (
     ExportBinding,
     FileFacts,
     OwnImport,
+    OwnMember,
     SourceContext,
     Usage,
 )
@@ -112,10 +114,16 @@ _STRING_QUOTE_RE = re.compile(r"^['\"]|['\"]$")
 
 @dataclass
 class _Binding:
-    """One identifier bound to an external symbol, for member tracking."""
+    """One identifier bound to an external symbol, for member tracking.
+
+    An **own-code** binding (``import { di } from '@app/core'``) carries no
+    package yet: spec4 decides whether the barrel chain reaches one, so its
+    member accesses are kept as :class:`OwnMember` instead of a fact.
+    """
 
     package: str
     symbol: str  # the imported name, ``default``, or ``*`` for a namespace
+    own: bool = False
 
     def key(self, member: str = "") -> str:
         # A namespace import has no symbol of its own: ``core.inject`` is the
@@ -135,12 +143,20 @@ class _Extractor:
         self._bindings: dict[str, _Binding] = {}
         self._seen_symbols: set[tuple[str, int, bool]] = set()
         self._seen_members: set[tuple[str, int]] = set()
+        self._seen_own_members: set[tuple[str, str, int, str]] = set()
         # ``(start, end)`` byte spans of declarators that *created* a binding
         # (``const m = require('pkg')``). They declare the binding rather than
         # shadow it, so the shadow check must skip them.
         self._binding_declarations: set[tuple[int, int]] = set()
         path_map = context.env.path_map
-        self._path_aliases = tuple(path_map.paths) if path_map is not None else ()
+        # Only aliases into the repo's own code: one that redirects into
+        # ``node_modules`` keeps its imports external (FR-5).
+        self._path_aliases = (
+            own_path_aliases(path_map.paths) if path_map is not None else ()
+        )
+        # ``{local name: (specifier, imported name)}`` for every static import,
+        # so ``import { X } from 'pkg'; export { X }`` re-exports ``pkg#X``.
+        self._imports: dict[str, tuple[str, str]] = {}
 
     def run(self) -> FileFacts:
         for node in _walk(self.root):
@@ -163,7 +179,28 @@ class _Extractor:
             ):
                 self._named_declaration(node)
         self._collect_members()
+        self._link_local_exports()
         return self.facts
+
+    def _link_local_exports(self) -> None:
+        """``import { X } from 'p'; export { X }``: the export is a re-export of ``p``.
+
+        spec4 must follow it to ``p`` instead of treating ``X`` as declared here.
+        A re-exported namespace import (``import * as ns``) becomes a namespace
+        export.
+        """
+        for published, binding in list(self.facts.export_map.items()):
+            if binding.specifier or binding.original not in self._imports:
+                continue
+            specifier, imported = self._imports[binding.original]
+            self.facts.local_declarations.discard(binding.original)
+            if imported == "*":
+                del self.facts.export_map[published]
+                self.facts.namespace_exports[published] = specifier
+                continue
+            self.facts.export_map[published] = ExportBinding(
+                specifier=specifier, original=imported
+            )
 
     # -- imports ----------------------------------------------------------
 
@@ -236,7 +273,8 @@ class _Extractor:
                     published = _export_name(entry)
                     original = _export_original(entry)
                     if published:
-                        self.facts.local_declarations.add(original)
+                        if original not in self._imports:
+                            self.facts.local_declarations.add(original)
                         self.facts.export_map[published] = ExportBinding(
                             specifier="", original=original
                         )
@@ -337,6 +375,13 @@ class _Extractor:
         line = node.start_point.row + 1
         if self._is_builtin(specifier):
             return
+        if node.type == "import_statement":
+            for local, imported in named.items():
+                self._imports.setdefault(local, (specifier, imported))
+            if default:
+                self._imports.setdefault(default, (specifier, "default"))
+            if namespace:
+                self._imports.setdefault(namespace, (specifier, "*"))
         if self._is_own(specifier):
             self.facts.own_imports += 1
             self.facts.own_import_bindings.append(
@@ -350,8 +395,18 @@ class _Extractor:
                     default=default,
                     namespace=namespace,
                     type_only=type_only,
+                    type_names=frozenset(type_names),
                 )
             )
+            # Own code still binds: ``core.inject(…)`` on a barrel has to reach
+            # the external package it re-exports (spec4), so the local names are
+            # tracked here and resolved in the post-pass.
+            for local, imported in named.items():
+                self._bind(local, _Binding(package="", symbol=imported, own=True))
+            if default:
+                self._bind(default, _Binding(package="", symbol="default", own=True))
+            if namespace:
+                self._bind(namespace, _Binding(package="", symbol="*", own=True))
             return
 
         package = package_of_specifier(specifier)
@@ -436,12 +491,16 @@ class _Extractor:
     # -- declarations (for spec4 and shadowing) ---------------------------
 
     def _declaration(self, node: Any) -> None:
+        if not _is_top_level(node):
+            return  # a ``const`` inside a function is not a module export
         for declarator in _children_of_type(node, "variable_declarator"):
             pattern = declarator.child_by_field_name("name")
             if pattern is not None:
                 self.facts.local_declarations.update(_declared_names(pattern))
 
     def _named_declaration(self, node: Any) -> None:
+        if not _is_top_level(node):
+            return
         name = node.child_by_field_name("name")
         if name is not None:
             self.facts.local_declarations.add(_text(name))
@@ -464,9 +523,10 @@ class _Extractor:
         if call is None:
             return  # ``@Input`` without a call: no options to record
         function = call.child_by_field_name("function")
-        binding = self._decorator_binding(function)
-        if binding is None:
+        decorated = self._decorator_binding(function)
+        if decorated is None:
             return
+        binding, local, symbol = decorated
         arguments = call.child_by_field_name("arguments")
         if arguments is None:
             return
@@ -488,16 +548,23 @@ class _Extractor:
                     name = entry.child_by_field_name("name")
                     option = _text(name) if name is not None else ""
                 if option:
-                    self._add_member(binding, option, entry.start_point.row + 1)
+                    self._add_member(
+                        binding, local, option, entry.start_point.row + 1, symbol
+                    )
             break  # only the first object argument carries the options
 
-    def _decorator_binding(self, function: Any | None) -> _Binding | None:
-        """The import a decorator's callee names: ``Component`` or ``core.Component``."""
+    def _decorator_binding(
+        self, function: Any | None
+    ) -> tuple[_Binding, str, str] | None:
+        """The import a decorator's callee names: ``(binding, local, symbol)``."""
         if function is None:
             return None
         if function.type == "identifier":
-            binding = self._bindings.get(_text(function))
-            return binding if binding is not None and binding.symbol != "*" else None
+            local = _text(function)
+            binding = self._bindings.get(local)
+            if binding is None or binding.symbol == "*":
+                return None
+            return binding, local, ""
         if function.type == "member_expression":
             object_node = function.child_by_field_name("object")
             property_node = function.child_by_field_name("property")
@@ -505,10 +572,11 @@ class _Extractor:
                 return None
             if object_node.type != "identifier":
                 return None
-            namespace = self._bindings.get(_text(object_node))
+            local = _text(object_node)
+            namespace = self._bindings.get(local)
             if namespace is None or namespace.symbol != "*":
                 return None
-            return _Binding(package=namespace.package, symbol=_text(property_node))
+            return namespace, local, _text(property_node)
         return None
 
     # -- members ----------------------------------------------------------
@@ -529,7 +597,7 @@ class _Extractor:
                 continue
             member = _text(property_node)
             if member:
-                self._add_member(binding, member, node.start_point.row + 1)
+                self._add_member(binding, local, member, node.start_point.row + 1)
 
     def _is_shadowed(self, local: str, node: Any) -> bool:
         """Whether an inner declaration of ``local`` encloses ``node``.
@@ -549,13 +617,31 @@ class _Extractor:
             current = current.parent
         return False
 
-    def _add_member(self, binding: _Binding, member: str, line: int) -> None:
-        key = binding.key(member)
+    def _add_member(
+        self,
+        binding: _Binding,
+        local: str,
+        member: str,
+        line: int,
+        symbol: str = "",
+    ) -> None:
+        """One member access — a fact, or (for own code) input to spec4.
+
+        ``symbol`` is set only through a namespace local (``@core.Component``),
+        where the symbol sits between the namespace and the option key, so it
+        replaces the namespace's ``*`` rather than being appended to it.
+        """
+        if binding.own:
+            self._add_own_member(local, member, line, symbol)
+            return
+        key = (
+            npm_key(binding.package, symbol, member) if symbol else binding.key(member)
+        )
         site = (key, line)
         if site in self._seen_members:
             return
         self._seen_members.add(site)
-        if binding.symbol == "*":
+        if binding.symbol == "*" and not symbol:
             # ``core.inject(…)`` resolves to the package's symbol, not a member.
             self.facts.symbols.append(
                 Usage(
@@ -572,8 +658,43 @@ class _Extractor:
             )
         )
 
+    def _add_own_member(
+        self, local: str, member: str, line: int, symbol: str = ""
+    ) -> None:
+        """Keep an own-code access for spec4, once per ``(local, member, line)``."""
+        site = (local, member, line, symbol)
+        if site in self._seen_own_members:
+            return
+        self._seen_own_members.add(site)
+        self.facts.own_member_bindings.append(
+            OwnMember(
+                relative=self.context.relative,
+                line=line,
+                test=self.context.test,
+                local=local,
+                member=member,
+                symbol=symbol,
+            )
+        )
+
 
 # --- tree helpers ----------------------------------------------------------
+
+
+def _is_top_level(node: Any) -> bool:
+    """A module-scope declaration: directly in ``program`` or ``export``-ed there.
+
+    Only those can shadow an ``export *`` name; a ``const map`` inside a
+    function body is not part of the module's exports (spec4 FR-5).
+    """
+    parent = node.parent
+    if parent is None:
+        return False
+    if parent.type == "program":
+        return True
+    return parent.type == "export_statement" and (
+        parent.parent is not None and parent.parent.type == "program"
+    )
 
 
 def _walk(node: Any) -> Iterator[Any]:

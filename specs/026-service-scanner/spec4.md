@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Draft
+**Status**: Implemented (2026-11-06)
 
 **Depends on**: spec2 (effective tsconfig `paths` / `baseUrl`, workspace packages), spec3
 (per-file export maps and own-code import bindings). Shared context: see `spec1.md`.
@@ -19,9 +19,21 @@ external package is reached, and records the external key at the original import
 - When a file imports from its own code, the scanner resolves the target file: relative path,
   `compilerOptions.paths` aliases (with `*` wildcards and multiple targets, first existing wins),
   `baseUrl`, workspace package names (their `package.json` `main` / `module` / `types` / `exports`
-  `"."` entry, else `index.*`), trying `.ts`, `.tsx`, `.d.ts`, `.js`, `.mjs`, `.cjs`, `/index.*`.
-- It then follows `export { X } from '…'`, `export { X as Y } from '…'` and `export * from '…'`
-  until an external package is reached.
+  `"."` entry, else `index.*`; a subpath `@demo/ui/testing` tries `exports["./testing"]` and
+  `"./*"` patterns first), trying `.ts`, `.tsx`, `.d.ts`, `.js`, `.mjs`, `.cjs`, `/index.*`.
+  A bundler query (`./worker?worker`) is stripped before probing.
+- A `paths` alias whose targets all live under `node_modules`
+  (`"@angular/*": ["./node_modules/@angular/*"]`) is a redirect to an external package, not own
+  code: imports through it stay external facts.
+- It then follows `export { X } from '…'`, `export { X as Y } from '…'`, `export * from '…'`,
+  `export * as ns from '…'` and `import { X } from '…'; export { X }` until an external package is
+  reached.
+- **Several `export *`**: every own star is searched in order until one exports the name (the
+  `public-api.ts` pattern). If none does, a name behind exactly **one** external `export *` is
+  attributed to that package; behind **several** external stars it is not guessed:
+  diagnostic `ambiguous_export` (`map: @angular/core | rxjs`) and no fact.
+- Only **module-scope** declarations end a chain as own code; a `const` inside a function body
+  does not shadow an `export *` name.
 - The external key is recorded at the **original import site**, so
   `import { inject } from '@app/core'` with `core/index.ts → export { inject } from '@angular/core'`
   gives `npm:@angular/core#inject` at the importing file.
@@ -29,7 +41,10 @@ external package is reached, and records the external key at the original import
   `import { di } from '@app/core'` → `npm:@angular/core#inject`, and member tracking of the
   local `di` records `npm:@angular/core#inject.<member>`.
 - Namespace imports of a barrel (`import * as core from '@app/core'`) resolve per member:
-  `core.inject(…)` → `npm:@angular/core#inject`.
+  `core.inject(…)` → `npm:@angular/core#inject`. A re-exported external namespace
+  (`export * as rx from 'rxjs'`, then `rx.filter()`) gives `npm:rxjs#filter` at the access.
+- Inline `type` on an own import (`import { type Signal } from '@app/core'`) keeps
+  `type_only` per name at the import site.
 - Names that end in a local declaration (own class / function) are dropped silently: that is own
   code.
 - Cycles and depth > 10 stop resolution and add a diagnostic (`barrel_cycle`,
@@ -48,6 +63,18 @@ external package is reached, and records the external key at the original import
 - **AC-2.2**: `export *` chain, rename chain (`as`), namespace import of a barrel, a
   workspace-package import, and a `paths` alias with `*` → the expected keys at the import site.
 - **AC-2.3**: a name that resolves to a local class is not recorded; depth 11 → diagnostic.
+- **AC-2.4** (review 2026-11-06):
+  - `export * from './a'; export * from './b'` with the name in `b` → resolved;
+  - `import { Injectable } from '@angular/core'; export { Injectable }` → resolved;
+  - `"@angular/*": ["./node_modules/@angular/*"]` → `@angular/core` imports stay external, no
+    `unresolved_import`;
+  - `export * from '@angular/core'; export * from 'rxjs'` + `import { map }` →
+    `ambiguous_export`, no `npm:@angular/core#map`;
+  - a single `export * from 'rxjs'` next to a function with `const map` → `npm:rxjs#map`;
+  - `import { type Signal, inject } from '@app/core'` → only `Signal` is `type_only` at the site;
+  - `@demo/ui/testing` via `exports["./testing"]` → resolved;
+  - `export * as rx from 'rxjs'` + `rx.filter()` → `npm:rxjs#filter`;
+  - `'./worker?worker'` → no `unresolved_import`.
 
 - **Regression**: after implementing this spec, run the whole suite `pytest tests/scanner/` (plus the 025 tests, which use `migration_keys/`), not only the new tests. Tests from every earlier spec already implemented (spec1–spec3 in the default order) must still pass unchanged; a failing earlier test is a regression, not an outdated test.
 

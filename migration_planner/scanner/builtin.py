@@ -13,7 +13,7 @@ spec1's "no facts by default" test relies on.
 
 from __future__ import annotations
 
-from migration_planner.scanner import contract, npm_manifests, ts
+from migration_planner.scanner import contract, npm_manifests, ts, ts_resolve
 
 # ``{manifest classification: reader}`` — spec2 npm, spec6 Maven / Gradle,
 # spec8 Spring config.
@@ -28,7 +28,7 @@ SOURCE_EXTRACTORS: dict[str, contract.SourceExtractor] = {
 }
 
 # Post-passes over the merged facts — spec4 barrels, spec7 own-package filtering.
-POST_PASSES: tuple[contract.PostPass, ...] = ()
+POST_PASSES: tuple[contract.PostPass, ...] = (ts_resolve.resolve_barrels,)
 
 
 def install() -> None:

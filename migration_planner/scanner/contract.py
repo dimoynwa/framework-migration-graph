@@ -12,7 +12,9 @@ never changes:
   spec4). They are pure functions of the file content, so spec9 can cache them
   and run them in a process pool.
 - **Post-passes** run on the collected facts (barrel resolution in spec4,
-  own-package filtering in spec7).
+  own-package filtering in spec7). They get a :class:`PostPassContext` — every
+  file's facts plus how the repo resolves imports — and write through a
+  :class:`FactSink`, so they add facts without owning the merge.
 
 A spec that is not implemented yet registers nothing, and its profile section
 stays an empty list.
@@ -22,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Mapping, Protocol, Sequence
 
 # Bumped whenever a parser or the merge rules change: it is part of
 # ``inputs_hash`` and invalidates the incremental cache (spec9). Spec1's test
@@ -227,6 +229,9 @@ class ManifestFacts:
     # ``modules[].own_packages`` and handed to source extractors, so spec3 can
     # tell an import of the repo's own code from an external package.
     own_packages: list[str] = field(default_factory=list)
+    # Where each of those names lives and which files its ``package.json``
+    # nominates as entry points (spec4): how a bare specifier becomes a file.
+    own_package_sources: list[OwnPackage] = field(default_factory=list)
     # The module's effective TypeScript path map (spec2), used by spec3 / spec4.
     path_map: PathMap | None = None
 
@@ -292,6 +297,31 @@ class OwnImport:
     namespace: str = ""
     #: True when the import is ``import type`` (or every specifier is ``type``).
     type_only: bool = False
+    #: Local names imported with an inline ``type`` (``import { type T, v }``).
+    type_names: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class OwnMember:
+    """A member access on a name bound to own code (spec3 → spec4).
+
+    ``core.inject(…)`` and ``A.b`` are recorded for own-code bindings too, so
+    spec4 can report them once the barrel chain reaches an external package:
+    the local name is resolved to its original external symbol, which gives
+    ``npm:<pkg>#<symbol>.<member>`` (or ``npm:<pkg>#<member>`` through a
+    namespace). A decorator's option keys arrive the same way, with ``symbol``
+    set for ``@core.Component({…})``.
+    """
+
+    relative: str
+    line: int
+    test: bool = False
+    #: The local identifier as written in this file (``di``, ``core``).
+    local: str = ""
+    #: The first member segment (``inject``, ``selector``).
+    member: str = ""
+    #: The symbol after a namespace local (``Component`` in ``@core.Component``).
+    symbol: str = ""
 
 
 @dataclass
@@ -319,6 +349,61 @@ class FileFacts:
     local_declarations: set[str] = field(default_factory=set)
     # The own-code imports this file makes, with their bound local names.
     own_import_bindings: list[OwnImport] = field(default_factory=list)
+    # Member accesses (and decorator option keys) on own-code bindings, which
+    # spec4 attributes once the chain reaches an external package.
+    own_member_bindings: list[OwnMember] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class OwnPackage:
+    """An own package name and where its sources live (spec2 → spec4).
+
+    A workspace package is imported under its ``package.json`` ``name`` but its
+    files live in a directory; ``entries`` are that manifest's ``main`` /
+    ``module`` / ``types`` and ``exports["."]`` values as written, which is what
+    spec4 tries before falling back to ``index.*`` in ``directory``. Both paths
+    are scan-root-relative, so resolution never depends on where the repo sits.
+    """
+
+    name: str
+    directory: str = "."
+    entries: tuple[str, ...] = ()
+    #: ``exports`` subpaths other than ``"."``, as written:
+    #: ``{"./testing": ("./src/testing.ts",), "./*": ("./src/*.ts",)}``.
+    subpath_exports: dict[str, tuple[str, ...]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ResolutionEnv:
+    """How the repo's own imports resolve to files (spec4).
+
+    ``module_of`` says which module owns each source file and
+    ``environments`` carries that module's effective path map, ``baseUrl``
+    entries, own packages and declared dependencies (spec2 → spec3).
+    ``packages`` maps an own package name to where its sources live. The set of
+    resolvable files is ``PostPassContext.files``: a target the scanner did not
+    parse is not resolvable. Path-map directories are scan-relative, so nothing
+    here depends on the absolute location of the repo.
+    """
+
+    module_of: Mapping[str, str] = field(default_factory=dict)
+    environments: Mapping[str, ModuleEnv] = field(default_factory=dict)
+    packages: Mapping[str, "OwnPackage"] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class PostPassContext:
+    """What a post-pass sees: the per-file facts plus how imports resolve.
+
+    ``files`` keeps every file's :class:`FileFacts` by scan-relative path, which
+    is the export map spec4 follows. A post-pass returns a :class:`FileFacts`
+    fragment (facts at the *original* import site) and the scan merges it like
+    any extractor's output.
+    """
+
+    root: Path
+    files: Mapping[str, "FileFacts"] = field(default_factory=dict)
+    resolution: ResolutionEnv = field(default_factory=ResolutionEnv)
 
 
 class ManifestReader(Protocol):
@@ -330,7 +415,7 @@ class SourceExtractor(Protocol):
 
 
 class PostPass(Protocol):
-    def __call__(self, facts: Any) -> None: ...
+    def __call__(self, context: PostPassContext) -> FileFacts | None: ...
 
 
 # --- registry --------------------------------------------------------------
@@ -395,8 +480,12 @@ __all__ = [
     "ManifestReader",
     "ModuleEnv",
     "OwnImport",
+    "OwnMember",
+    "OwnPackage",
     "PathMap",
     "PostPass",
+    "PostPassContext",
+    "ResolutionEnv",
     "SourceContext",
     "SourceExtractor",
     "Usage",

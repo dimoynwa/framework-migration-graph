@@ -159,6 +159,35 @@ def is_own_code(
     return False
 
 
+def _is_node_modules_target(target: str) -> bool:
+    parts = [
+        part for part in target.replace("\\", "/").split("/") if part not in ("", ".")
+    ]
+    return "node_modules" in parts
+
+
+def own_path_aliases(paths: Mapping[str, Sequence[str]]) -> tuple[str, ...]:
+    """The ``compilerOptions.paths`` keys that point at the repo's own code.
+
+    A key whose targets all live under ``node_modules``
+    (``"@angular/*": ["./node_modules/@angular/*"]``, used to dedupe installs)
+    is a redirect to an external package, not own code: an import through it
+    stays an external fact (026 FR-5).
+    """
+    own: list[str] = []
+    for pattern, targets in paths.items():
+        listed = [targets] if isinstance(targets, str) else list(targets)
+        if listed and all(_is_node_modules_target(target) for target in listed):
+            continue
+        own.append(pattern)
+    return tuple(own)
+
+
+def strip_query(specifier: str) -> str:
+    """``./worker?worker`` → ``./worker``: a bundler query is not part of the path."""
+    return specifier.split("?", 1)[0]
+
+
 def matches_path_alias(specifier: str, patterns: Iterable[str]) -> bool:
     """Whether a specifier matches one ``compilerOptions.paths`` key.
 
@@ -264,6 +293,8 @@ __all__ = [
     "join_path",
     "matches_path_alias",
     "normalize_path",
+    "own_path_aliases",
     "package_of_specifier",
+    "strip_query",
     "resolve_path_alias",
 ]

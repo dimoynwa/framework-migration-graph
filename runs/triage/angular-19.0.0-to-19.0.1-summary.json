@@ -18,7 +18,7 @@
     "internal_fix": 1
   },
   "input_tokens": 0,
-  "wall_time_sec": 0.001,
+  "wall_time_sec": 0.002,
   "cache_hits": 0,
   "thresholds": {
     "drop_max_action_prob": 0.2,

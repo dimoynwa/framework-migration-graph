@@ -159,3 +159,22 @@ def test_base_url_roots_make_own_code() -> None:
         is_own_code("app", base_url_roots=["app"], declared_dependencies=["app"])
         is False
     )
+
+
+def test_own_path_aliases_drop_node_modules_redirects() -> None:
+    from migration_keys.specifiers import own_path_aliases
+
+    paths = {
+        "@app/*": ["src/app/*"],
+        "@angular/*": ["./node_modules/@angular/*"],
+        "@mixed/*": ["node_modules/x/*", "libs/x/*"],
+    }
+
+    assert own_path_aliases(paths) == ("@app/*", "@mixed/*")
+
+
+def test_strip_query() -> None:
+    from migration_keys.specifiers import strip_query
+
+    assert strip_query("./worker?worker") == "./worker"
+    assert strip_query("./plain") == "./plain"

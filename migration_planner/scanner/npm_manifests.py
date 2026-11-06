@@ -71,6 +71,7 @@ from migration_planner.scanner.contract import (
     ManifestContext,
     ManifestFacts,
     ManifestFile,
+    OwnPackage,
     PathMap,
 )
 
@@ -337,7 +338,17 @@ def _read_package_json(
     name = package.get("name")
     if isinstance(name, str) and name.strip():
         facts.own_packages.append(name.strip())
-    facts.own_packages.extend(_workspace_names(package, context))
+        facts.own_package_sources.append(
+            OwnPackage(
+                name=name.strip(),
+                directory=_scan_path(context, context.root),
+                entries=_package_entries(package),
+                subpath_exports=_subpath_exports(package),
+            )
+        )
+    for workspace in _workspace_packages(package, context):
+        facts.own_packages.append(workspace.name)
+        facts.own_package_sources.append(workspace)
 
     for scope in DEPENDENCY_SCOPES:
         block = package.get(scope)
@@ -447,12 +458,15 @@ def _detect_angular(
     )
 
 
-def _workspace_names(package: dict[str, Any], context: ManifestContext) -> list[str]:
-    """Package names of the npm workspaces declared here (FR-4, AC-8.2).
+def _workspace_packages(
+    package: dict[str, Any], context: ManifestContext
+) -> list[OwnPackage]:
+    """The npm workspaces declared here, as importable packages (FR-4, AC-8.2).
 
     Resolved by globbing the workspace patterns against the module root and
-    reading each matched ``package.json`` name — the point of the list is the
-    importable name (``@demo/ui``), not the directory.
+    reading each matched ``package.json`` — the point of the list is the
+    importable name (``@demo/ui``), not the directory. ``directory`` and
+    ``entries`` are what spec4 needs to resolve ``@demo/ui`` to a real file.
     """
     workspaces = package.get("workspaces")
     patterns: list[str] = []
@@ -463,7 +477,7 @@ def _workspace_names(package: dict[str, Any], context: ManifestContext) -> list[
         if isinstance(listed, list):
             patterns = [item for item in listed if isinstance(item, str)]
 
-    names: list[str] = []
+    found: list[OwnPackage] = []
     for pattern in patterns:
         if not pattern or pattern.startswith("!") or pattern.startswith("/"):
             continue
@@ -472,19 +486,85 @@ def _workspace_names(package: dict[str, Any], context: ManifestContext) -> list[
         for directory in sorted(context.root.glob(pattern)):
             if not directory.is_dir():
                 continue
-            name = _package_name(directory / "package.json")
-            if name:
-                names.append(name)
-    return names
+            data = _package_json(directory / "package.json")
+            name = data.get("name") if data is not None else None
+            if not isinstance(name, str) or not name.strip():
+                continue
+            found.append(
+                OwnPackage(
+                    name=name.strip(),
+                    directory=_scan_path(context, directory),
+                    entries=_package_entries(data),
+                    subpath_exports=_subpath_exports(data),
+                )
+            )
+    return found
 
 
-def _package_name(path: Path) -> str:
+def _package_entries(package: dict[str, Any]) -> tuple[str, ...]:
+    """The files a ``package.json`` nominates for ``import '<name>'`` (spec4 FR-5).
+
+    In Node / TypeScript order: ``exports["."]`` first (the modern, authoritative
+    field), then ``types``, ``module`` and ``main``. ``exports["."]`` may be a
+    string or a condition object; a condition object's string values are all
+    kept, ``types`` / ``require`` / ``import`` / ``default`` before the rest, so
+    a ``.d.ts`` and the runtime file are both probed.
+    """
+    entries: list[str] = []
+    exports = package.get("exports")
+    if isinstance(exports, str):
+        entries.append(exports)
+    elif isinstance(exports, dict):
+        root = exports.get(".")
+        entries.extend(_export_targets(root))
+    for field_name in ("types", "typings", "module", "main"):
+        value = package.get(field_name)
+        if isinstance(value, str) and value.strip():
+            entries.append(value.strip())
+    return tuple(dict.fromkeys(entries))
+
+
+def _subpath_exports(package: dict[str, Any]) -> dict[str, tuple[str, ...]]:
+    """``exports`` subpaths other than ``"."`` (``"./testing"``, ``"./*"``), spec4 FR-5."""
+    exports = package.get("exports")
+    if not isinstance(exports, dict):
+        return {}
+    found: dict[str, tuple[str, ...]] = {}
+    for key, value in exports.items():
+        if not isinstance(key, str) or key == "." or not key.startswith("./"):
+            continue
+        targets = tuple(dict.fromkeys(_export_targets(value)))
+        if targets:
+            found[key] = targets
+    return found
+
+
+_CONDITION_ORDER: tuple[str, ...] = ("types", "import", "node", "require", "default")
+
+
+def _package_json(path: Path) -> dict[str, Any] | None:
+    """A workspace package's ``package.json``, best effort (spec4 follows it)."""
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
     except (OSError, ValueError):
-        return ""
-    name = data.get("name") if isinstance(data, dict) else None
-    return name.strip() if isinstance(name, str) else ""
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _export_targets(value: Any) -> list[str]:
+    """String targets of an ``exports["."]`` entry, likely conditions first."""
+    if isinstance(value, str):
+        return [value]
+    if not isinstance(value, dict):
+        return []
+    targets: list[str] = []
+    for condition in _CONDITION_ORDER:
+        if condition in value:
+            targets.extend(_export_targets(value[condition]))
+    for condition, inner in value.items():
+        if condition not in _CONDITION_ORDER:
+            targets.extend(_export_targets(inner))
+    return targets
 
 
 # --- package-lock.json -----------------------------------------------------

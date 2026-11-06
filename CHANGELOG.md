@@ -1,5 +1,41 @@
 # Changelog
 
+## [026.4-service-scanner] — 2026-11-06
+
+### New features
+
+- **Barrels and aliases resolve to the external package (FR-5).** `migration_planner/scanner/ts_resolve.py` is the post-pass spec4 promised: it takes the own-code imports spec3 collected, follows them through barrels, `paths` aliases, `baseUrl` and workspace packages, and records the external key **at the original import site** — `import { inject } from '@app/core'` with `core/index.ts → export { inject } from '@angular/core'` gives `npm:@angular/core#inject` at the importing file, which is the line a matcher must search.
+- **Chains are followed, not guessed.** `export { X } from '…'`, `export { X as Y } from '…'` (renames applied along the chain), `export * from '…'` and `export * as ns from '…'`. A name that ends in a local declaration is own code and is dropped silently; an `export *` of a package cannot be enumerated, so a name that reaches it belongs to that package.
+- **Specifier → file.** Relative paths, `compilerOptions.paths` (longest pattern, targets in order, first existing wins), `baseUrl`, and workspace package names via their `package.json` `exports["."]` / `types` / `module` / `main`, else `index.*`. Every candidate is probed with `.ts`, `.tsx`, `.d.ts`, `.js`, `.jsx`, `.mjs`, `.cjs` and `/index.*`; a `.js` specifier also finds its `.ts` source (`NodeNext`).
+- **Members follow the chain too.** `di.call(…)` after `export { inject as di }` becomes `npm:@angular/core#inject.call`; `core.inject(…)` and `@core.Component({ selector })` on a barrel namespace resolve per member. Own-code member accesses are now kept by spec3 (`FileFacts.own_member_bindings`, `OwnMember`) for this pass.
+- **New contract seam for post-passes.** `PostPassContext` / `ResolutionEnv` / `OwnPackage` and a `PostPass` that returns a `FileFacts` fragment; `scan()` merges it like any extractor's output. The npm reader now reports each own package's directory and entry points (`ManifestFacts.own_package_sources`), which is what makes a workspace-package import resolvable.
+- **Bounded, never silent.** A cycle gives `barrel_cycle`, a chain deeper than 10 gives `barrel_depth` (AC-2.3: depth 11), an own import with no file gives `unresolved_import`. An asset specifier (`./x.scss`, `./data.json`) is not a module and is skipped without a diagnostic. Results are memoized per `(file, exported name)`.
+
+### Fixes
+
+- **A give-up must not poison the memo.** Only a definitive resolution is cached: a `barrel_depth`/`barrel_cycle` result is a property of one entry point, so caching it would deny a shorter chain the same name. Covered by `test_a_short_chain_still_resolves_after_a_deep_one_gave_up`.
+- **The same cycle was reported once per importer.** `barrel_cycle` / `barrel_depth` now dedupe per `(kind, file)`; the chains differ per entry point and a reader only needs the file.
+
+### Fixes (review 2026-11-06)
+
+- **Only the first own `export *` was searched.** A barrel with `export * from './a'; export * from './b'` (the Angular `public-api.ts` shape) stopped at `a` when it lacked the name, so everything behind `b` was lost. A file that does not export a name is now "not found" and the search moves on.
+- **`import { X } from 'pkg'; export { X }` was treated as own code.** The export is now linked to its import and followed (a re-exported `import * as ns` becomes a namespace export).
+- **A `paths` alias into `node_modules` dropped every import through it.** `"@angular/*": ["./node_modules/@angular/*"]` made `@angular/core` own code, so `Component`, `inject`, … vanished behind `unresolved_import`. Such aliases are redirects to an external package now (`migration_keys.specifiers.own_path_aliases`).
+- **Several external `export *` attributed a name to the first one** (`map` → `npm:@angular/core#map`). With one external star the name is still attributed; with several it is reported as `ambiguous_export` and not recorded.
+- **A `const` inside a function body shadowed `export *` names.** `local_declarations` now holds module-scope declarations only.
+- **Inline `type` through a barrel** (`import { type Signal } from '@app/core'`) keeps `type_only` per name (`OwnImport.type_names`).
+- **Workspace subpath exports** (`@demo/ui/testing` → `exports["./testing"]`, `"./*"` patterns) resolve (`OwnPackage.subpath_exports`).
+- **`export * as rx from 'rxjs'`** re-exported through a barrel: `rx.filter()` gives `npm:rxjs#filter` at the access (was nothing).
+- **A bundler query** (`./worker?worker`) no longer gives a false `unresolved_import`.
+- Removed an unused `typing.Any` import in `contract.py`.
+
+### Tests
+
+- `tests/scanner/test_ts_resolve.py` (60 tests): AC-2 (the key at the import site, cycle → diagnostic, no crash), AC-2.2 (`export *`, rename chain, namespace import of a barrel, workspace package, `paths` alias with `*`, namespaced re-export, every probed extension, `.js` → `.ts`), AC-2.3 (local declaration dropped, depth 10 vs 11), the diagnostics, memoization, and the seam between spec3 and spec4.
+- New fixture `tests/fixtures/scanner/ts-barrels/` with a core barrel, a barrel of a barrel, an `export *`, a rename, a namespace barrel import, a cycle, a 10/11-deep chain, a workspace package with an `exports` map and a `paths` alias with two targets.
+- `tests/fixtures/scanner/ts-imports/` gained the targets its own imports name (`src/local.ts`, `src/app/shared.ts`, `packages/ui/`) and an `@demo/ui` `main`/`types`, so the spec3 fixture has no genuinely unresolved import.
+- Whole scanner suite plus the 025 shared-key / canonicalization tests pass unchanged: 337 passed in `tests/scanner`, 73 passed in the 025 key and canonicalization files — 410 passed, no spec1 / spec2 / spec3 regressions.
+
 ## [026.3-service-scanner] — 2026-11-06
 
 ### New features

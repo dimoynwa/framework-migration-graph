@@ -207,7 +207,7 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | `generated`, `inputs_hash`, `modules[].path/manifests`, discovery `diagnostics` | **026.1** (this page) |
 | `framework`, `modules[].frameworks` | **026.2** (Angular), spec6 (Spring Boot) |
 | `modules[].angular_projects`, `modules[].own_packages`, npm `dependencies`, npm / angular / tsconfig `config` | **026.2** |
-| `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3** (spec4 adds barrel-resolved keys) |
+| `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3**, barrel-resolved keys **026.4** |
 | `templates` | spec5 |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | spec6 |
 | `symbols`, `members`, `wildcard_imports` (Java) | spec7 |
@@ -287,13 +287,56 @@ against. The decorator adds no symbol location.
 still yields the imports that parsed and adds `partial_parse_error`. One bad file never loses
 the rest of its facts.
 
-### Known gap until 026.4
+### Barrels and aliases (026.4)
 
-Own-code imports are already collected (`own_imports`, `OwnImport`) together with each file's
-export map (`export_map`, `star_exports`, `namespace_exports`) and the names it declares itself
-(`local_declarations`). Spec4 resolves them: it follows a barrel to the external package and
-records the external key at the original import site. Until then, symbols imported through a
-barrel (`import { inject } from '@app/core'`) are missing from the profile.
+A previous version of this page said symbols behind a barrel were missing. They are resolved now
+by a post-pass, `migration_planner/scanner/ts_resolve.py`, which runs on the collected per-file
+facts and adds facts **at the original import site**.
+
+```text
+core/index.ts:  export { inject } from './di'
+di.ts:          export { inject } from '@angular/core'
+a.ts:           import { inject } from '@app/core'     →  npm:@angular/core#inject at a.ts:1
+```
+
+**Specifier → file.** A relative path, a `compilerOptions.paths` alias (longest matching pattern,
+targets in order, first existing wins), a `baseUrl` path or a workspace package name (its
+`package.json` `exports["."]` / `types` / `module` / `main`, else `index.*`; a subpath such as
+`@demo/ui/testing` tries `exports["./testing"]` and `"./*"` patterns first). A `paths` alias whose
+targets all live under `node_modules` is a redirect to an external package and stays external. A
+bundler query (`./worker?worker`) is stripped. Each candidate is probed with `.ts`, `.tsx`, `.d.ts`, `.js`, `.jsx`, `.mjs`, `.cjs` and `/index.*`; a `.js`
+specifier also finds its `.ts` source, which is what `NodeNext` projects write.
+
+**File → external package.** `export { X } from '…'`, `export { X as Y } from '…'` (renames
+applied along the chain), `export * from '…'`, `export * as ns from '…'` and
+`import { X } …; export { X }` are followed until an external package is reached. Every own
+`export *` is searched in order until one exports the name. A name that ends in a module-scope
+declaration is own code and is dropped silently (a `const` inside a function does not count). An
+external `export *` cannot be enumerated: behind exactly one, the name belongs to that package;
+behind several, it is not guessed — `ambiguous_export` (`map: @angular/core | rxjs`), no fact.
+
+**What is recorded.**
+
+| Shape | Fact |
+|---|---|
+| `import { inject } from '@app/core'` | `npm:@angular/core#inject` at the import site |
+| `export { inject as di } …` + `import { di } …` | `npm:@angular/core#inject`; `di.call(…)` → `… #inject.call` |
+| `import * as core from '@app/core'` + `core.inject(…)` | `npm:@angular/core#inject` at the access |
+| `@core.Component({ selector })` on a barrel namespace | `…#Component` + member `…#Component.selector` |
+| `export * as rx from 'rxjs'` + `import { rx } …` + `rx.filter()` | `npm:rxjs#filter` at the access |
+| `import { type Signal } from '@app/core'` | `type_only: true` at the site |
+| a name the barrel declares itself | nothing (own code) |
+
+**Bounds, never silent.** A cycle gives `barrel_cycle`, a chain deeper than 10 gives
+`barrel_depth`, and an own import whose file cannot be found gives `unresolved_import`. A
+specifier that names an asset (`./x.scss`, `./data.json`) is not a module and is skipped without a
+diagnostic. Results are memoized per `(file, exported name)`, and only a definitive answer is
+cached — a give-up depends on how deep one entry point already is, so caching it could deny a
+shorter chain the same name.
+
+`symbols[].locations` stay import sites only (FR-9): a barrel's own `export … from 'pkg'` is an
+import site too, so an intermediate barrel of the codebase is listed alongside the file that
+imports it.
 
 ## Canonical keys
 
@@ -325,8 +368,10 @@ changes.
 - **Source extractors** receive one file (path, bytes, module, `test` flag, and the module's
   `ModuleEnv`) and return per-file facts. They are pure functions of the file content, so spec9
   can cache them and run them in a process pool.
-- **Post-passes** run on the collected facts, before the profile is built (barrel resolution in
-  spec4, own-package filtering in spec7).
+- **Post-passes** receive the collected per-file facts plus how imports resolve
+  (`PostPassContext` / `ResolutionEnv`) and return a `FileFacts` fragment, which the scan merges
+  like any extractor's output. Barrel resolution is one (spec4); own-package filtering in spec7
+  is the next. A post-pass that raises is a `post_pass_error` diagnostic, never a failed scan.
 
 See `migration_planner/scanner/contract.py` and `migration_planner/scanner/builtin.py`.
 
@@ -339,6 +384,7 @@ migration_planner/            planner: runs in a service repo
     discover.py               file discovery, classification, module roots
     npm_manifests.py          package.json / lock / angular.json / tsconfig (026.2)
     ts.py                     TS / JS imports, members, decorators (026.3)
+    ts_resolve.py             barrels, aliases, workspace entry points (026.4)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry

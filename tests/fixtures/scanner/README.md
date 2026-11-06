@@ -26,3 +26,20 @@ package names as own packages, and reads each module's own dependency scopes.
 FR-5 import table (named, aliased, default, namespace, side-effect, `type`, `export … from`,
 `export *`, `import()`, `require()` with and without destructuring), plus a relative import, a
 `@app/*` paths alias and a workspace package (`@demo/ui`) so the own-code cases are exercised.
+The files those own imports name (`src/local.ts`, `src/app/shared.ts`, `packages/ui/src/index.ts`)
+exist too, because spec 026.4 resolves them: an own import with no file is an
+`unresolved_import` diagnostic, and this fixture has none.
+
+`tests/fixtures/scanner/ts-barrels/` covers spec 026.4, one fixture per acceptance criterion:
+
+- `src/app/core/` — a barrel (`index.ts`) that re-exports from `./di` and `export *` from
+  `./util`, with a rename (`export { inject as di }`) and a local class the barrel declares
+  itself. `src/app/feature.ts` imports from `@app/core`, so the external keys land there.
+- `src/app/namespaced.ts` — `import * as core from '@app/core'`, then `core.inject(…)` and a
+  namespaced decorator (`@core.Component({…})`).
+- `src/app/feature-imports.ts` — a workspace package (`@demo/ui`, entry point from its
+  `exports` map) and a `paths` alias with two targets (`@shared/*`).
+- `src/app/cycle-a.ts` + `cycle-b.ts` — a barrel cycle (diagnostic, no crash).
+- `src/deep/ok0…ok9.ts` (depth 10, resolves) and `deep0…deep10.ts` (depth 11, `barrel_depth`).
+- `src/app/mixed.ts` + `mixed-barrel.ts` — a name that ends in a local declaration next to one
+  that reaches Angular.
