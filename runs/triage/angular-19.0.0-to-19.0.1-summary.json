@@ -21,7 +21,7 @@
   "wall_time_sec": 0.001,
   "cache_hits": 0,
   "thresholds": {
-    "drop_max_action_prob": 0.1,
+    "drop_max_action_prob": 0.2,
     "drop_min_category_prob": 0.8,
     "drop_max_impact_score": 1.0
   }

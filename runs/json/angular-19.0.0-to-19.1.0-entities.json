@@ -1,0 +1,47 @@
+{
+  "entities": [
+    {
+      "source_section": "behavioral",
+      "title": "Compiler now type checks the event side of two-way bindings",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/c5c20e9d86d72b33840dcf0adea02876437a589f",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The compiler-cli type-check block for two-way bindings previously generated `someOutput.subscribe($event => expr);`, which performed no check on the output event type. Two-way bindings are now type checked on the event side too, so build errors appear where the output event type is not assignable to the bound input property type — a case that went unnoticed when the input side had a wider type.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "syntax",
+          "name": "[(...)]",
+          "role": "mentioned",
+          "package": ""
+        },
+        {
+          "kind": "diagnostic",
+          "name": "TS2322",
+          "role": "mentioned",
+          "package": ""
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-verify two-way bindings still compile",
+          "instruction": "Build the application and confirm that no new `TS2322` type assignment errors are reported for templates that use two-way bindings, e.g. `[(ngModel)]` or custom `[(foo)]` bindings. **Before/after:**\n```typescript\n// 19.0.0: no type check on the event side\nsomeOutput.subscribe($event => expr);\n\n// 19.1.0: event side is type checked\nsomeOutput.subscribe($event => {\n  var _t1 = unwrapSignalValue(this.someField);\n  _t1 = $event;\n});\n```",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes without new `TS2322` diagnostics on template two-way bindings.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    }
+  ]
+}

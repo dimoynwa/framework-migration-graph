@@ -1,0 +1,549 @@
+{
+  "entities": [
+    {
+      "source_section": "new_capability",
+      "title": "NgOptimizedImage adds decoding input with auto and sync defaults",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/ef10aa400585fb66e1afde08be0f9fd9a70ce7f2",
+      "change_type": "behavior_change",
+      "reason_type": "other",
+      "reason": "NgOptimizedImage from @angular/common now exposes a decoding input and proxies it onto the host <img> element. Non-priority images get an explicit decoding=\"auto\" and priority images get decoding=\"sync\", matching prior browser defaults so templates compile unchanged, but rendering and LCP behavior of existing images should be re-verified.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "NgOptimizedImage",
+          "role": "mentioned"
+        },
+        {
+          "kind": "property",
+          "name": "decoding",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify priority image rendering and LCP",
+          "instruction": "Re-check rendering and LCP of templates using NgOptimizedImage. Priority images now render with an explicit `decoding=\"sync\"` attribute and non-priority images with `decoding=\"auto\"`.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Inspecting a priority `<img ngSrc>` in DevTools shows a `decoding=\"sync\"` attribute, and non-priority images show `decoding=\"auto\"`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Opt lazy images into async decoding",
+          "instruction": "To decode lazy-loaded images off the main thread, add the `decoding` binding. **Before/after:** `<img ngSrc=\"gallery/preview.jpg\" width=\"600\" height=\"400\" />` → `<img ngSrc=\"gallery/preview.jpg\" width=\"600\" height=\"400\" decoding=\"async\" />`. Note the `priority` attribute overrides any `decoding` value.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [
+            0
+          ],
+          "verification": "The rendered `<img>` element carries `decoding=\"async\"` and no dev-mode `assertValidDecodingInput` error is raised for the value.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Compiler support for new binary assignment operators in templates",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/0dcf230d52694e6d3d6e55d6e675d55f9cf236bc",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "The Angular template expression parser and the `Binary` AST node in `@angular/compiler` now support the assignment operators `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&&=`, `||=`, and `??=`. Applications using these operators in templates can rely on them compiling, while code depending on internal compiler AST types (`Chain`, `BindingPipe`, `ASTWithSource`, `AstVisitor`) should review the accompanying type changes.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "@angular/compiler:Binary",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "@angular/compiler:AstVisitor",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "@angular/compiler:Chain",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "@angular/compiler:BindingPipe",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "@angular/compiler:ASTWithSource",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify templates using new assignment operators compile",
+          "instruction": "Build the application with `ng build` and confirm templates that use `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `&&=`, `||=`, or `??=` in expressions compile and run, since `Binary.isAssignmentOperation` now accepts these operators in 20.1.0.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` completes with no template parse errors for bindings containing `+=`, `??=`, or the other new assignment operators.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Add visitUnary to custom AstVisitor implementations",
+          "instruction": "If the project defines a custom `AstVisitor`, add the new optional `visitUnary` method and align its `Chain`, `BindingPipe` (`type: BindingPipeType`), and `ASTWithSource` (`ParseError[]`) type usages with the 20.1.0 definitions.\n\n**Before/after:** a custom `AstVisitor` implementation lacking `visitUnary` → same visitor with a `visitUnary` method present.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation of the custom `AstVisitor` implementation succeeds against `@angular/compiler` 20.1.0 with no missing-member errors.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Compiler reports parser errors only on the invalid expression",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/5a76826d266b4ed0ef863221571e4b6b1b16182f",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The compiler's Parser previously kept a single instance-level errors array shared by all expression ASTs, so one invalid binding propagated duplicate errors to every other AST in the template. In 20.1.0 each parsed expression allocates its own errors array, and internal methods such as splitInterpolation now take an explicit errors parameter. Applications and tooling that call these internal @angular/compiler Parser methods directly must update call signatures, and test suites asserting on template error messages may see fewer, de-duplicated errors.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "medium"
+        },
+        {
+          "scope": "runtime",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "Parser",
+          "role": "mentioned"
+        },
+        {
+          "kind": "property",
+          "name": "errors",
+          "role": "removed"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "replace",
+          "summary": "Pass explicit errors array to internal Parser methods",
+          "instruction": "Any direct, non-public usage of the @angular/compiler Parser internal methods must supply the new local `errors` array instead of relying on the removed instance property.\n\n**Before/after:**\n```diff\n-    this._checkNoInterpolation(input, location, interpolationConfig);\n-    return new ASTWithSource(ast, input, location, absoluteOffset, this.errors);\n+    const errors: ParserError[] = [];\n+    this._checkNoInterpolation(errors, input, location, interpolationConfig);\n+    return new ASTWithSource(ast, input, location, absoluteOffset, errors);\n```",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "TypeScript compilation of the custom Parser subclass or caller succeeds without errors about a missing `errors` argument or a removed `this.errors` property.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "verify",
+          "summary": "Re-verify template parser error expectations in tests",
+          "instruction": "Re-run test suites asserting on template/parser error messages; each invalid expression now yields its ParserError once instead of duplicated errors on other ASTs.\n\n**Before/after:**\n```diff\n- expect(errors.length).toBe(2);\n+ expect(errors.length).toBe(1);\n```",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [
+            0
+          ],
+          "verification": "Tests asserting on ParserError counts for a template with a single invalid binding pass with one error per invalid expression.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "component_upgrade",
+      "title": "TypeScript removed from @angular/compiler linker; now an optional peer dependency",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/e9fcbb8af12e7b4370d2e03e6004f3f2fe02c981",
+      "change_type": "dependency_upgrade",
+      "reason_type": "dependency_alignment",
+      "reason": "The linker inside @angular/compiler no longer imports TypeScript barrel files, removing a 500ms to 1s compilation overhead, and TypeScript was dropped from the compiler package's dependencies (only tslib remains) and made an optional peer dependency. Projects that relied on @angular/compiler to transitively install typescript, such as JIT or linker users, may no longer resolve TypeScript after upgrading.",
+      "scopes": [
+        {
+          "scope": "build",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "dependency",
+          "name": "@angular/compiler",
+          "role": "mentioned"
+        },
+        {
+          "kind": "dependency",
+          "name": "typescript",
+          "role": "co-required"
+        },
+        {
+          "kind": "dependency",
+          "name": "tslib",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Declare typescript explicitly in package.json",
+          "instruction": "Add `typescript` as an explicit dependency of your project, since `@angular/compiler` no longer installs it transitively.\n\n**Before/after:**\n```json\n// package.json (20.0) — typescript only available transitively via @angular/compiler\n\"dependencies\": { \"@angular/compiler\": \"^20.1.0\" }\n\n// package.json (20.1) — typescript declared explicitly\n\"dependencies\": { \"@angular/compiler\": \"^20.1.0\", \"tslib\": \"^2.3.0\" },\n\"devDependencies\": { \"typescript\": \"<version compatible with your Angular version>\" }\n```",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`npm ls typescript` resolves typescript from your project's own package.json rather than as a transitive dependency of @angular/compiler, and the build completes.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "new_capability",
+      "title": "Experimental fast type declaration emission in compiler-cli",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/e62fb359d6da8e0458b18f24e6bff60602f93fc6",
+      "change_type": "informational",
+      "reason_type": "other",
+      "reason": "@angular/compiler-cli 20.1.0 adds experimental declaration-only emission that activates only when the TypeScript emitDeclarationOnly option and the internal _geminiAllowEmitDeclarationOnly flag are both set. In this mode the compiler forces local compilation and unsupported constructs such as @Input transforms and external host directive references throw FatalDiagnosticError. Applications that do not enable these experimental options are unaffected.",
+      "scopes": [
+        {
+          "scope": "build",
+          "severity": "low"
+        },
+        {
+          "scope": "api-surface",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "BazelAndG3Options",
+          "role": "mentioned"
+        },
+        {
+          "kind": "property",
+          "name": "_geminiAllowEmitDeclarationOnly",
+          "role": "mentioned"
+        },
+        {
+          "kind": "property",
+          "name": "emitDeclarationOnly",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Verify build with emitDeclarationOnly and _geminiAllowEmitDeclarationOnly",
+          "instruction": "**Before/after:**\n```typescript\n// Only projects that opt in to both options are affected:\n{\n  emitDeclarationOnly: true,\n  _geminiAllowEmitDeclarationOnly: true\n}\n```\nRe-verify the build. Declaration-only emission forces local compilation mode, and unsupported constructs such as `@Input` with a transform function or external references in host directives now throw `FatalDiagnosticError`; convert those constructs or disable the experimental options.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "Build completes without a FatalDiagnosticError from experimental declaration-only emission mode.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "NG8109 diagnostic now flags negated signal references in templates",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/b7ab5fa2562524a0e8dfa4f3dff740ec2d31b4c7",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "The compiler-cli extended diagnostic interpolatedSignalNotInvoked (NG8109) now unwraps a PrefixNot AST node, so signals referenced with `!` in templates without being invoked (e.g. `{{ !test }}` or `[prop]=\"!negatedSignal\"`) are reported, whereas previously they were missed. The diagnostic only emits when `strictTemplates` is enabled, and it can fail builds for projects that promote extended diagnostics to errors.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "property",
+          "name": "angularCompilerOptions.extendedDiagnostics.checks.interpolatedSignalNotInvoked",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-verify templates using negated, uninvoked signals",
+          "instruction": "Build the project with `strictTemplates: true` and inspect templates for negated signal references that omit the call.\n\n**Before/after:**\n```html\n<!-- Component: readonly test = signal(false); -->\n{{ !test }}\n```\n```html\n{{ !test() }}\n```",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "`ng build` output contains no NG8109 diagnostic for the affected templates.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Demote interpolatedSignalNotInvoked check to warning",
+          "instruction": "If the negated signal usage is intentional, demote the extended diagnostic instead of letting it fail the build.\n\n**Before/after:**\n```json\n{ \"angularCompilerOptions\": { \"extendedDiagnostics\": { \"checks\": { \"interpolatedSignalNotInvoked\": \"error\" } } } }\n```\n```json\n{ \"angularCompilerOptions\": { \"extendedDiagnostics\": { \"checks\": { \"interpolatedSignalNotInvoked\": \"warning\" } } } }\n```",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [
+            0
+          ],
+          "verification": "`ng build` reports interpolatedSignalNotInvoked as a warning and exits successfully.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "Rename `_geminiAllowEmitDeclarationOnly` to `_experimentalAllowEmitDeclarationOnly`",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/77fa204ad16fef561c009fcef0ab1fb92a37f986",
+      "change_type": "configuration_change",
+      "reason_type": "other",
+      "reason": "The experimental compiler-cli flag that enables fast type declaration emission was renamed from `_geminiAllowEmitDeclarationOnly` to `_experimentalAllowEmitDeclarationOnly` in the compiler options. Only projects that explicitly set the old key in `angularCompilerOptions` are affected; leaving the old key means the experimental emission mode is no longer enabled.",
+      "scopes": [
+        {
+          "scope": "build",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "property",
+          "name": "_geminiAllowEmitDeclarationOnly",
+          "role": "removed"
+        },
+        {
+          "kind": "property",
+          "name": "_experimentalAllowEmitDeclarationOnly",
+          "role": "replacement"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "rename",
+          "summary": "Rename experimental emit-declaration flag key",
+          "instruction": "In `tsconfig.json`, rename the `angularCompilerOptions` key.\n**Before/after:**\n```jsonc\n{ \"_geminiAllowEmitDeclarationOnly\": true }\n// after\n{ \"_experimentalAllowEmitDeclarationOnly\": true }\n```",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`tsconfig.json` contains `_experimentalAllowEmitDeclarationOnly` in `angularCompilerOptions` and no occurrence of `_geminiAllowEmitDeclarationOnly`.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "breaking_change",
+      "title": "Minimum Node.js support raised to 20.19, 22.12, and 24.0",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/8f65223bd83ee5cdbff6a3c8e99f85d1c69f5375",
+      "change_type": "breaking_change",
+      "reason_type": "dependency_alignment",
+      "reason": "Angular 20.1 raised the minimum supported Node.js versions from ^20.11.1 || ^22.11.0 || >=24.0.0 to ^20.19.0 || ^22.12.0 || >=24.0.0 in the engines.node field of @angular/core and all published packages, matching the Angular CLI bump. Applications building, testing, or serving Angular on Node.js 20.0.0–20.18.x or 22.0.0–22.11.x must upgrade their development, CI, and SSR runtimes.",
+      "scopes": [
+        {
+          "scope": "build",
+          "severity": "high"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "dependency",
+          "name": "@angular/core",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "configure",
+          "summary": "Update local/CI/SSR Node.js to supported versions",
+          "instruction": "Move development, CI, and server/SSR runtime images to Node.js 20.19.0+, 22.12.0+, or 24.0.0+, and update pins such as `.nvmrc`.\n\n**Before/after:**\n```jsonc\n// package.json — \"engines\" in @angular/* v20.0.x\n\"engines\": { \"node\": \"^20.11.1 || ^22.11.0 || >=24.0.0\" }\n\n// v20.1.x\n\"engines\": { \"node\": \"^20.19.0 || ^22.12.0 || >=24.0.0\" }\n```",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [],
+          "verification": "`node --version` on each dev, CI, and SSR environment reports v20.19.0+, v22.12.0+, or v24.0.0+.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Update workspace engines.node constraint",
+          "instruction": "Set the workspace `package.json` engines.node range to `^20.19.0 || ^22.12.0 || >=24.0.0` so it matches the @angular/* v20.1.x requirement.",
+          "effort": "mechanical",
+          "automatable": true,
+          "requires": [
+            0
+          ],
+          "verification": "`package.json` engines.node reads `^20.19.0 || ^22.12.0 || >=24.0.0`.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Re-run ng build, ng test, and SSR",
+          "instruction": "Re-verify that `ng build`, `ng test`, and SSR execution still succeed on the upgraded Node.js version.",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [
+            0
+          ],
+          "verification": "`ng build`, `ng test`, and the SSR build/serve commands exit with code 0 on the new Node.js version.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "fix(forms): Allow ControlState as reset arguments for FormGroup/FormRecord",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/610bebfce98d879677244b2ef08b24886891ca76",
+      "change_type": "behavior_change",
+      "reason_type": "bugfix",
+      "reason": "Typed FormGroup and FormRecord reset() now accept ControlState (FormControlState) objects per control instead of only standalone values, via the new internal type ɵFormGroupArgumentValue / ɵFormRecordArgumentValue. AbstractControl gains a 3rd generic parameter to decouple the reset type argument from TValue, improving typings. Upgraders should re-verify reset() calls on typed forms since previously-required casts or workarounds may now be unnecessary.",
+      "scopes": [
+        {
+          "scope": "api-surface",
+          "severity": "low"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "FormGroup",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "FormRecord",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "AbstractControl",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "FormControlState",
+          "role": "replacement"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Re-verify typed reset() calls on FormGroup/FormRecord",
+          "instruction": "Re-verify `reset()` calls on typed `FormGroup`/`FormRecord` so type-checking passes and no `as any` or workaround casts remain needed.\n\n**Before/after:**\n```typescript\n// Before: typing error for typed forms\nconst form = new FormGroup({\n  first: new FormControl<string>(''),\n});\nform.reset({ first: { value: 'name', disabled: true } }); // Type '{ value: string; disabled: true; }' is not assignable to type 'string'\n\n// After (20.1.0): accepted by ɵFormGroupArgumentValue\nform.reset({ first: { value: 'name', disabled: true } });\n```",
+          "effort": "mechanical",
+          "automatable": false,
+          "requires": [],
+          "verification": "Compilation of the project succeeds with the existing reset() calls and no `as any` casts remain on those calls.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    },
+    {
+      "source_section": "behavioral",
+      "title": "fix(forms): improve select performance (#61949)",
+      "jira_keys": [],
+      "source_url": "https://github.com/angular/angular/commit/4f0221e1933675b24bdbf95be3825fdacee13c00",
+      "change_type": "behavior_change",
+      "reason_type": "performance",
+      "reason": "SelectControlValueAccessor no longer writes the select value synchronously while option elements are created, removed, or re-valued; NgSelectOption instead queues a single deferred write via _writeValueAfterRender(), which removes the exponential _compareWith/_compareValue calls and fixes delayed option removal with @angular/animations. Because the write now happens after render, tests and runtime code that read the select value or option.selected synchronously after detectChanges() can observe a stale value, and specs that construct SelectControlValueAccessor directly now need an injection context.",
+      "scopes": [
+        {
+          "scope": "runtime",
+          "severity": "low"
+        },
+        {
+          "scope": "test",
+          "severity": "medium"
+        }
+      ],
+      "entities": [
+        {
+          "kind": "class",
+          "name": "SelectControlValueAccessor",
+          "role": "mentioned"
+        },
+        {
+          "kind": "class",
+          "name": "NgSelectOption",
+          "role": "mentioned"
+        }
+      ],
+      "steps": [
+        {
+          "index": 0,
+          "step_type": "verify",
+          "summary": "Flush deferred write before asserting select value",
+          "instruction": "After triggering change detection, flush the deferred select write before reading the DOM value.\n\n**Before/after:**\n```diff\n fixture.detectChanges();\n-expect(select.nativeElement.value).toBe('b');\n+fixture.detectChanges();\n+await fixture.whenStable();\n+expect(select.nativeElement.value).toBe('b');\n```\nInside `fakeAsync`, use `tick()` instead; `fixture.whenRenderStable()` is also available.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The assertion on `select.nativeElement.value` or `option.nativeElement.selected` passes after flushing, rather than seeing the previous or first option value.",
+          "cli_operation": ""
+        },
+        {
+          "index": 1,
+          "step_type": "configure",
+          "summary": "Wrap direct SelectControlValueAccessor construction in injection context",
+          "instruction": "If a spec instantiates `new SelectControlValueAccessor(...)` directly, wrap the construction in `TestBed.runInInjectionContext` and provide a `ChangeDetectorRef`, since the accessor now injects `ChangeDetectorRef`, `ApplicationRef`, and `DestroyRef`.",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "The spec instantiating `SelectControlValueAccessor` runs without an injection-context or missing-provider error.",
+          "cli_operation": ""
+        },
+        {
+          "index": 2,
+          "step_type": "verify",
+          "summary": "Update model when selected option is removed",
+          "instruction": "When a bound option list no longer contains the selected model value, update the model to a valid value yourself; per the commit, \"The model value still needs to be updated to a valid value when the selected value is deleted or it will be out of sync with the DOM\".",
+          "effort": "moderate",
+          "automatable": false,
+          "requires": [],
+          "verification": "After removing the selected option, the bound ngModel/formControl value matches a value still present in the option list.",
+          "cli_operation": ""
+        }
+      ],
+      "subsystem": ""
+    }
+  ]
+}
