@@ -1,0 +1,12 @@
+{
+  "name": "angular-templates",
+  "version": "1.0.0",
+  "dependencies": {
+    "@angular/common": "^19.2.0",
+    "@angular/core": "^19.2.0",
+    "@angular/platform-browser": "^19.2.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.7.2"
+  }
+}

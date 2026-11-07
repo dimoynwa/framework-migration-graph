@@ -5,83 +5,23 @@ to one framework family: the ecosystem, the npm entry points a package prefix
 can be split on, template-syntax tokens, and config-key prefixes. The Angular
 profile is ``npm``; Spring Boot and WildFly are ``maven`` and are a no-op apart
 from computing ``key`` (spec 025 FR-2.7).
+
+The data itself lives in :mod:`migration_keys` (spec 026 FR-1), because the
+service scanner matches on the very same packages, tokens and config prefixes.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Mapping
 
-# Angular compiler / template diagnostics, for example NG8115.
-DIAGNOSTIC_RE = re.compile(r"^NG\d{4}$")
-
-_ANGULAR_PACKAGES: tuple[str, ...] = (
-    "@angular/animations",
-    "@angular/animations/browser",
-    "@angular/common",
-    "@angular/common/http",
-    "@angular/common/http/testing",
-    "@angular/common/testing",
-    "@angular/compiler",
-    "@angular/compiler-cli",
-    "@angular/compiler/testing",
-    "@angular/core",
-    "@angular/core/primitives/event-dispatch",
-    "@angular/core/primitives/signals",
-    "@angular/core/rxjs-interop",
-    "@angular/core/testing",
-    "@angular/elements",
-    "@angular/forms",
-    "@angular/localize",
-    "@angular/platform-browser",
-    "@angular/platform-browser/animations",
-    "@angular/platform-browser/animations/async",
-    "@angular/platform-browser/testing",
-    "@angular/platform-browser-dynamic",
-    "@angular/platform-browser-dynamic/testing",
-    "@angular/platform-server",
-    "@angular/platform-server/init",
-    "@angular/router",
-    "@angular/router/testing",
-    "@angular/service-worker",
-    "@angular/upgrade",
-    "@angular/upgrade/common",
-    "@angular/upgrade/static",
+from migration_keys.angular import (
+    ANGULAR_CONFIG_PREFIXES,
+    ANGULAR_PACKAGES,
+    ANGULAR_SYNTAX_TOKENS,
 )
-
-_ANGULAR_SYNTAX_TOKENS: tuple[str, ...] = (
-    "in",
-    "void",
-    "typeof",
-    "as",
-    "let",
-    "@if",
-    "@else",
-    "@else if",
-    "@for",
-    "@empty",
-    "@switch",
-    "@case",
-    "@defer",
-    "@placeholder",
-    "@error",
-    "@loading",
-    "@let",
-)
-
-# Config-key prefix → the file the key belongs to (spec 025 FR-2.6).
-_ANGULAR_CONFIG_PREFIXES: Mapping[str, str] = {
-    "engines.": "package.json",
-    "peerDependencies.": "package.json",
-    "dependencies.": "package.json",
-    "devDependencies.": "package.json",
-    "angularCompilerOptions.": "tsconfig.json",
-    "compilerOptions.": "tsconfig.json",
-    "projects.": "angular.json",
-    "architect.": "angular.json",
-    "schematics.": "angular.json",
-}
+from migration_keys.keys import config_file_for_key
+from migration_keys.spring import SPRING_CONFIG_FILE
 
 
 @dataclass(frozen=True)
@@ -103,24 +43,24 @@ class FrameworkProfile:
 
     def file_for_key(self, dotted_key: str) -> str:
         """Config file for a dotted key, "" when the prefix is unknown."""
-        for prefix, file in self.config_prefixes.items():
-            if dotted_key.startswith(prefix):
-                return file
-        return ""
+        return config_file_for_key(dotted_key, self.config_prefixes)
 
 
 ANGULAR_PROFILE = FrameworkProfile(
     key="angular",
     ecosystem="npm",
-    known_packages=frozenset(_ANGULAR_PACKAGES),
-    syntax_tokens=frozenset(_ANGULAR_SYNTAX_TOKENS),
-    config_prefixes=_ANGULAR_CONFIG_PREFIXES,
+    known_packages=frozenset(ANGULAR_PACKAGES),
+    syntax_tokens=frozenset(ANGULAR_SYNTAX_TOKENS),
+    config_prefixes=ANGULAR_CONFIG_PREFIXES,
 )
 
 SPRING_BOOT_PROFILE = FrameworkProfile(
     key="spring-boot",
     ecosystem="maven",
-    config_file="application.properties",
+    # Every Spring property canonicalizes under this one file name, so a rule's
+    # key and the service's key (026.8 FR-8a) compare equal whichever file the
+    # property is really in.
+    config_file=SPRING_CONFIG_FILE,
 )
 
 WILDFLY_PROFILE = FrameworkProfile(

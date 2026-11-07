@@ -15,7 +15,9 @@ ENV HF_HOME=/app/.cache/huggingface
 
 COPY pyproject.toml uv.lock ./
 
-RUN uv sync --frozen --no-dev
+# Ingestion is the `[ingest]` extra (026 spec9): the base dependencies are only
+# what the planner needs, so the oracle image asks for the full stack.
+RUN uv sync --frozen --no-dev --extra ingest
 
 # uv.lock pins the CUDA-linked torch build, which pulls in nvidia-* CUDA
 # runtimes (~2.9 GB) and triton (~660 MB). Replace torch with the CPU-only

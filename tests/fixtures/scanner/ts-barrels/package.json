@@ -1,0 +1,9 @@
+{
+  "name": "barrel-app",
+  "private": true,
+  "workspaces": ["packages/ui"],
+  "dependencies": {
+    "@angular/core": "^19.2.0",
+    "@angular/cdk": "^19.0.0"
+  }
+}

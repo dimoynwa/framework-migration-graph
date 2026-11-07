@@ -1,0 +1,35 @@
+# A profile file plus a multi-document file: the profile comes from the file name
+# (application-prod.yml -> prod), and a document may override it with
+# spring.config.activate.on-profile.
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 40
+      connection-timeout: 3000
+  jpa:
+    show-sql: false
+    properties:
+      hibernate.jdbc.batch_size: 50
+  cloud:
+    gateway:
+      routes:
+        - id: catalog
+          uri: http://catalog.internal
+          metadata:
+            Connect-Timeout: 2000
+app:
+  features:
+    - checkout
+    - search
+server:
+  port: 8443
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+app:
+  debug: true

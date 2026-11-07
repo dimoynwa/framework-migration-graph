@@ -1,0 +1,12 @@
+{
+  "name": "ts-imports",
+  "private": true,
+  "workspaces": ["packages/ui"],
+  "dependencies": {
+    "@angular/core": "^19.2.0",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@angular/cli": "^19.2.0"
+  }
+}

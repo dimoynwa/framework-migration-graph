@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "payments-ui": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "pay",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:application",
+          "options": {
+            "outputPath": "dist/payments-ui",
+            "index": "src/index.html",
+            "main": "src/main.ts",
+            "polyfills": ["zone.js"],
+            "tsConfig": "tsconfig.app.json",
+            "assets": ["src/assets"],
+            "styles": ["src/styles.css"],
+            "scripts": [],
+            "budgets": [
+              {
+                "type": "initial",
+                "maximumWarning": "500kB",
+                "maximumError": "1MB"
+              }
+            ]
+          },
+          "configurations": {
+            "production": {
+              "optimization": true,
+              "sourceMap": false
+            }
+          }
+        },
+        "serve": {
+          "builder": "@angular-devkit/build-angular:dev-server"
+        },
+        "test": {
+          "builder": "@angular-devkit/build-angular:karma"
+        }
+      }
+    },
+    "payments-admin": {
+      "projectType": "application",
+      "root": "projects/payments-admin",
+      "sourceRoot": "projects/payments-admin/src",
+      "architect": {
+        "build": {
+          "builder": "@angular-devkit/build-angular:browser"
+        }
+      }
+    }
+  }
+}

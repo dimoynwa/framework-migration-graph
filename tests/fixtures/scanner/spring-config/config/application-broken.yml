@@ -1,0 +1,5 @@
+# An unparsable YAML file: one diagnostic, and the rest of the module is still read.
+spring:
+  datasource:
+    url: [unclosed
+  profiles: {

@@ -1,0 +1,31 @@
+<!--
+  Everything inside a comment is not a template:
+  @defer *ngFor in void @switch
+-->
+<div class="wrapper">
+  @if (show) {
+    <ul *ngFor="let item of items; track item.id">
+      <li>{{ item.createdAt | date:'short' }}</li>
+      <li>{{ item in cache }}</li>
+      <li>{{ a || b }}</li>
+      <li [class.active]="item.active || fallback">Plain text saying in here is not a token</li>
+    </ul>
+  } @else if (other) {
+    <p>{{ other }}</p>
+  } @empty {
+    <p>nothing to show</p>
+  }
+
+  @defer (on viewport) {
+    <app-heavy />
+  } @placeholder {
+    <p>loading soon</p>
+  } @loading {
+    <p>loading</p>
+  } @error {
+    <p>failed</p>
+  }
+
+  @let total = items.length;
+  <p>{{ total }}</p>
+</div>

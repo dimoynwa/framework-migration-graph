@@ -1,0 +1,44 @@
+{
+  "name": "payments-ui",
+  "version": "4.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.19.0",
+    "npm": ">=10"
+  },
+  "browserslist": [
+    "last 2 Chrome versions",
+    "last 2 Firefox versions"
+  ],
+  "scripts": {
+    "build": "ng build"
+  },
+  "dependencies": {
+    "@angular/common": "^19.2.0",
+    "@angular/core": "^19.2.0",
+    "@angular/forms": "^19.2.0",
+    "@angular/platform-browser": "^19.2.0",
+    "@angular/router": "^19.2.0",
+    "rxjs": "^7.8.1",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular-devkit/build-angular": "^19.2.0",
+    "@angular/cli": "^19.2.0",
+    "@angular/compiler-cli": "^19.2.0",
+    "typescript": "~5.7.2"
+  },
+  "peerDependencies": {
+    "zone.js": "~0.15.0"
+  },
+  "optionalDependencies": {
+    "@esbuild/darwin-arm64": "0.25.0"
+  },
+  "overrides": {
+    "esbuild": "0.25.0"
+  },
+  "resolutions": {
+    "**/braces": "3.0.3"
+  }
+}
