@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.acme</groupId>
+    <artifactId>acme-parent</artifactId>
+    <version>2.0.0</version>
+  </parent>
+
+  <artifactId>app</artifactId>
+
+  <dependencies>
+    <!-- Version comes from the imported BOM: none is written here. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <!-- ``${acme.version}`` resolves in the parent, to ``${project.version}``. -->
+    <dependency>
+      <groupId>com.acme</groupId>
+      <artifactId>lib</artifactId>
+      <version>${acme.version}</version>
+    </dependency>
+    <!-- AC-6: an unresolved ``${…}`` keeps its raw text and is a diagnostic. -->
+    <dependency>
+      <groupId>com.example</groupId>
+      <artifactId>mystery</artifactId>
+      <version>${external.bom.version}</version>
+    </dependency>
+    <!-- ``${jackson.version}`` is a parent property. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <!-- A plugin with no groupId: Maven's default plugin group. -->
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

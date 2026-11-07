@@ -56,3 +56,35 @@ with every source of a template.
 `tests/fixtures/scanner/node-html/` is the negative case: a Node module (no Angular framework)
 with an `index.html` full of template syntax, which must produce **no** `templates[]` entries
 because a non-Angular `.html` file is not a template.
+
+`tests/fixtures/scanner/spring-maven/` covers spec 026.6 (FR-3, FR-8, AC-6): a Maven
+multi-module tree whose parent pom holds what a child inherits.
+
+- Root `pom.xml` — a parent pom (`com.acme:acme-parent`) with `<properties>`
+  (`java.version`, `spring-boot.version`, `jackson.version`, and an
+  `acme.version` that is `${project.version}`), the `spring-boot-dependencies` BOM import
+  (FR-3 case 2, its version from a property), a managed entry that is not an import, and
+  `<modules>` naming `app` and `lib`.
+- `app/pom.xml` — a child with no Boot parent of its own: its Spring Boot version comes from the
+  parent's BOM. It exercises a dependency with no version, a `<scope>runtime</scope>`, a
+  `${jackson.version}` inherited from the parent, a `${acme.version}` that resolves through the
+  parent's `${project.version}`, an unresolved `${external.bom.version}` (AC-6: raw text plus a
+  diagnostic), a plugin, and a plugin with no `<groupId>`.
+- `lib/pom.xml` — a second child, to prove the parent's properties reach every module.
+
+`tests/fixtures/scanner/spring-gradle/` covers spec 026.6 for Gradle (AC-7):
+
+- `settings.gradle.kts` — `pluginManagement { plugins { … } }` (the Boot and
+  dependency-management versions), and `include("service", ":platform:common")` so the module
+  roots come from the settings script.
+- `build.gradle.kts` — the root project declaring `id("org.springframework.boot") version "3.4.1"
+  apply false`: a version for the subprojects, but the root is not itself on Spring Boot.
+- `gradle/libs.versions.toml` — `[versions]` / `[libraries]` / `[plugins]`, with `version.ref`,
+  a literal-version library and a literal-version plugin.
+- `gradle.properties` — `springBootVersion` and `springCloudVersion`, variables a build file uses.
+- `service/build.gradle` — Groovy DSL: an unversioned Boot plugin (version inherited from the
+  root), a catalog plugin alias, `ext { … }`, `platform(…)` as a BOM, string and map notation, a
+  catalog accessor, `project(':platform:common')` (not a fact), a variable from
+  `gradle.properties`, a trailing closure with `exclude`, an unresolved `$externalLibVersion`,
+  a `java { toolchain { … } }` and a flat `sourceCompatibility`.
+- `platform/common/build.gradle.kts` — a Kotlin subproject with no Spring facts at all.

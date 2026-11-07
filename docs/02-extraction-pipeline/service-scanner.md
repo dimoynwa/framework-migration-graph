@@ -205,11 +205,11 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | Section | Filled by |
 |---|---|
 | `generated`, `inputs_hash`, `modules[].path/manifests`, discovery `diagnostics` | **026.1** (this page) |
-| `framework`, `modules[].frameworks` | **026.2** (Angular), spec6 (Spring Boot) |
+| `framework`, `modules[].frameworks` | **026.2** (Angular), **026.6** (Spring Boot) |
 | `modules[].angular_projects`, `modules[].own_packages`, npm `dependencies`, npm / angular / tsconfig `config` | **026.2** |
 | `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3**, barrel-resolved keys **026.4** |
 | `templates` | **026.5** |
-| Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | spec6 |
+| Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | **026.6** |
 | `symbols`, `members`, `wildcard_imports` (Java) | spec7 |
 | Spring `config`, `modules[].spring_config_files` | spec8 |
 | Incremental cache, `--jobs`, `[planner]` extra | spec9 |
@@ -226,10 +226,12 @@ A section whose spec has not landed yet is an empty list, so the schema is stabl
 - `files` is the number of distinct files using the fact.
 - `dependencies[]` has one entry per `(key, module, scope, kind)`; `kind` is
   `dependency | bom | parent | plugin`, so a BOM import and a plain dependency on the same
-  artifact are two entries.
+  artifact are two entries. `version_source` says where `version` came from: `lockfile` or
+  `range` for npm, `declared`, `catalog`, `inherited` or `pluginManagement` for Maven / Gradle.
 - `config[]` has one entry per occurrence `(key, module, file, profile, line)`: the same key in
-  two modules, files or Spring profiles is two entries. `line`, `raw_key`, `profile`, `kind` are
-  filled by the Spring config reader (spec8) and `null` elsewhere.
+  two modules, files or Spring profiles is two entries. `line` is filled by the Maven / Gradle
+  readers (026.6) and by the Spring config reader (spec8); `raw_key`, `profile` and `kind` are
+  the Spring reader's and `null` elsewhere.
 - All paths are relative to the scan root with `/` separators, so a profile can be attached to a
   CI job and read on another machine.
 - `inputs_hash` is sha256 over the sorted `(path, sha256(content))` of every scanned file, the
@@ -395,6 +397,128 @@ jq '.templates[] | {key, count}' .migration/profile.json
 grep -rn "@defer\|\*ngFor" src --include=*.html | wc -l   # compare with the counts
 ```
 
+## Maven and Gradle builds (026.6)
+
+`migration_planner/scanner/maven.py` reads `pom.xml`, `migration_planner/scanner/gradle.py`
+reads `build.gradle(.kts)`, `settings.gradle(.kts)`, `gradle/libs.versions.toml` and
+`gradle.properties`. They answer the two questions a migration plan needs about a Java module:
+**which Spring Boot version it builds against** (FR-3) and **what its build declares** (FR-8).
+
+**No build is executed.** Maven is read with `xml.etree` (namespaces stripped, external entities
+never resolved); Gradle with a tolerant lexer for the forms build scripts really use. A build
+script is a program and a lexer cannot read a program, so a construct it does not understand is
+skipped — and a *dependency-looking* line it cannot parse is reported as `unparsed_gradle`
+instead of disappearing (FR-8).
+
+### The Spring Boot version (FR-3)
+
+The first source that applies, in this order:
+
+| # | Where | `source` |
+|---|---|---|
+| 1 | Maven `<parent>` `org.springframework.boot:spring-boot-starter-parent` | `<pom>#parent` |
+| 2 | Maven BOM import `org.springframework.boot:spring-boot-dependencies` in `<dependencyManagement>` | `<pom>#dependencyManagement` |
+| 3 | Gradle plugin `id 'org.springframework.boot' version 'X'` (or `id("…") version "…"`, or `alias(libs.plugins.spring.boot)`) | `<file>#plugins` / `#catalog` |
+| 3a | …applied without a version (`apply plugin:`), its version from a `buildscript` `classpath "org.springframework.boot:spring-boot-gradle-plugin:X"` | `<file>#buildscript` |
+| 4 | Gradle `platform("org.springframework.boot:spring-boot-dependencies:X")` | `<file>#platform` |
+
+A child module with no declaration of its own inherits its in-repo parent's: the Maven parent
+chain is followed, and a Gradle subproject gets the version its root project declares — in
+`pluginManagement { plugins { … } }` or in a root `plugins` block with `apply false`, which is
+exactly what that idiom is for — or on the root's `buildscript` classpath, the classic
+pre-`plugins {}` layout, whose `ext { springBootVersion = … }` the subproject sees too. `source`
+always names the script that declares the version, not the one that applies the plugin. `apply false` gives the *subprojects* a version; it does not put
+the root project on Spring Boot, so the root module's `frameworks[]` stays empty.
+
+The result is `modules[].frameworks[] = {name: "spring-boot", version, raw, source}`, and the
+repo-level `framework` is the one found in most modules (026.1).
+
+A source whose version does not resolve (`${boot.version}` set outside the repo, `version
+"$bootV"` declared nowhere) does not stop the search, so a later source that does resolve wins.
+When none does, the module is still on Spring Boot: the fact has an empty `version` and the text
+as written in `raw` (the shape an unnormalizable Angular range has, 026.2), and the
+`unresolved_variable` diagnostic says why. A Gradle plugin applied with no version anywhere in the
+repo (`apply plugin: 'org.springframework.boot'` with no classpath entry) is the same: Spring
+Boot, version unknown.
+
+### Maven (FR-8)
+
+- `<parent>`, `<dependencies>`, `<dependencyManagement>` (imported BOMs and managed entries) and
+  `<build><plugins>` / `<pluginManagement>` become `dependencies[]` entries keyed
+  `maven:<groupId>:<artifactId>` with `kind: parent | dependency | bom | plugin`. One entry per
+  `(key, module, scope, kind)`, so the same artifact as a BOM import and as a dependency is two
+  facts. A plugin with no `<groupId>` gets Maven's default `org.apache.maven.plugins`.
+- `${prop}` is resolved from the pom's own `<properties>` over its in-repo parents', plus
+  Maven's implicit `project.version` / `project.parent.version` / … Maven assembles the
+  inherited model first and interpolates the result, so a `${project.version}` written in a
+  parent's `<properties>` means the version of the module being built — the child's own, when it
+  declares one. `groupId` and `artifactId` are interpolated too (`${project.groupId}` for a
+  sibling module). An unresolvable `${x}` keeps its raw text, is **not** reported as a `version`,
+  and becomes one `unresolved_variable` diagnostic at the line that mentions it.
+- `<properties>` entries become `cfg:pom.xml#properties.<name>` (`properties.java.version`), for
+  the pom and for every module that inherits it — a rule about `java.version` applies to a child
+  that inherits the value just as much as to the parent that writes it. `file` names the pom
+  that declares it.
+- `<modules>` are followed. Discovery already makes every directory with a `pom.xml` a module
+  root, so this only adds a declared module that has no manifest of its own.
+- The parent is found from `<parent><relativePath>` (default `../pom.xml`; a directory means its
+  `pom.xml`), else the nearest ancestor pom with matching coordinates. Both stay inside the scan
+  root: scanning `svc/` of a multi-module checkout does not read `../pom.xml`. A parent **outside** the repo is coordinates only: the
+  scan never reads above the scan root and never touches `~/.m2`, because the version it declares
+  is the fact that matters.
+
+### Gradle (FR-8)
+
+| Form | Fact |
+|---|---|
+| `id 'x' version 'v'` / `id("x") version "v"` / `id("x").version("v")` | `gradle-plugin:x`, `kind: plugin` |
+| `apply plugin: 'x'` | `gradle-plugin:x` |
+| `alias(libs.plugins.x)` | `gradle-plugin:<catalog id>`, version from the catalog |
+| `implementation 'g:a:v'` / `"g:a"` | `maven:g:a`, `scope: implementation` |
+| `implementation group: 'g', name: 'a', version: 'v'` | same, map notation (Groovy / Kotlin) |
+| `platform(…)` / `enforcedPlatform(…)` | the same key with `kind: bom` |
+| `implementation(libs.spring.boot.starter.web)` | catalog accessor, `version.ref` resolved |
+| `implementation(libs.bundles.web)` | every library of the bundle |
+| `implementation(kotlin("stdlib"))` | `maven:org.jetbrains.kotlin:kotlin-stdlib` |
+| `implementation 'g:a:1', 'g:b:2'` | one fact per coordinate (Groovy varargs) |
+| `dependencyManagement { imports { mavenBom 'g:a:v' } }` | `kind: bom` (the Spring plugin's syntax) |
+| `implementation project(':core')`, `files(…)`, `gradleApi()` | nothing: not external coordinates |
+
+- Any configuration name is a `scope` (`implementation`, `api`, `compileOnly`, `runtimeOnly`,
+  `testImplementation`, `annotationProcessor`, …), and `buildscript`'s `classpath` is
+  `buildscript:classpath` — the build's own classpath, not a dependency of the module.
+- Variables resolve from `ext { … }` (wherever it is written, `buildscript` included),
+  `ext { set('x', '…') }` (what Spring Initializr writes), `ext.x = '…'` / `project.ext.x`,
+  `ext.set(…)`, `extra["…"]`, a Kotlin top-level `val x = "…"`, `gradle.properties` of the repo
+  root and of the module (the module's own wins), and `pluginManagement` versions. An unresolved `$var` / `${var}` keeps its raw text
+  and becomes one `unresolved_variable` diagnostic per name and file.
+- `gradle/libs.versions.toml` is parsed with `tomllib`; `version.ref` is resolved, and a
+  subproject without its own catalog reads the Gradle root project's. A `[plugins]` entry in
+  string notation is `"<id>:<version>"`. A broken catalog is a `version_catalog_parse_error`
+  diagnostic; an accessor the catalog does not declare (library, bundle or plugin) and a
+  `version.ref` to a missing `[versions]` entry are `unresolved_catalog_entry`.
+- `java { toolchain { languageVersion = JavaLanguageVersion.of(21) } }`, `jvmToolchain(21)` and
+  `sourceCompatibility` / `targetCompatibility` become
+  `cfg:build.gradle#java.toolchain.languageVersion` and `cfg:build.gradle#sourceCompatibility`.
+  The key always names `build.gradle` or `build.gradle.kts` (the two names 025 / 027 know), while
+  `config[].file` keeps the real subproject path.
+- `settings.gradle(.kts)` `include(…)` declares module roots, which the scan folds into
+  `modules[]` (a declared module with no manifest of its own is listed too).
+- Declared **external groupIds** are kept per module and handed to source extractors as
+  `ModuleEnv.group_ids`, so spec7 can recognize a fully qualified `org.x.Y.z()` usage that has no
+  import. The repo's own groupIds — Maven `<groupId>` of every module and in-repo parent, Gradle
+  `group = …` (top level, `allprojects`, `subprojects`) — are `own_group_ids` and are removed
+  repo-wide, so a dependency on a sibling (`com.acme:lib`) never makes `com.acme.…` look external.
+  A groupId inherited from an *external* parent (the starter parent) is not owned. The trade-off:
+  an external artifact that shares the repo's exact groupId (another `com.acme` repo) is treated
+  as own code too.
+
+```bash
+migration-scan /path/to/spring-service
+jq '.framework, [.dependencies[] | {key, version, kind}]' .migration/profile.json
+mvn help:effective-pom -q | grep -A2 spring-boot-starter-parent   # compare the version
+```
+
 ## Canonical keys
 
 The profile uses the same key formats as the graph (spec 025), so the matcher compares sets
@@ -406,6 +530,8 @@ without translation:
 | npm member | `npm:<package>#<symbol>.<member>` |
 | npm dependency | `npm:<package>` |
 | Maven class | `maven:<FQCN>` |
+| Maven dependency | `maven:<groupId>:<artifactId>` |
+| Gradle plugin | `gradle-plugin:<plugin id>` |
 | config key | `cfg:<file>#<dotted key>` |
 | template syntax | `syntax:<framework>-template#<token>` |
 
@@ -420,11 +546,14 @@ changes.
 
 - **Manifest readers** receive a module root, its manifest files and the scan root, and return
   `dependencies`, `config`, `frameworks`, `diagnostics`, plus what source extractors need:
-  `own_packages` (own-code names) and `path_map` (the effective tsconfig import map). One reader
-  registered for several manifest kinds runs once per module with all of them.
+  `own_packages` (own-code names), `path_map` (the effective tsconfig import map), `module_roots`
+  (Maven `<modules>` / Gradle `include`), and `group_ids` (Maven groupIds, for spec7's
+  fully-qualified usages). One reader registered for several manifest kinds runs once per module
+  with all of them — which is how one Gradle reader handles the build script, the settings
+  script, the version catalog and `gradle.properties` together.
 - **Source extractors** receive one file (path, bytes, module, `test` flag, and the module's
-  `ModuleEnv`) and return per-file facts. They are pure functions of the file content, so spec9
-  can cache them and run them in a process pool.
+  `ModuleEnv`, which now also carries `group_ids`) and return per-file facts. They are pure
+  functions of the file content, so spec9 can cache them and run them in a process pool.
 - **Post-passes** receive the collected per-file facts plus how imports resolve
   (`PostPassContext` / `ResolutionEnv`) and return a `FileFacts` fragment, which the scan merges
   like any extractor's output. Barrel resolution is one (spec4); own-package filtering in spec7
@@ -440,6 +569,8 @@ migration_planner/            planner: runs in a service repo
     cli.py                    migration-scan
     discover.py               file discovery, classification, module roots
     npm_manifests.py          package.json / lock / angular.json / tsconfig (026.2)
+    maven.py                  pom.xml: parent / BOM / dependencies, Spring Boot (026.6)
+    gradle.py                 build / settings / catalog / properties, Spring Boot (026.6)
     ts.py                     TS / JS imports, members, decorators (026.3)
     ts_resolve.py             barrels, aliases, workspace entry points (026.4)
     templates.py              Angular template tokens, .html + inline (026.5)
@@ -473,4 +604,9 @@ declared npm dependency with its lockfile version,
 
 After 026.5 `templates[]` is filled too: compare one `@defer` / `*ngFor` count with
 `grep -rn "@defer\|\*ngFor" src --include=*.html`, and one `pipe:` key with
-`grep -rn "| date" src`. Java facts stay empty until specs 6–8.
+`grep -rn "| date" src`.
+
+After 026.6 a Spring service also reports `spring-boot <version>`: compare it with
+`mvn help:effective-pom -q | grep -A2 spring-boot-starter-parent` (or
+`./gradlew dependencies`), and one `dependencies[]` entry with the coordinate in the build
+file. Java facts stay empty until specs 7–8.

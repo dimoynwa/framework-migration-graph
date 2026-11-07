@@ -632,14 +632,17 @@ def test_a_tsconfig_with_comments_still_parses(make_repo) -> None:
 
 
 def test_the_npm_reader_handles_every_npm_manifest_kind() -> None:
-    from migration_planner.scanner import builtin
+    """Each npm manifest kind is handled by the one npm reader (spec1 contract).
 
-    assert set(builtin.MANIFEST_READERS) == {
-        "package.json",
-        "package-lock.json",
-        "angular.json",
-        "tsconfig.json",
-    }
+    The registry also holds the Maven / Gradle readers (spec6), so this asserts
+    what the npm kinds map to rather than the registry's exact contents — that
+    set grows with every spec that adds a manifest family.
+    """
+    from migration_planner.scanner import builtin
+    from migration_planner.scanner.npm_manifests import read_npm_manifests
+
+    for kind in ("package.json", "package-lock.json", "angular.json", "tsconfig.json"):
+        assert builtin.MANIFEST_READERS[kind] is read_npm_manifests
 
 
 def test_the_reader_runs_once_per_module_with_all_its_manifests(angular_app) -> None:

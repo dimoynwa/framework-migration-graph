@@ -1,0 +1,47 @@
+plugins {
+    // Applied without a version: the version comes from the root's
+    // ``pluginManagement`` block (FR-3, Gradle root project inheritance).
+    id 'org.springframework.boot'
+    id 'io.spring.dependency-management' version '1.1.6'
+    alias(libs.plugins.spring.boot)
+}
+
+ext {
+    // ``$springCloudVersion`` comes from ``gradle.properties``.
+    springCloudVersion = "$springCloudVersion"
+    // An ``ext`` value that is only declared here.
+    localLibVersion = '2.17.2'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+dependencies {
+    // String notation.
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    // ``platform(…)``: a BOM, not a dependency (FR-8).
+    implementation platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
+    // Groovy map notation.
+    implementation group: 'com.fasterxml.jackson.core', name: 'jackson-core', version: '2.17.2'
+    // Version catalog accessors, one with a ``version.ref`` and one literal.
+    implementation libs.jackson.databind
+    implementation libs.commons.lang3
+    implementation libs.lombok
+    // A variable from a ``gradle.properties`` entry.
+    implementation "org.springframework.cloud:spring-cloud-starter-config:$springCloudVersion"
+    // No version: supplied by the imported BOM.
+    compileOnly 'org.projectlombok:lombok'
+    testImplementation("org.springframework.boot:spring-boot-starter-test") {
+        exclude group: 'org.junit.vintage'
+    }
+    // An own project is not an external fact.
+    implementation project(':platform:common')
+    // AC-7: an unresolved variable keeps its raw text and is a diagnostic.
+    implementation "com.example:external-lib:$externalLibVersion"
+}
+
+// No toolchain in this module: the flat compatibility setting.
+sourceCompatibility = JavaVersion.VERSION_17

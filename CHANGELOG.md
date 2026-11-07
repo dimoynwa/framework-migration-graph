@@ -1,5 +1,65 @@
 # Changelog
 
+## [026.6-service-scanner] — 2026-11-06
+
+### New features
+
+- **Maven reader (FR-8).** `migration_planner/scanner/maven.py` reads `pom.xml` with stdlib `xml.etree` (namespaces stripped; external entities never resolved, so a DOCTYPE cannot make a scan read a file). `<parent>`, `<dependencies>`, `<dependencyManagement>` and `<build><plugins>` / `<pluginManagement>` become `dependencies[]` facts keyed `maven:<groupId>:<artifactId>` with `kind: parent | dependency | bom | plugin` — one entry per `(key, module, scope, kind)`, so a BOM import and a dependency on the same artifact stay two facts (AC-1.5, AC-6).
+- **Maven interpolation.** `${prop}` resolves from the pom's own `<properties>` over its in-repo parents', plus Maven's implicit `project.version` / `project.parent.version` / … Maven inherits first and interpolates the result, so a parent's `${project.version}` means the version of the module being built (the child's own, when it declares one). An unresolvable `${x}` keeps its raw text in `range`, is not claimed as a `version`, and produces one `unresolved_variable` diagnostic at the line that mentions it (AC-6).
+- **Spring Boot version from Maven (FR-3).** `<parent>spring-boot-starter-parent` first, then a `spring-boot-dependencies` BOM import, walking the in-repo parent chain so a child that declares neither is still on its parent's version. `source` names the pom that really declares it (`app/pom.xml#parent`).
+- **Properties as config keys.** `cfg:pom.xml#properties.java.version` for the pom and for every module that inherits the value — a rule about `java.version` applies to a child that inherits it just as much as to the parent that writes it. `file` names the declaring pom.
+- **Gradle reader (FR-8).** `migration_planner/scanner/gradle.py` reads `build.gradle(.kts)`, `settings.gradle(.kts)`, `gradle/libs.versions.toml` (stdlib `tomllib`) and `gradle.properties` with a tolerant lexer — no Gradle execution and no Groovy / Kotlin parser. Supports `plugins { id 'x' version 'v' }`, `id("x") version "v"`, `id("x").version("v")`, `kotlin("jvm")`, `apply plugin:`, `alias(libs.plugins.x)`, string notation, Groovy / Kotlin map notation, `platform(…)` / `enforcedPlatform(…)` as `kind: bom`, catalog accessors with `version.ref`, and `dependencyManagement { imports { mavenBom … } }` including `SpringBootPlugin.BOM_COORDINATES`.
+- **Gradle variables.** `ext { … }` (wherever written, `buildscript` included), `extra["…"]`, a Kotlin top-level `val x = "…"`, and `gradle.properties` of the module and of the repo root resolve `$var` / `${var}`; a self-referential `x = "$x"` re-export is skipped so the real value survives. An unresolved variable keeps its raw text and gives one `unresolved_variable` per name and file (AC-7).
+- **Spring Boot version from Gradle (FR-3).** The plugin first — its version from the module, a catalog alias, or the Gradle root project's `plugins` / `pluginManagement` block when the module applies it unversioned — then a `spring-boot-dependencies` BOM on `platform(…)`. `apply false` publishes a version to the subprojects without putting the root project on Spring Boot.
+- **Module roots from the build.** Maven `<modules>` and Gradle `settings.gradle` `include(…)` are module roots; a declared module with no manifest of its own is listed in `modules[]` (FR-3, AC-7).
+- **Java build config keys.** `java { toolchain { languageVersion = … } }`, `jvmToolchain(21)`, `sourceCompatibility` and `targetCompatibility` become `cfg:build.gradle#java.toolchain.languageVersion` / `cfg:build.gradle#sourceCompatibility`. The key always names `build.gradle` / `build.gradle.kts` (the two names 025 / 027 know) while `config[].file` keeps the real subproject path.
+- **groupIds for spec7.** Declared Maven groupIds reach source extractors as the new `ModuleEnv.group_ids` (repo-scoped, like `own_packages`), so spec7 can recognize a fully qualified `org.x.Y.z()` usage that has no import.
+
+### Never silent
+
+- A dependency-looking Gradle line the lexer cannot parse is an `unparsed_gradle` diagnostic (`add("implementation", "g:a:v")`), while `project(…)`, `files(…)` and `gradleApi()` — not external coordinates at all — are skipped without one.
+- A broken pom is a `pom_parse_error`, a broken catalog a `version_catalog_parse_error`, an unknown catalog alias an `unresolved_catalog_entry`, and a self-referential parent chain a `pom_parent_cycle`. None of them fails a scan.
+- An unresolved placeholder is never reported as a `version`: `version` stays `null`, `range` keeps the text as written, and the diagnostic says why. A profile must not claim a service builds with `${external.bom.version}`.
+
+### Tests
+
+- `tests/scanner/test_maven_gradle.py` (98 tests, 22 of them from the review below): every FR-3 source in both build systems
+  (including inheritance and `apply false`), every FR-8 notation, property and variable
+  resolution through a parent / `ext` / catalog / `gradle.properties`, both unresolved-value
+  cases with their line numbers, module roots from `<modules>` and `include`, the config keys,
+  the groupIds handoff, and truncation / broken-file cases that must not raise.
+- New fixtures: `spring-maven/` (parent pom with the Boot BOM, two children) and `spring-gradle/`
+  (Kotlin root with `apply false`, settings `pluginManagement`, catalog, `gradle.properties`,
+  Groovy subproject, plain Kotlin subproject).
+- Whole scanner suite passes: 511 passed in `tests/scanner` + `tests/pipeline/test_shared_keys.py`; the 025 key /
+  canonicalization tests pass unchanged. Verified against three real-shaped build files (a
+  Groovy build with Boot 2.7, a Spring Boot parent pom with Maven plugins, and a Kotlin DSL
+  build with a top-level `val`), all with zero diagnostics and the correct Boot version.
+
+### Review fixes
+
+- **No placeholder is ever a framework or plugin version.** An unresolved Boot version (`${boot.version}` from outside the repo, `version "$bootV"` declared nowhere) gave `frameworks[].version = "${boot.version}"` and a `gradle-plugin:` fact with `version: "$bootV"`. Now `version` is empty, `raw` keeps the text, the search goes on to the next FR-3 source, and a plugin applied with no version anywhere is still Spring Boot with an empty `version`. The inherited Gradle fallback is resolved the same way, and its `source` names the declaring script (`settings.gradle.kts#pluginManagement`) instead of `gradle-root#plugins`.
+- **Maven stays inside the scan root.** The `<relativePath>` branch (default `../pom.xml`) did not check it, so scanning `svc/` of a checkout read the parent above it. A `<relativePath>` that names a directory now finds its `pom.xml`.
+- **Maven `groupId` / `artifactId` are interpolated.** `${project.groupId}` gave the key `maven:${project.groupId}:lib`; a groupId that stays unresolved is left out of `group_ids`.
+- **Spring Initializr's `ext { set('x', '…') }`, `ext.x = '…'`, `project.ext.x` and `ext.set(…)`** declare variables; they were read as nothing and gave false `unresolved_variable` diagnostics.
+- **A subproject's own `gradle.properties` overrides the root's** (it was the other way round).
+- **Version catalog:** a `[plugins]` string entry is `"<id>:<version>"` (it was read as a Maven coordinate, losing the Boot version); `libs.bundles.x` expands to its libraries; an unknown library or bundle accessor and a `version.ref` to a missing version are `unresolved_catalog_entry` instead of silently dropped. A broken catalog stays one `version_catalog_parse_error`, not one more diagnostic per accessor.
+- **`kotlin("stdlib")` and Groovy varargs** (`implementation 'g:a:1', 'g:b:2'`) are facts; they were dropped silently.
+- **Boot version from a `buildscript` classpath (review decision).** `classpath "org.springframework.boot:spring-boot-gradle-plugin:X"` (and `io.spring.gradle:dependency-management-plugin`) is the version of the plugin a module then applies with `apply plugin:` — in the module's own build or through the root project, whose `ext` values a subproject now also sees. `source` is `build.gradle#buildscript`. The plugin artifact on the classpath does not count as "uses Spring Boot libraries", so a root that only puts it on the classpath is not on Boot.
+- **The repo's own groupIds are not external (review decision).** New `ManifestFacts.own_group_ids`: Maven `<groupId>` of the pom and its in-repo parents (one inherited from an external parent is not owned), Gradle `group = …`. The readers leave them out of `group_ids`, and `scan()` subtracts every module's own groupIds repo-wide from `ModuleEnv.group_ids`, so a sibling dependency `com.acme:lib` no longer makes `com.acme.…` look external to spec7.
+- **Docs:** the claim that a parent's `${project.version}` means the parent's version was wrong (the code already did what Maven does); docstrings, this entry and `service-scanner.md` now say what happens.
+
+### Changed test named per the spec's Regression rule
+
+- `test_npm_manifests.py::test_the_npm_reader_handles_every_npm_manifest_kind` pinned the registry to exactly the four npm kinds. The registry is an internal detail that spec6 extends, so it now asserts what the npm kinds map to (each is `read_npm_manifests`) instead of the set's exact contents.
+- `test_maven_gradle.py::test_declared_group_ids_are_kept_for_spec7` and `::test_the_scan_passes_group_ids_to_the_module_environment` asserted that `com.acme` (the repo's own groupId) is in `group_ids`; by the review decision it is not, so they now assert the opposite and `own_group_ids`.
+- `test_maven_gradle.py::test_a_subproject_inherits_the_root_plugin_version` pinned `source = "service/build.gradle#plugins(inherited)"`; `source` now names the declaring script, `settings.gradle.kts#pluginManagement`.
+- `test_maven_gradle.py::test_a_property_that_refers_to_the_project_version_resolves`: only its docstring changed (it repeated the wrong `${project.version}` claim); the assertion is unchanged.
+
+### Contract additions
+
+- `ManifestFacts.module_roots`, `ManifestFacts.group_ids` (external only) and `ManifestFacts.own_group_ids`; `ModuleEnv.group_ids` (repo-wide, own groupIds removed). `scan()` folds declared module roots into `modules[]` and hands the groupIds to source extractors. `builtin.MANIFEST_READERS` now also registers the Maven and Gradle kinds.
+
 ## [026.5-service-scanner] — 2026-11-06
 
 ### New features

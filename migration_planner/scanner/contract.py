@@ -163,6 +163,12 @@ class ModuleEnv:
     # or ``buffer`` is an npm package, not a Node builtin; a declared name also
     # wins over a ``baseUrl`` entry of the same name.
     declared_dependencies: tuple[str, ...] = ()
+    # External groupIds the repo's builds declare (spec6 → spec7). Spec7 records
+    # a fully qualified usage such as ``org.springframework.X.y()`` that has no
+    # import, and the groupId is how it tells an external package from the
+    # service's own ``com.acme.…`` code — so the groupIds of the repo's own
+    # modules are never in it, even when a module depends on a sibling.
+    group_ids: tuple[str, ...] = ()
 
     def owns(self, specifier: str) -> bool:
         """Whether a bare specifier names this repo's own code (``@demo/ui``)."""
@@ -237,6 +243,20 @@ class ManifestFacts:
     own_package_sources: list[OwnPackage] = field(default_factory=list)
     # The module's effective TypeScript path map (spec2), used by spec3 / spec4.
     path_map: PathMap | None = None
+    # Directories a build file declares as modules: Maven ``<modules>`` and
+    # Gradle ``include(…)`` (spec6 FR-3, FR-8). Discovery already treats every
+    # directory holding a module-root manifest as one, so these matter only for
+    # a declared module that has none of its own. Scan-root relative.
+    module_roots: list[str] = field(default_factory=list)
+    # Every *external* groupId this module's build declares (spec6 FR-8). Spec7
+    # needs them to recognize a fully qualified usage (``org.x.Y.z()``) with no
+    # import. The repo's own groupIds are not in it: see ``own_group_ids``.
+    group_ids: list[str] = field(default_factory=list)
+    # The groupIds this module and its in-repo parents publish under (Maven
+    # ``<groupId>``, Gradle ``group = …``). ``scan()`` subtracts them repo-wide
+    # from ``ModuleEnv.group_ids``, so a dependency on a sibling module
+    # (``com.acme:lib``) never makes the service's own code look external.
+    own_group_ids: list[str] = field(default_factory=list)
 
 
 # --- source extractors -----------------------------------------------------

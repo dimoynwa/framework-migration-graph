@@ -12,7 +12,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Mapping
 
 from migration_planner.scanner import contract
 from migration_planner.scanner.contract import (
@@ -148,6 +148,9 @@ def scan(
     environments: dict[str, ModuleEnv] = {}
     angular_projects: dict[str, set[str]] = {}
     own_packages: dict[str, OwnPackage] = {}
+    declared_roots: dict[str, ModuleEntry] = {}
+    module_group_ids: dict[str, set[str]] = {}
+    own_group_ids: set[str] = set()
     for module_path, context in sorted(contexts.items()):
         present = {manifest.kind for manifest in context.files}
         module_own_packages: set[str] = set()
@@ -184,6 +187,17 @@ def scan(
                 angular_projects.setdefault(module_path, set()).update(
                     facts.angular_projects
                 )
+            if facts.module_roots:
+                # Maven ``<modules>`` / Gradle ``include(…)`` (spec6 FR-3, FR-8):
+                # a declared module that discovery did not find is still a
+                # module root, even with no manifest of its own.
+                for declared in facts.module_roots:
+                    declared_roots.setdefault(declared, ModuleEntry(path=declared))
+            if facts.group_ids:
+                module_group_ids.setdefault(module_path, set()).update(
+                    facts.group_ids
+                )
+            own_group_ids.update(facts.own_group_ids)
             if facts.path_map is not None and path_map is None:
                 path_map = facts.path_map
         environments[module_path] = ModuleEnv(
@@ -232,6 +246,7 @@ def scan(
             path_map=environment.path_map,
             base_url_roots=_base_url_roots(root, environment.path_map),
             declared_dependencies=declared_dependencies,
+            group_ids=_repo_group_ids(module_group_ids, own_group_ids),
         )
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
@@ -312,6 +327,16 @@ def scan(
         )
         for module in discovery.modules
     ]
+    # A module a build file declares but discovery did not find (a Maven
+    # ``<module>`` or Gradle ``include`` with no manifest of its own) is still a
+    # module root, so its path is listed (spec6 FR-3, FR-8).
+    known_modules = {module.path for module in modules}
+    modules.extend(
+        entry
+        for path, entry in sorted(declared_roots.items())
+        if path not in known_modules and (root / path).is_dir()
+    )
+    modules.sort(key=lambda entry: entry.path)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
     profile = Profile(
@@ -371,6 +396,24 @@ _BASE_URL_EXTENSIONS: tuple[str, ...] = (
     ".cjs",
     ".js",
 )
+
+
+def _repo_group_ids(
+    declared: Mapping[str, set[str]], owned: set[str]
+) -> tuple[str, ...]:
+    """The external groupIds a Java source may use without an import (spec6 → spec7).
+
+    Repo-scoped, like ``own_packages``: a multi-module repo declares its
+    dependencies in one place (the parent's ``<dependencyManagement>`` or the
+    root ``build.gradle``), and a module without a build file of its own still
+    uses them. Every groupId one of the repo's own modules publishes under is
+    removed, so ``com.acme.lib.Widget`` in ``app`` is the repo's code, not an
+    external package — even though ``app`` depends on ``com.acme:lib``.
+    """
+    groups: set[str] = set()
+    for values in declared.values():
+        groups.update(values)
+    return tuple(sorted(groups - owned))
 
 
 def _base_url_roots(root: Path, path_map: PathMap | None) -> tuple[str, ...]:

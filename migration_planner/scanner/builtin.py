@@ -13,12 +13,22 @@ spec1's "no facts by default" test relies on.
 
 from __future__ import annotations
 
-from migration_planner.scanner import contract, npm_manifests, templates, ts, ts_resolve
+from migration_planner.scanner import (
+    contract,
+    gradle,
+    maven,
+    npm_manifests,
+    templates,
+    ts,
+    ts_resolve,
+)
 
 # ``{manifest classification: reader}`` — spec2 npm, spec6 Maven / Gradle,
 # spec8 Spring config.
 MANIFEST_READERS: dict[str, contract.ManifestReader] = {
     **dict.fromkeys(npm_manifests.MANIFEST_KINDS, npm_manifests.read_npm_manifests),
+    **dict.fromkeys(maven.MANIFEST_KINDS, maven.read_maven_manifests),
+    **dict.fromkeys(gradle.MANIFEST_KINDS, gradle.read_gradle_manifests),
 }
 
 # ``{discovery language tag: extractor}`` — spec3 TS / JS, spec5 Angular

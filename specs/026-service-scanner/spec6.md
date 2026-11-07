@@ -4,7 +4,11 @@
 
 **Created**: 2026-11-06 (split from the single 026 spec)
 
-**Status**: Draft
+**Status**: Implemented (2026-11-06), review fixes 2026-11-07. AC-6 and AC-7 met; both build
+systems read without executing a build, and an unresolved value is never reported as a version
+(framework, plugin or dependency). Decided in review: a `buildscript` classpath
+`spring-boot-gradle-plugin:X` is the plugin's version (FR-3 source 3a), and the repo's own
+groupIds are excluded from the groupIds handed to spec7.
 
 **Depends on**: spec1 (modules, extractor contract, profile writer). Independent of spec2–spec5.
 Shared context: see `spec1.md`.
@@ -22,6 +26,8 @@ source parsing yet (spec7).
 2. Maven BOM import `org.springframework.boot:spring-boot-dependencies` in
    `<dependencyManagement>`;
 3. Gradle plugin `id 'org.springframework.boot' version 'X'`, or the same in a version catalog;
+   a plugin applied without a version (`apply plugin:`) takes it from a `buildscript`
+   `classpath "org.springframework.boot:spring-boot-gradle-plugin:X"` (decided in review);
 4. Gradle `platform("org.springframework.boot:spring-boot-dependencies:X")`.
 
 A child module with no own declaration inherits from its in-repo parent (Maven parent chain,
@@ -61,7 +67,8 @@ tolerant lexer for the common forms, not a Groovy / Kotlin parser)
   parse → diagnostic `unparsed_gradle`.
 
 **groupIds for spec7**: the set of declared groupIds per module is kept, so spec7 can recognize
-fully qualified usages without import.
+fully qualified usages without import. The repo's own groupIds (every module's and in-repo
+parent's Maven `<groupId>`, Gradle `group = …`) are excluded repo-wide (decided in review).
 
 ## Acceptance Criteria
 
