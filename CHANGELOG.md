@@ -1,5 +1,88 @@
 # Changelog
 
+## [026.7-service-scanner] — 2026-11-07
+
+### New features
+
+- **Java sources (FR-7).** `migration_planner/scanner/java.py` parses `*.java` with
+  **tree-sitter-java** and fills `symbols[]`, `members[]` and `wildcard_imports[]`. Every import
+  form becomes a fact keyed by FQCN: `import a.b.C` → `maven:a.b.C`, a nested type keeps its dots
+  (`a.b.C.Inner`), `import static a.b.C.m` → `maven:a.b.C.m` in `members[]`, and
+  `import a.b.*` / `import static a.b.C.*` → `maven:a.b.*` / `maven:a.b.C.*` in
+  `wildcard_imports[]` (AC-5).
+- **Usage sites.** A type in any position (field, parameter, `extends`, `implements`, generic
+  argument, `new C(…)`, cast, `instanceof`, `throws`, `C.class`, `C::new`) is a symbol at the use
+  site; `@C` and `@C(attr = …)` are a symbol plus one member per attribute (`@C("x")` is
+  `maven:a.b.C.value`); `C.m(…)` and `C.FIELD` are members. A chain records the first segment
+  after the class, so `RequestMethod.GET.name()` is `maven:…RequestMethod.GET` — the same rule as
+  the TypeScript extractor. A statically imported name used bare (`assertEquals(…)`) is a member
+  at the use site.
+- **Fully qualified usages without an import** (`org.x.Y.z()`, `@org.x.Ann`, `org.x.Y`) are
+  recorded when the name starts with a groupId the repo's builds declare (the `ModuleEnv.group_ids`
+  handoff spec6 added), because that is how an external package is told from the service's own
+  `com.acme.…` code.
+- **A wildcard import lists the simple names it can supply** (AC-5.2). `import java.util.*` plus a
+  used `Map` gives `{"key": "maven:java.util.*", "names": ["Map"]}`, so a matcher tests
+  `java.util.Map`. A name the file declares itself, a name another import binds, a `java.lang`
+  type (imported implicitly) and a name that is not capitalized (a variable, not a type) are not
+  listed; the own-package post-pass also drops a name the file's own package declares. Names are
+  unioned across the files that share the key.
+- **Own packages are not facts.** `filter_own_packages` is a post-pass over every source's facts:
+  an import of `com.acme.shop.…` from `com.acme.shop.web` is the repo's own code in another
+  module, matched segment by segment so `com.acme.shop` owns `com.acme.shop.web.Controller` but
+  not `com.acme.shopping.Cart`.
+- **Test paths** (`src/test/java/**`) record `test: true` (AC-5.3).
+- **`tree-sitter-java>=0.23`** is a new dependency (prebuilt wheels, no compiler).
+
+### Never silent
+
+- A partial parse keeps every fact that did parse and adds one `partial_parse_error` at the first
+  error's line; a file where nothing parses is one `parse_error`. Neither fails the scan (AC-5.4).
+
+### Tests
+
+- `tests/scanner/test_java.py` (59 tests): AC-5 (every import form keyed by FQCN, nested types, `import static`, both wildcard shapes, usages in each position, the first-segment chain rule, annotation attributes), AC-5.2 (the `names` a wildcard supplies and the java.lang / own-declaration / other-import exclusions), AC-5.3 (`src/test/java/**` locations carry `test: true`), AC-5.4 (a partial parse keeps its facts plus one `partial_parse_error`), the fully qualified usage with no import against declared and parent groupIds, and the own-package filter matched segment by segment.
+- New fixture `tests/fixtures/scanner/spring-java/`: a Maven Boot app whose main sources use named, nested, static and wildcard imports, a `src/test/java` file for the test flag, and `BrokenReport.java`, whose syntax error yields one `partial_parse_error` while its two imports still parse.
+- Whole scanner suite passes: 562 passed in `tests/scanner`, 8 in `test_shared_keys.py`, 65 in the 025 canonicalization files — 635 passed, no spec1–spec6 regressions. `tree-sitter-java` 0.23.5 under the `tree-sitter>=0.25,<0.26` pin from spec5.
+
+### Contract additions
+
+- `Usage.names: tuple[str, ...]` — the simple names a wildcard import may supply (empty for every
+  other section).
+- `ModuleEnv.own_group_ids: tuple[str, ...]` — the repo's own groupIds, so the Java extractor
+  can keep a parent groupId away from the repo's own code.
+- `FileFacts.package_name: str | None` — the `package x.y;` of a `.java` file, `None` for every
+  other language, which is how the own-package post-pass finds the Java files.
+- `PostPassContext.files` is now a mutable `dict`: a post-pass may **replace** a file's facts to
+  drop some, and `scan()` merges every file's facts only after the post-passes. A post-pass may
+  still return a `FileFacts` fragment (how barrel resolution adds facts).
+- `WildcardEntry` in the profile model (`UsageEntry` + `names`), and `FactAccumulator.wildcard_entries`
+  now returns it.
+
+### Review fixes
+
+- **Parent groupIds.** A fully qualified usage with no import is also recorded under the parent of
+  a declared groupId (`org.springframework.boot` → `org.springframework`), so a starter-only
+  service keeps `org.springframework.util.Assert.notNull(…)`. A parent needs two segments and
+  never reaches an own groupId; the scan now passes `ModuleEnv.own_group_ids` for that.
+- **Annotation attributes under a wildcard import** are members
+  (`maven:…web.bind.annotation.RequestMapping.method` with `import …annotation.*`), one per class
+  wildcard of the file.
+- **Own wildcard packages** no longer leak their type names (or those types' annotation
+  attributes) into an external wildcard entry.
+- **`import static a.b.Outer.Inner`** is a symbol at the import line, not a member.
+- **Comments inside an import** are not part of the key, and `import statics.Foo;` is no longer
+  read as a static import (`maven:s.Foo`).
+
+### Changed test named per the spec's Regression rule
+
+- `test_java.py::test_a_static_import_on_a_nested_type_is_a_symbol` now also asserts the symbol
+  at the import line and no member (review fix 4).
+- `test_maven_gradle.py::test_a_java_only_repo_gets_no_npm_or_template_facts` asserted
+  `profile["symbols"] == []` for the Maven fixture. That was spec6's "no Java facts yet" state,
+  which this spec deliberately changes: it now asserts no `npm:` symbol and no template, and that
+  the fixture's `SpringApplication` import *is* a symbol.
+
 ## [026.6-service-scanner] — 2026-11-06
 
 ### New features

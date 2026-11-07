@@ -247,6 +247,7 @@ def scan(
             base_url_roots=_base_url_roots(root, environment.path_map),
             declared_dependencies=declared_dependencies,
             group_ids=_repo_group_ids(module_group_ids, own_group_ids),
+            own_group_ids=tuple(sorted(own_group_ids)),
         )
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
@@ -279,11 +280,14 @@ def scan(
                 )
             )
             continue
-        accumulator.add_file(facts)
         file_facts[file.relative] = facts
         module_of[file.relative] = file.module
 
     # --- post-passes (spec4 barrels, spec7 own-package filtering) ---
+    # A post-pass may replace a file's facts to drop some (spec7's own-package
+    # filtering needs every package in the repo), so the merge happens after
+    # them, not before: otherwise a filtered fact would stay in the profile.
+    fragments: list[FileFacts] = []
     if contract.post_passes():
         context = PostPassContext(
             root=root,
@@ -307,7 +311,11 @@ def scan(
                 )
                 continue
             if fragment is not None:
-                accumulator.add_file(fragment)
+                fragments.append(fragment)
+    for facts in file_facts.values():
+        accumulator.add_file(facts)
+    for fragment in fragments:
+        accumulator.add_file(fragment)
 
     framework, framework_diagnostics = choose_framework(accumulator.frameworks)
     diagnostics.extend(framework_diagnostics)

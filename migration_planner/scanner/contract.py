@@ -59,6 +59,12 @@ class Usage:
     """One occurrence of an external key in one file.
 
     ``type_only`` is only meaningful for symbols (``import type``).
+
+    ``names`` is only meaningful for ``wildcard_imports`` (spec7): the simple
+    names a wildcard import could have supplied (``import a.b.*`` plus a used
+    ``Widget`` gives ``names=("Widget",)``), so a matcher can test
+    ``a.b.Widget`` without the scanner resolving the class. A name the file
+    declares itself, or that another import already binds, is not in it.
     """
 
     key: str
@@ -66,6 +72,7 @@ class Usage:
     line: int
     test: bool = False
     type_only: bool = False
+    names: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -169,6 +176,12 @@ class ModuleEnv:
     # service's own ``com.acme.…`` code — so the groupIds of the repo's own
     # modules are never in it, even when a module depends on a sibling.
     group_ids: tuple[str, ...] = ()
+    # The groupIds the repo's own modules publish under (spec6). Spec7 widens
+    # ``group_ids`` to their parent groupIds (``org.springframework.boot`` →
+    # ``org.springframework``) and needs these so a parent never reaches the
+    # repo's own code (``com.acme.platform`` → ``com.acme`` when ``com.acme.shop``
+    # is the repo's).
+    own_group_ids: tuple[str, ...] = ()
 
     def owns(self, specifier: str) -> bool:
         """Whether a bare specifier names this repo's own code (``@demo/ui``)."""
@@ -367,9 +380,16 @@ class FileFacts:
     star_exports: list[str] = field(default_factory=list)
     # ``export * as ns from '<specifier>'``: namespaced re-exports.
     namespace_exports: dict[str, str] = field(default_factory=dict)
-    # Local names the file declares itself (class / function / const). Spec4
-    # drops a barrel name that ends in one of these: that is own code.
+    # Local names the file declares itself (class / function / const, or a Java
+    # type / method / field / parameter). Spec4 drops a barrel name that ends in
+    # one of these: that is own code. Spec7 uses the type names to tell a name
+    # the file's own package already provides from one a wildcard import must
+    # supply.
     local_declarations: set[str] = field(default_factory=set)
+    # The ``package x.y;`` of a ``.java`` file (spec7). ``None`` for every other
+    # language, which is how the own-package post-pass finds the Java files: the
+    # set of the repo's own packages is only known once all sources are read.
+    package_name: str | None = None
     # The own-code imports this file makes, with their bound local names.
     own_import_bindings: list[OwnImport] = field(default_factory=list)
     # Member accesses (and decorator option keys) on own-code bindings, which
@@ -419,13 +439,16 @@ class PostPassContext:
     """What a post-pass sees: the per-file facts plus how imports resolve.
 
     ``files`` keeps every file's :class:`FileFacts` by scan-relative path, which
-    is the export map spec4 follows. A post-pass returns a :class:`FileFacts`
-    fragment (facts at the *original* import site) and the scan merges it like
-    any extractor's output.
+    is the export map spec4 follows. ``files`` is mutable on purpose: a post-pass
+    may **replace** a file's facts to drop some (spec7's own-package filtering),
+    and the scan merges every file's facts only after the post-passes, so the
+    profile never contains the removed ones. A post-pass may also return a
+    :class:`FileFacts` fragment (facts at an *original* import site), which the
+    scan merges like any extractor's output.
     """
 
     root: Path
-    files: Mapping[str, "FileFacts"] = field(default_factory=dict)
+    files: dict[str, "FileFacts"] = field(default_factory=dict)
     resolution: ResolutionEnv = field(default_factory=ResolutionEnv)
 
 

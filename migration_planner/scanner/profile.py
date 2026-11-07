@@ -123,6 +123,17 @@ class UsageEntry(BaseModel):
     truncated: bool = False
 
 
+class WildcardEntry(UsageEntry):
+    """A ``import a.b.*`` entry and the simple names it could have supplied (spec7).
+
+    A wildcard import names no class, so ``names`` is how a matcher tests
+    ``a.b.Widget``: the file used ``Widget`` and nothing else explains it. A
+    name the file declares itself, or that another import binds, is not here.
+    """
+
+    names: list[str] = Field(default_factory=list)
+
+
 class ConfigEntry(BaseModel):
     """One occurrence of a config key (one entry per file / module / profile / line)."""
 
@@ -170,7 +181,7 @@ class Profile(BaseModel):
     symbols: list[SymbolEntry] = Field(default_factory=list)
     members: list[MemberEntry] = Field(default_factory=list)
     side_effect_imports: list[UsageEntry] = Field(default_factory=list)
-    wildcard_imports: list[UsageEntry] = Field(default_factory=list)
+    wildcard_imports: list[WildcardEntry] = Field(default_factory=list)
     config: list[ConfigEntry] = Field(default_factory=list)
     templates: list[TemplateEntry] = Field(default_factory=list)
     diagnostics: list[DiagnosticEntry] = Field(default_factory=list)
@@ -322,8 +333,30 @@ class FactAccumulator:
     def side_effect_entries(self) -> list[UsageEntry]:
         return self._usage_entries(self._side_effect)
 
-    def wildcard_entries(self) -> list[UsageEntry]:
-        return self._usage_entries(self._wildcard)
+    def wildcard_entries(self) -> list[WildcardEntry]:
+        """Wildcard imports with the union of the simple names they may supply.
+
+        Names are unioned across the files that share one wildcard import: the
+        entry is one per key, so ``a.b.*`` in ten files lists every simple name
+        the service uses that only that package can supply (AC-5.2).
+        """
+        return [
+            WildcardEntry(
+                key=key,
+                count=count,
+                files=files,
+                locations=locations,
+                truncated=count > len(locations),
+                names=sorted(
+                    {
+                        name
+                        for usage in self._wildcard.get(key, ())
+                        for name in usage.names
+                    }
+                ),
+            )
+            for key, count, files, locations, _ in self._entries(self._wildcard)
+        ]
 
     def template_entries(self) -> list[TemplateEntry]:
         return [
@@ -582,6 +615,7 @@ __all__ = [
     "SymbolEntry",
     "TemplateEntry",
     "UsageEntry",
+    "WildcardEntry",
     "choose_framework",
     "default_profile_path",
     "inputs_hash",

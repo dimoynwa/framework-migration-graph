@@ -188,7 +188,12 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
       "locations": [{ "file": "src/app/a.spec.ts", "line": 12, "test": true }] }
   ],
   "side_effect_imports": [{ "key": "npm:zone.js", "count": 1, "locations": [] }],
-  "wildcard_imports": [],
+  "wildcard_imports": [
+    { "key": "maven:java.util.*", "count": 12, "files": 3,
+      "names": ["ArrayList", "List", "Map"],
+      "locations": [{ "file": "src/main/java/com/acme/Svc.java", "line": 6, "test": false }],
+      "truncated": false }
+  ],
   "config": [
     { "key": "cfg:package.json#engines.node", "value": ">=18", "file": "package.json",
       "module": ".", "line": null, "raw_key": null, "profile": null, "kind": null, "test": false }
@@ -210,7 +215,7 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | `symbols`, `members`, `side_effect_imports` (TS/JS) | **026.3**, barrel-resolved keys **026.4** |
 | `templates` | **026.5** |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | **026.6** |
-| `symbols`, `members`, `wildcard_imports` (Java) | spec7 |
+| `symbols`, `members`, `wildcard_imports` (Java) | **026.7** |
 | Spring `config`, `modules[].spring_config_files` | spec8 |
 | Incremental cache, `--jobs`, `[planner]` extra | spec9 |
 
@@ -228,6 +233,9 @@ A section whose spec has not landed yet is an empty list, so the schema is stabl
   `dependency | bom | parent | plugin`, so a BOM import and a plain dependency on the same
   artifact are two entries. `version_source` says where `version` came from: `lockfile` or
   `range` for npm, `declared`, `catalog`, `inherited` or `pluginManagement` for Maven / Gradle.
+- `wildcard_imports[]` is one entry per wildcard import key (`maven:java.util.*`), with `names`:
+  the simple names the service uses that only that package can supply (026.7), so a matcher can
+  test `java.util.Map` without the scanner resolving the class.
 - `config[]` has one entry per occurrence `(key, module, file, profile, line)`: the same key in
   two modules, files or Spring profiles is two entries. `line` is filled by the Maven / Gradle
   readers (026.6) and by the Spring config reader (spec8); `raw_key`, `profile` and `kind` are
@@ -519,6 +527,104 @@ jq '.framework, [.dependencies[] | {key, version, kind}]' .migration/profile.jso
 mvn help:effective-pom -q | grep -A2 spring-boot-starter-parent   # compare the version
 ```
 
+## Java sources (026.7)
+
+`migration_planner/scanner/java.py` parses `*.java` with **tree-sitter-java** and records the
+external imports and where they are used. It is a pure function of the file's bytes, like the
+TypeScript extractor, so spec9 can cache it and run it in a process pool.
+
+### What is recorded
+
+| Form | Fact |
+|---|---|
+| `import a.b.C;` | `maven:a.b.C` in `symbols[]`, at the import line |
+| `import a.b.C.Inner;` | `maven:a.b.C.Inner` (a nested type keeps its dots) |
+| `import static a.b.C.m;` | `maven:a.b.C.m` in `members[]` |
+| `import static a.b.Outer.Inner;` (a nested type: capital first letter and a lower-case letter) | `maven:a.b.Outer.Inner` in `symbols[]`, at the import line and every use |
+| `import a.b.*;` | `maven:a.b.*` in `wildcard_imports[]`, plus `names` |
+| `import static a.b.C.*;` | `maven:a.b.C.*` in `wildcard_imports[]`, plus `names` |
+| type in any position — field, parameter, `extends`, `implements`, generic argument, `new C(…)`, cast, `instanceof`, `throws`, `C.class`, `C::new` | `maven:a.b.C` in `symbols[]` at the use site |
+| `@C` / `@C(attr = …)` | the annotation as a symbol, and `maven:a.b.C.attr` per attribute |
+| `@C("x")` | `maven:a.b.C.value` (the single-value shorthand) |
+| `@C(attr = …)` where only `import a.b.*;` can supply `C` | `maven:a.b.C.attr` per attribute, under every class wildcard of the file (see below) |
+| `C.m(…)`, `C.FIELD` | `maven:a.b.C.m` / `maven:a.b.C.FIELD` in `members[]` |
+| a statically imported name used bare (`assertEquals(…)`) | the member, at the use site |
+| `org.x.Y.z()`, `@org.x.Ann`, `org.x.Y` with **no import** | `maven:org.x.Y` and `maven:org.x.Y.z`, when the name starts with a groupId the repo's builds declare (026.6) **or its parent groupId** |
+
+**Parent groupIds.** A Spring Boot service usually declares only `org.springframework.boot`
+starters, yet its code names `org.springframework.util.Assert` (`spring-core`, a transitive
+dependency). So the parent of every declared groupId counts too (`org.springframework.boot` →
+`org.springframework`, `com.fasterxml.jackson.core` → `com.fasterxml.jackson`), with two limits: a
+parent needs at least two segments (`io.micrometer` does not make every `io.…` name external),
+and a parent that is, contains or lies under one of the repo's own groupIds is left out, so a
+dependency on `com.acme.platform` never makes the repo's `com.acme.shop` code external. The
+groupIds themselves (`ModuleEnv.group_ids`) are unchanged; the scan also hands the extractor
+`ModuleEnv.own_group_ids` for the second limit.
+
+Comments inside a name (`import org.x /* … */ .Y;`) are not part of the key, and the `static`
+keyword is read from the parse tree, so `import statics.Foo;` is a class import.
+
+A chain records the **first segment after the class**, exactly as the TypeScript extractor does,
+so `RequestMethod.GET.name()` is `maven:…RequestMethod.GET` — the enum constant — and not a
+member of it.
+
+A call on a variable is **not** resolved (spec1 Non-Goals): `entity.getStatusCode()` on a local
+is not attributed to `ResponseEntity`, and `this` / `super` are not owners. The symbol entry's
+`locations` are the files a matcher must search for such a call, which is why the import site is
+recorded as well as each type use.
+
+### Own packages, and what a wildcard supplies
+
+Every `package x.y;` in the scanned sources is an **own package**, so an import of one — or of
+anything under one, matched segment by segment, so `com.acme.shop` owns
+`com.acme.shop.web.Controller` but not `com.acme.shopping.Cart` — is the repo's own code in
+another module, not an external library. The extractor records it like any other import and the
+**own-package post-pass** removes it once the whole set is known (one file cannot know its
+siblings' packages).
+
+A wildcard import names no class, so its entry lists the simple names the file uses that nothing
+else explains:
+
+```json
+{ "key": "maven:java.util.*", "count": 12, "files": 3,
+  "names": ["ArrayList", "HashMap", "List", "Map"], "locations": ["…"] }
+```
+
+A matcher tests `java.util.Map` against `names`. What is **not** in it: a name the file declares
+itself (`record Report(…)`), a name another import already binds, a `java.lang` type (imported
+implicitly), and a name that is not capitalized — `list.add(x)` is a call on a variable, and the
+Java convention of a capitalized type name is the only signal a scanner has without a classpath.
+Names are unioned across the files that share one wildcard import, because the profile has one
+entry per key.
+
+The post-pass also drops a name an **own wildcard** supplies: with `import com.acme.shop.service.*;`
+next to `import org.springframework.web.bind.annotation.*;`, a `Widget` declared in
+`com.acme.shop.service` is not listed under Spring's entry.
+
+**Annotation attributes under a wildcard.** `@RequestMapping(method = …)` with only
+`import org.springframework.web.bind.annotation.*;` has no FQCN, but its attributes are what a
+rule names, so each attribute is a member under every class wildcard of the file
+(`maven:org.springframework.web.bind.annotation.RequestMapping.method`) — the same policy as
+`names`: two wildcard packages both get it, because without a classpath the scanner cannot tell
+which declares the annotation. The annotation itself stays a name under the wildcard entry, not a
+symbol. The post-pass drops an attribute whose annotation an own package supplies, unless the
+file also imports that class explicitly. A qualified call `C.m()` on a wildcard-supplied `C` is
+still not a member: only its name is under the wildcard.
+
+### Tests and errors
+
+- `src/test/java/**` locations carry `test: true`, like every other spec's.
+- A partial parse keeps every fact that did parse and adds one `partial_parse_error` with the
+  line of the first error; a file where nothing parses is one `parse_error`. Neither fails a scan
+  (AC-5.4).
+
+```bash
+migration-scan /path/to/spring-service --force
+jq '[.symbols[] | select(.key | startswith("maven:org.springframework"))] | length' .migration/profile.json
+jq '.members[] | select(.key | test("RequestMapping"))' .migration/profile.json
+grep -rn "^import org.springframework" src/main/java | shuf -n 10   # spot-check against the profile
+```
+
 ## Canonical keys
 
 The profile uses the same key formats as the graph (spec 025), so the matcher compares sets
@@ -555,9 +661,12 @@ changes.
   `ModuleEnv`, which now also carries `group_ids`) and return per-file facts. They are pure
   functions of the file content, so spec9 can cache them and run them in a process pool.
 - **Post-passes** receive the collected per-file facts plus how imports resolve
-  (`PostPassContext` / `ResolutionEnv`) and return a `FileFacts` fragment, which the scan merges
-  like any extractor's output. Barrel resolution is one (spec4); own-package filtering in spec7
-  is the next. A post-pass that raises is a `post_pass_error` diagnostic, never a failed scan.
+  (`PostPassContext` / `ResolutionEnv`). A post-pass may **return** a `FileFacts` fragment, which
+  the scan merges like any extractor's output, or **replace entries in `context.files`** to drop
+  some. Barrel resolution is the first kind (spec4); own-package filtering is the second (spec7),
+  and the scan merges every file's facts only *after* the post-passes, so a removed fact never
+  reaches the profile. A post-pass that raises is a `post_pass_error` diagnostic, never a failed
+  scan.
 
 See `migration_planner/scanner/contract.py` and `migration_planner/scanner/builtin.py`.
 
@@ -574,6 +683,7 @@ migration_planner/            planner: runs in a service repo
     ts.py                     TS / JS imports, members, decorators (026.3)
     ts_resolve.py             barrels, aliases, workspace entry points (026.4)
     templates.py              Angular template tokens, .html + inline (026.5)
+    java.py                   Java imports, usages, wildcards, own packages (026.7)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
@@ -609,4 +719,17 @@ After 026.5 `templates[]` is filled too: compare one `@defer` / `*ngFor` count w
 After 026.6 a Spring service also reports `spring-boot <version>`: compare it with
 `mvn help:effective-pom -q | grep -A2 spring-boot-starter-parent` (or
 `./gradlew dependencies`), and one `dependencies[]` entry with the coordinate in the build
-file. Java facts stay empty until specs 7–8.
+file.
+
+After 026.7 the Java sources are read too. `symbols[]` and `members[]` hold the external imports
+and their usages, and `wildcard_imports[]` holds `import a.b.*` with the simple names it may
+supply. Compare an import with `grep -rn "^import org.springframework" src/main/java`, and check
+that no key starts `maven:` with the service's own package — those are filtered:
+
+```bash
+jq '[.symbols[] | select(.key | startswith("maven:org.springframework"))] | length' .migration/profile.json
+jq '.wildcard_imports | map({key, names})' .migration/profile.json
+jq '[.symbols[], .members[] | select(.key | startswith("maven:com.acme"))] | length' .migration/profile.json  # → 0
+```
+
+Spring `config[]` (properties and YAML) stays empty until spec8.

@@ -1241,10 +1241,18 @@ def test_a_scan_of_maven_and_gradle_is_deterministic(spring_maven: Path) -> None
 
 
 def test_a_java_only_repo_gets_no_npm_or_template_facts(spring_maven: Path) -> None:
+    """A Maven tree has Java facts (spec7) but no npm symbol and no template."""
     _, profile, _, _ = _scan(spring_maven)
 
-    assert profile["symbols"] == []
     assert profile["templates"] == []
+    assert not any(
+        entry["key"].startswith("npm:") for entry in profile["symbols"]
+    )
+    # Spec7 fills ``symbols[]`` from the fixture's imports.
+    assert any(
+        entry["key"] == "maven:org.springframework.boot.SpringApplication"
+        for entry in profile["symbols"]
+    )
 
 
 @pytest.mark.parametrize(

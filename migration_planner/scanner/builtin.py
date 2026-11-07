@@ -16,6 +16,7 @@ from __future__ import annotations
 from migration_planner.scanner import (
     contract,
     gradle,
+    java,
     maven,
     npm_manifests,
     templates,
@@ -36,10 +37,14 @@ MANIFEST_READERS: dict[str, contract.ManifestReader] = {
 SOURCE_EXTRACTORS: dict[str, contract.SourceExtractor] = {
     **dict.fromkeys(ts.GRAMMARS, ts.extract_ts),
     "html": templates.extract_html_template,
+    **dict.fromkeys(java.GRAMMARS, java.extract_java),
 }
 
 # Post-passes over the merged facts — spec4 barrels, spec7 own-package filtering.
-POST_PASSES: tuple[contract.PostPass, ...] = (ts_resolve.resolve_barrels,)
+POST_PASSES: tuple[contract.PostPass, ...] = (
+    java.filter_own_packages,
+    ts_resolve.resolve_barrels,
+)
 
 
 def install() -> None:

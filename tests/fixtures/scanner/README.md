@@ -88,3 +88,25 @@ multi-module tree whose parent pom holds what a child inherits.
   `gradle.properties`, a trailing closure with `exclude`, an unresolved `$externalLibVersion`,
   a `java { toolchain { … } }` and a flat `sourceCompatibility`.
 - `platform/common/build.gradle.kts` — a Kotlin subproject with no Spring facts at all.
+
+`tests/fixtures/scanner/spring-java/` covers spec 026.7 (FR-7, AC-5):
+
+- `pom.xml` — a single Maven module on the starter parent, declaring `spring-boot-starter-web`,
+  `spring-core` (so `org.springframework` is a declared groupId for the fully-qualified usage) and
+  `spring-boot-starter-test`.
+- `src/main/java/com/acme/shop/ShopApplication.java` — one import used twice: the
+  `@SpringBootApplication` annotation and `SpringApplication.run(…)`.
+- `src/main/java/com/acme/shop/web/CatalogController.java` — a nested own-type import
+  (`CatalogService.Page`), attribute annotations (`@RequestMapping(value = …, method = …)`,
+  `@GetMapping("/{id}")`, `@PathVariable("id")`), a `ResponseEntity.status(HttpStatus.OK)` chain,
+  and a call on a local variable (`widget.name()`) that must not be resolved.
+- `src/main/java/com/acme/shop/reports/ReportBuilder.java` — both wildcard forms:
+  `java.util.*` (with `ArrayList` imported explicitly and `Report` declared locally, neither of
+  which the wildcard supplies) and `static java.util.Collections.*` (`sort`, `emptyList`), plus a
+  fully qualified `org.springframework.util.Assert.isTrue(…)` with no import.
+- `src/main/java/com/acme/shop/reports/BrokenReport.java` — a syntax error: the imports that
+  parsed are still facts and one `partial_parse_error` is recorded (AC-5.4).
+- `src/test/java/com/acme/shop/web/CatalogServiceTests.java` — `src/test/java`, so every location
+  is `test: true` (AC-5.3), with the static-import members `assertThat` / `verify` / `when`.
+- `src/main/java/com/acme/shop/service/` — the repo's own package the controller and its
+  wildcard entries must never report as external.
