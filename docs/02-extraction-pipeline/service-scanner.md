@@ -27,20 +27,21 @@ service repo ──▶ migration-scan ──▶ .migration/profile.json ──�
 ## CLI
 
 ```text
-migration-scan [PATH] [--out FILE] [--force] [--max-locations N]
-               [--include-tests/--no-include-tests] [--json-summary]
+migration-scan [PATH] [--out FILE] [--force] [--jobs N] [--max-locations N]
+               [--include-tests/--no-include-tests] [--no-values] [--json-summary]
 ```
 
 | Flag | Default | Behavior |
 |---|---|---|
 | `PATH` | current directory | Repository to scan. |
-| `--out FILE` | `PATH/.migration/profile.json` | Where the profile goes. |
+| `--out FILE` | `PATH/.migration/profile.json` | Where the profile goes. The scan cache goes in the same directory, so a scan writing elsewhere leaves the service work tree untouched. |
+| `--force` | off | Ignore the incremental cache, re-parse every source file and **always** rewrite the profile (026.9). |
+| `--jobs N` | usable CPUs | Parse source files in `N` processes; `1` parses in this process (026.9). The default is the CPUs this process may use (`os.process_cpu_count()` / the affinity mask), not the host's count. The output is identical for any value. |
 | `--max-locations N` | `20` | Locations stored per symbol. `count` is always exact. |
 | `--include-tests` | on | Test files are scanned and each location is flagged `test: true`. |
 | `--no-include-tests` | — | Drop `*.spec.ts`, `*.test.ts`, `src/test/**` and every test source set `src/<name>Test/**` (`src/integrationTest`, `src/componentTest`, …) and Maven's `src/it/**` at discovery. |
 | `--json-summary` | off | Print the summary as one JSON object instead of the line. |
 | `--no-values` | off | Store no config value: `value` is `null` in every `config[]` entry, so a profile can be attached to a CI job (026.8). |
-| `--force` | off | Accepted now; it only has an effect once the incremental cache lands (spec9). |
 
 stdout is always one line, with every count printed even when zero:
 
@@ -48,10 +49,39 @@ stdout is always one line, with every count printed even when zero:
 scanned 4812 files · angular 19.2.0 · 61 deps · 312 symbols · 48 members · 27 config · 4 template tokens · 3 diagnostics → .migration/profile.json (2.4 s)
 ```
 
+A scan that reused cached facts for some files says how many it parsed, and a scan whose inputs
+did not change says `unchanged` and rewrites nothing (026.9):
+
+```text
+scanned 4812 files · … · 3 diagnostics → .migration/profile.json (0.4 s, 1 parsed)
+scanned 4812 files · … · 3 diagnostics → .migration/profile.json unchanged
+```
+
 Exit codes: `0` profile written, `1` usage error, `2` no supported manifest found under `PATH`.
 
 On a first run in a repository that does not ignore `.migration/`, a hint is printed to stderr.
 Nothing is written to `.gitignore`.
+
+## Installing the scanner (026.9)
+
+The planner runs in a service repo, so its dependencies are the **base** ones and the ingestion
+stack is an extra:
+
+```bash
+pip install "migration-oracle[planner]"            # tree-sitter*, pyyaml, pydantic — nothing else
+pip install "./paysafe-version-migration-graph[planner]"   # the same, from a checkout
+migration-scan .                                   # works with no Neo4j, LangChain or model clients
+```
+
+`[planner]` and the base dependencies are the same set (AC-10b); the name exists to say what you
+are installing. Ingestion — graph, embeddings, model clients, the MCP server, the UI — is
+`migration-oracle[ingest]` (the distribution name in `pyproject.toml`; the spec's
+`paysafe-migration` is the same package). `uv sync` installs it through the dev group, which
+depends on `migration-oracle[ingest]`; the Docker image asks for it with `--extra ingest`. The
+import guard (`tests/scanner/test_isolation.py`) fails the build if anything under
+`migration_planner/` or `migration_keys/` starts importing the ingestion stack, and
+`tests/scanner/test_packaging.py` installs the wheel in a throwaway venv and asserts `neo4j` and
+`langchain*` are absent while `migration-scan` still runs.
 
 ## File discovery
 
@@ -218,9 +248,10 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | **026.6** |
 | `symbols`, `members`, `wildcard_imports` (Java) | **026.7** |
 | Spring `config`, `modules[].spring_config_files` | **026.8** |
-| Incremental cache, `--jobs`, `[planner]` extra | spec9 |
+| `inputs_hash`-based `unchanged`, the scan cache, `--jobs`, the `[planner]` extra | **026.9** |
 
-A section whose spec has not landed yet is an empty list, so the schema is stable throughout.
+A section whose spec had not landed yet was an empty list, so the schema stayed stable across
+026.1 → 026.9.
 
 ### Reading it
 
@@ -251,8 +282,8 @@ A section whose spec has not landed yet is an empty list, so the schema is stabl
 
 `migration_planner/scanner/ts.py` parses `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` with
 **tree-sitter** (the grammar follows the extension) and records imports, member accesses and
-decorator options. The extractor is a pure function of the file's bytes, so spec9 can cache it
-and run it in a process pool.
+decorator options. The extractor is a pure function of the file's bytes, which is what lets 026.9
+cache it and run it in a process pool.
 
 ### What is recorded
 
@@ -532,7 +563,7 @@ mvn help:effective-pom -q | grep -A2 spring-boot-starter-parent   # compare the 
 
 `migration_planner/scanner/java.py` parses `*.java` with **tree-sitter-java** and records the
 external imports and where they are used. It is a pure function of the file's bytes, like the
-TypeScript extractor, so spec9 can cache it and run it in a process pool.
+TypeScript extractor, so 026.9 caches it and runs it in a process pool.
 
 ### What is recorded
 
@@ -726,6 +757,77 @@ grep -c "<known secret>" .migration/profile.json   # → 0
 The AC-11 result on a real service (timings, size, the 153/153 property-key check, the secret
 check, the 10 import sites) is in `specs/026-service-scanner/ac11-spring.md`.
 
+## Incremental scans and parallel parsing (026.9)
+
+A cold scan parses every source file; a warm one should not. The cache lives next to the profile:
+`.migration/scan-cache.json` with the default `--out`; with an `--out` outside the repo it is
+`scan-cache-<root digest>.json`, so several services can share one output directory without
+evicting each other. It stores the repo root, the time its scan started and, per source file, its
+`(size, mtime_ns)`, its content `sha256`, the extractor's per-file facts, and two identities: the
+module environment (a digest over every `ModuleEnv` field) and the extractor that produced them.
+
+**What a re-scan does**, in this order:
+
+1. **Cache unreadable or a different scanner version** → `cache_corrupt` and a full scan (or
+   silence, for a version mismatch or another repo's root). A cache written by another
+   `SCANNER_VERSION`, another `CACHE_SCHEMA` or for another root is dropped whole: a wrong cache
+   is worse than none. `cache_corrupt` is a problem of **this run**, not a fact about the repo, so
+   it is printed on stderr (`warning: cache_corrupt: …`) and listed in `--json-summary` as
+   `run_diagnostics`, never written into the profile — an unchanged profile would otherwise keep
+   it forever.
+2. **`(size, mtime_ns)` unchanged** → the file is not even read. Its stored `sha256` feeds
+   `inputs_hash`, so a warm scan costs a `stat` per file. Except a **racy** file: one whose mtime
+   is within 2 s of (or after) the start of the scan that cached it could have changed again in
+   the same timestamp tick with the same size (git's "racily clean" case), so it is read and
+   hashed — still not re-parsed when the hash is the same.
+3. **Stat moved, hash the same** → a `touch` with no edit: the facts stand, only the signature
+   is refreshed.
+4. **Hash changed, or the module environment / extractor changed** → the file is parsed.
+5. Manifests are **always** re-read: there are few, and every reader must see the tree as it is.
+
+The **module environment digest** is the subtle part. A source's facts also depend on what the
+manifest readers learned about its module — own package names, the effective tsconfig path map,
+declared and owned groupIds, detected frameworks — none of which live in the file's bytes. A
+`package.json` edit therefore invalidates that module's cached sources instead of leaving facts
+that a fresh parse would not produce.
+
+**`inputs_hash` and `unchanged`.** When the hash of the whole input set equals the one in the
+profile already on disk, the profile is not rewritten at all — not even `generated.at` moves —
+and stdout says `unchanged`. The hash covers every scanned file (cached ones through their stored
+digest), the scanner version and the output-changing options, so `--max-locations 5` after a
+default scan rewrites the profile; it is never reported unchanged. `--force` always rewrites: it
+is how a profile that is stale for a reason the hash cannot see (a scanner fix without a version
+bump, a hand edit) is regenerated.
+
+**Parallel parsing.** Files are independent, so `--jobs N` parses them in a process pool (default:
+the CPU count; `1` stays in-process). The parent does discovery, manifest reading, hashing and
+cache decisions; a worker only runs extractors and returns JSON-ready facts, the same encoding the
+cache uses. Results are keyed by path and merged in discovery order, and post-passes sort their
+own output, so **`--jobs 1` and `--jobs 8` produce byte-identical profiles** (AC-9c). Two
+deliberate choices:
+
+- Under `MIN_FILES_FOR_POOL` (32) files the scan parses in-process even with the default `--jobs`:
+  starting a pool costs more than the work.
+- Workers start with `fork` on Linux only and with `spawn` everywhere else: `fork` after the
+  parent has threads is unsafe on macOS (CPython warns, and has defaulted to `spawn` there since
+  3.8).
+- A pool that cannot start (a sandbox), or a batch that cannot be sent to a worker (a registry
+  holding a closure), is parsed in this process. A slower scan, never a failed one.
+- A worker that **dies** — a native crash in a grammar — never hangs the scan. The pool is
+  `concurrent.futures`, which reports a dead worker instead of waiting for it; the batches that did
+  not come back are re-parsed one file per process, and the file that kills its worker again is an
+  `extractor_crash` diagnostic with no facts (not cached, so the next scan retries it). A file
+  that makes a parser loop forever is not guarded against.
+
+```bash
+time migration-scan /path/to/service --force    # cold
+time migration-scan /path/to/service            # → "unchanged", stat-only
+migration-scan /path/to/service --json-summary # parsed_files / cached_files counts
+```
+
+Warm-scan cost is dominated by discovery, not parsing: on a git work tree that is `git ls-files`
+plus one `stat` per file (0.4 s on 1 459 Spring sources); outside git the tree walk dominates.
+
 ## Canonical keys
 
 The profile uses the same key formats as the graph (spec 025), so the matcher compares sets
@@ -761,7 +863,7 @@ changes.
   `spring_config_files` (026.8), the module's `application*` / `bootstrap*` files.
 - **Source extractors** receive one file (path, bytes, module, `test` flag, and the module's
   `ModuleEnv`, which now also carries `group_ids`) and return per-file facts. They are pure
-  functions of the file content, so spec9 can cache them and run them in a process pool.
+  functions of the file content, so 026.9 caches them and runs them in a process pool.
 - **Post-passes** receive the collected per-file facts plus how imports resolve
   (`PostPassContext` / `ResolutionEnv`). A post-pass may **return** a `FileFacts` fragment, which
   the scan merges like any extractor's output, or **replace entries in `context.files`** to drop
@@ -787,6 +889,8 @@ migration_planner/            planner: runs in a service repo
     templates.py              Angular template tokens, .html + inline (026.5)
     java.py                   Java imports, usages, wildcards, own packages (026.7)
     spring_config.py          application*/bootstrap* → config keys, secrets (026.8)
+    cache.py                  per-file facts cache: stat, hash, env digest (026.9)
+    parallel.py               process-pool parsing, in-process fallback (026.9)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
@@ -801,6 +905,12 @@ migration_keys/               pure key builders + Angular data (shared with inge
 `tests/scanner/test_isolation.py` guards the split: it fails if anything under `migration_planner/`
 or `migration_keys/` imports `migration_oracle`, `neo4j`, `langchain*`, `httpx` or `socket`, and
 it runs a scan with no `NEO4J_URI`, no `.env` and sockets blocked.
+
+The **install** split is in `pyproject.toml`: the base dependencies are only what the scanner
+needs (`pydantic`, `pyyaml`, `tree-sitter*`), the same set is named `[planner]`, and everything
+else is `[ingest]` (026.9). `tests/scanner/test_packaging.py` asserts that split, and — when a
+wheel can be built — installs `.[planner]` in a throwaway venv, runs `migration-scan` on a
+fixture and asserts `neo4j` and `langchain*` are absent (AC-10b).
 
 ## Verifying a scan
 
@@ -845,3 +955,21 @@ jq -r '.config[] | select(.value == "<redacted>") | .key' .migration/profile.jso
 jq -r '.modules[].spring_config_files[]' .migration/profile.json
 grep -rn "spring.datasource.url" src/main/resources/application*.yml   # the key must be in the profile
 ```
+
+After 026.9 the second run of the same tree costs a `stat` per file and says `unchanged`:
+
+```bash
+migration-scan . --force                       # cold: everything parsed
+migration-scan .                               # → "… → .migration/profile.json unchanged"
+migration-scan . --json-summary | jq '{parsed_files, cached_files, unchanged}'
+touch-edit one file; migration-scan .           # → "1 parsed", profile equal to a --force scan
+migration-scan . --jobs 1 --force --out /tmp/a.json
+migration-scan . --jobs 8 --force --out /tmp/b.json
+diff <(grep -v '"at"\|"duration_ms"' /tmp/a.json) <(grep -v '"at"\|"duration_ms"' /tmp/b.json)  # → no diff
+printf '{ broken' > .migration/scan-cache.json  # → "warning: cache_corrupt" on stderr, full scan
+```
+
+## AC-11 timings (026.9)
+
+Measured on the two services spec5 / spec8 already use, with the spec9 build. Results are in
+`specs/026-service-scanner/ac11-angular.md` and `ac11-spring.md`.

@@ -58,12 +58,14 @@ def test_out_flag_writes_where_asked(make_repo, tmp_path: Path) -> None:
     repo = make_repo({"package.json": '{"name": "demo"}'})
     target = tmp_path / "elsewhere" / "profile.json"
 
-    code, stdout, _ = run_cli(str(repo), "--out", str(target))
+    code, stdout, stderr = run_cli(str(repo), "--out", str(target))
 
     assert code == cli.EXIT_OK
     assert target.is_file()
     assert str(target) in stdout
     assert not (repo / ".migration").exists()
+    # Nothing landed inside the repo, so there is nothing to ignore there.
+    assert "add .migration/ to .gitignore" not in stderr
 
 
 def test_summary_line_has_a_stable_shape(make_repo) -> None:

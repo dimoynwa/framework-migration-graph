@@ -9,12 +9,21 @@ valid profile.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Mapping
+from typing import Mapping
 
 from migration_planner.scanner import contract
+from migration_planner.scanner.cache import (
+    CACHE_NAME,
+    CachedFile,
+    ScanCache,
+    environment_digest,
+    extractor_id,
+)
 from migration_planner.scanner.contract import (
     Diagnostic,
     FileFacts,
@@ -26,10 +35,12 @@ from migration_planner.scanner.contract import (
     PostPassContext,
     ResolutionEnv,
     SCANNER_VERSION,
-    SourceContext,
+    SourceExtractor,
 )
 from migration_planner.scanner.discover import DiscoveryResult, DiscoveredFile, discover
+from migration_planner.scanner.parallel import ParseJob, default_jobs, parse_parallel
 from migration_planner.scanner.profile import (
+    SCHEMA_VERSION,
     FactAccumulator,
     Generated,
     ModuleEntry,
@@ -37,7 +48,7 @@ from migration_planner.scanner.profile import (
     Summary,
     choose_framework,
     default_profile_path,
-    inputs_hash,
+    inputs_hash_from_digests,
     utc_now,
     write_profile,
 )
@@ -55,6 +66,13 @@ class ScanResult:
     written: bool = False
     path: Path | None = None
     diagnostics: list[Diagnostic] = field(default_factory=list)
+    #: Source files whose facts came from the cache, and which were parsed (FR-10).
+    parsed_files: list[str] = field(default_factory=list)
+    cached_files: list[str] = field(default_factory=list)
+    cache_path: Path | None = None
+    #: Problems of this run that are not facts about the repo (``cache_corrupt``):
+    #: reported, never written into the profile.
+    run_diagnostics: list[Diagnostic] = field(default_factory=list)
 
 
 def _manifest_contexts(discovery: DiscoveryResult) -> dict[str, ManifestContext]:
@@ -107,13 +125,43 @@ def _registered_readers():
     return list(readers.values())
 
 
-def _read_bytes(
-    files: Iterable[DiscoveredFile],
-) -> tuple[dict[str, bytes], list[Diagnostic]]:
-    """File contents by scan-relative path; unreadable files become diagnostics."""
-    contents: dict[str, bytes] = {}
-    diagnostics: list[Diagnostic] = []
-    for file in files:
+def _stat(file: DiscoveredFile) -> tuple[int, int] | None:
+    """``(size, mtime_ns)`` of a discovered file, or ``None`` when it moved away."""
+    try:
+        status = file.absolute.stat()
+    except OSError:
+        return None
+    return status.st_size, status.st_mtime_ns
+
+
+@dataclass
+class _SourceState:
+    """What the scan knows about one source file before parsing it (FR-10)."""
+
+    file: DiscoveredFile
+    sha256: str
+    size: int = 0
+    mtime_ns: int = 0
+    #: The extractor that handles the file's language; ``None`` when no reader
+    #: is registered, so the file contributes nothing.
+    extractor: SourceExtractor | None = None
+    #: Module environment and its digest, shared by every file of one module.
+    env: ModuleEnv = field(default_factory=ModuleEnv)
+    env_digest: str = ""
+    #: Facts reused from the cache; ``None`` when the file must be parsed.
+    facts: FileFacts | None = None
+    #: The bytes, present only when the file has to be parsed.
+    data: bytes | None = None
+
+
+def _read_manifests(
+    discovery: DiscoveryResult,
+    diagnostics: list[Diagnostic],
+) -> dict[str, bytes]:
+    """Manifest contents by path. Manifests are always read, cache or not (FR-10):
+    there are few of them, and every reader must see the tree as it is now."""
+    manifests: dict[str, bytes] = {}
+    for file in discovery.manifests:
         data = file.read_bytes()
         if data is None:
             diagnostics.append(
@@ -122,8 +170,97 @@ def _read_bytes(
                 )
             )
             continue
-        contents[file.relative] = data
-    return contents, diagnostics
+        manifests[file.relative] = data
+    return manifests
+
+
+def _collect_sources(
+    discovery: DiscoveryResult,
+    cache: ScanCache,
+    environments: Mapping[str, ModuleEnv],
+    extractors: Mapping[str, SourceExtractor],
+    diagnostics: list[Diagnostic],
+) -> list[_SourceState]:
+    """Decide, per source file, whether its facts can be reused (FR-10).
+
+    A file is reused when the cache holds its facts, the extractor and module
+    environment are the same as when they were recorded, and either its
+    ``(size, mtime_ns)`` is unchanged (the file is not even read) or its content
+    ``sha256`` is. Everything else is read here and parsed later.
+
+    A file whose language has no extractor is still read and hashed: it
+    contributes to ``inputs_hash`` exactly as before the cache existed, it just
+    contributes no facts, so it is never cached.
+    """
+    digests: dict[str, tuple[ModuleEnv, str]] = {}
+    states: list[_SourceState] = []
+    for file in discovery.sources:
+        extractor = extractors.get(file.kind)
+        if file.module not in digests:
+            env = environments.get(file.module, ModuleEnv(module=file.module))
+            digests[file.module] = (env, environment_digest(env))
+        env, env_digest = digests[file.module]
+        identity = extractor_id(extractor)
+
+        stat = _stat(file)
+        if stat is None:
+            diagnostics.append(
+                Diagnostic(
+                    kind="unreadable_file", file=file.relative, detail="stat failed"
+                )
+            )
+            continue
+        size, mtime_ns = stat
+        cached = cache.get(file.relative) if extractor is not None else None
+        if (
+            cached is not None
+            and cached.matches_stat(size, mtime_ns)
+            and not cache.is_racy(mtime_ns)
+            and cached.usable(environment=env_digest, extractor=identity)
+        ):
+            states.append(
+                _SourceState(
+                    file=file,
+                    sha256=cached.sha256,
+                    size=size,
+                    mtime_ns=mtime_ns,
+                    extractor=extractor,
+                    env=env,
+                    env_digest=env_digest,
+                    facts=cached.facts,
+                )
+            )
+            continue
+
+        data = file.read_bytes()
+        if data is None:
+            diagnostics.append(
+                Diagnostic(
+                    kind="unreadable_file", file=file.relative, detail="read failed"
+                )
+            )
+            continue
+        digest = hashlib.sha256(data).hexdigest()
+        state = _SourceState(
+            file=file,
+            sha256=digest,
+            size=size,
+            mtime_ns=mtime_ns,
+            extractor=extractor,
+            env=env,
+            env_digest=env_digest,
+            data=data,
+        )
+        if (
+            cached is not None
+            and cached.sha256 == digest
+            and cached.usable(environment=env_digest, extractor=identity)
+        ):
+            # Same content, new stat: the facts stand, only the signature moves.
+            state.facts = cached.facts
+            state.data = None
+        states.append(state)
+    return states
 
 
 def scan(
@@ -133,6 +270,9 @@ def scan(
     include_tests: bool = True,
     max_locations: int = 20,
     no_values: bool = False,
+    jobs: int = 0,
+    force: bool = False,
+    use_cache: bool = True,
     write: bool = True,
 ) -> ScanResult:
     """Scan one repo and build its profile.
@@ -144,19 +284,41 @@ def scan(
     ``no_values`` stores no config value at all (spec8 ``--no-values``): the key
     is the fact a matcher compares, the value is what must not reach a CI
     artifact.
+
+    ``jobs`` is the parse parallelism (FR-10): ``0`` means the CPU count, ``1``
+    parses in this process. ``force`` ignores the incremental cache, and
+    ``use_cache=False`` disables it entirely (a caller that wants a scan to
+    leave no trace next to the profile).
+
+    Incremental behavior (FR-10): when ``inputs_hash`` matches the profile's,
+    the profile is not rewritten and the summary says ``unchanged``.
     """
     started = time.perf_counter()
+    started_ns = time.time_ns()
     root = Path(path).expanduser().resolve()
     discovery = discover(root, include_tests=include_tests)
     if not discovery.has_supported_manifest:
         raise NoSupportedManifest(f"no supported manifest under {root}")
 
     target = Path(out) if out is not None else default_profile_path(root)
+    worker_count = default_jobs() if jobs <= 0 else max(1, jobs)
     accumulator = FactAccumulator(max_locations=max_locations, no_values=no_values)
     diagnostics: list[Diagnostic] = list(discovery.diagnostics)
 
-    contents, read_diagnostics = _read_bytes(discovery.files)
-    diagnostics.extend(read_diagnostics)
+    # --- the incremental cache (FR-10) ---
+    # Problems with the cache are about *this run*, not about the repo, so they
+    # never go into the profile: an unchanged profile would otherwise keep a
+    # stale ``cache_corrupt`` forever (it is not rewritten when the inputs did
+    # not change). They are reported on the result, and the CLI prints them.
+    run_diagnostics: list[Diagnostic] = []
+    cache_path = cache_path_for(root, target)
+    if use_cache and not force:
+        cache, cache_diagnostics = ScanCache.load(cache_path, root=root)
+        run_diagnostics.extend(cache_diagnostics)
+    else:
+        cache = ScanCache.empty(cache_path, root=root)
+
+    manifests = _read_manifests(discovery, diagnostics)
 
     # --- manifests (spec2 npm, spec6 maven/gradle, spec8 spring config) ---
     contexts = _manifest_contexts(discovery)
@@ -271,37 +433,73 @@ def scan(
         )
 
     # --- sources (specs3–5 TypeScript / Angular, spec7 Java) ---
+    # A file whose facts the cache still holds is not parsed; everything else
+    # goes to the pool in one batch, so `--jobs` changes the wall clock only
+    # (FR-10). Post-passes below run on the whole collected set either way.
     extractors = contract.source_extractors()
+    sources = _collect_sources(
+        discovery, cache, environments, extractors, diagnostics
+    )
+    cache.started_ns = started_ns
     file_facts: dict[str, FileFacts] = {}
     module_of: dict[str, str] = {}
-    for file in discovery.sources:
-        extractor = extractors.get(file.kind)
-        if extractor is None:
+    jobs_to_run: list[tuple[ParseJob, SourceExtractor, ModuleEnv]] = []
+    parsed_files: list[str] = []
+    cached_files: list[str] = []
+    for state in sources:
+        if state.extractor is None:
             continue
-        data = contents.get(file.relative, b"")
-        try:
-            facts = extractor(
-                SourceContext(
-                    path=file.absolute,
-                    relative=file.relative,
-                    module=file.module,
-                    language=file.kind,
-                    test=file.test,
-                    data=data,
-                    env=environments.get(file.module, ModuleEnv(module=file.module)),
-                )
-            )
-        except Exception as exc:  # one unparsable file never fails the scan
-            diagnostics.append(
-                Diagnostic(
-                    kind="extractor_error",
-                    file=file.relative,
-                    detail=f"{type(exc).__name__}: {exc}",
-                )
-            )
+        module_of[state.file.relative] = state.file.module
+        if state.facts is not None:
+            file_facts[state.file.relative] = state.facts
+            cached_files.append(state.file.relative)
             continue
-        file_facts[file.relative] = facts
-        module_of[file.relative] = file.module
+        parsed_files.append(state.file.relative)
+        jobs_to_run.append(
+            (
+                ParseJob(
+                    relative=state.file.relative,
+                    path=state.file.absolute,
+                    module=state.file.module,
+                    language=state.file.kind,
+                    test=state.file.test,
+                    data=state.data or b"",
+                ),
+                state.extractor,
+                state.env,
+            )
+        )
+
+    outcome = parse_parallel(
+        jobs_to_run,
+        jobs=worker_count,
+        # Barrel resolution needs every file's facts, so the pool's own order is
+        # irrelevant; unordered collection overlaps parsing with IPC.
+        asynch=worker_count > 1,
+    )
+    diagnostics.extend(outcome.failed)
+    file_facts.update(outcome.facts)
+
+    # Cache bookkeeping: a parsed file's facts are stored with the stat
+    # signature that was current when it was read; a reused one keeps its entry.
+    # A file whose extractor failed is not stored, so the next scan retries it.
+    # Entries of files that are no longer discovered are pruned.
+    for state in sources:
+        facts = file_facts.get(state.file.relative)
+        if facts is None or state.extractor is None:
+            continue
+        cache.put(
+            state.file.relative,
+            CachedFile(
+                size=state.size,
+                mtime_ns=state.mtime_ns,
+                sha256=state.sha256,
+                environment=state.env_digest,
+                extractor=extractor_id(state.extractor),
+                facts=facts,
+            ),
+        )
+    cache.prune(state.file.relative for state in sources if state.extractor is not None)
 
     # --- post-passes (spec4 barrels, spec7 own-package filtering) ---
     # A post-pass may replace a file's facts to drop some (spec7's own-package
@@ -309,7 +507,7 @@ def scan(
     # them, not before: otherwise a filtered fact would stay in the profile.
     fragments: list[FileFacts] = []
     if contract.post_passes():
-        context = PostPassContext(
+        post_context = PostPassContext(
             root=root,
             files=file_facts,
             resolution=ResolutionEnv(
@@ -320,7 +518,7 @@ def scan(
         )
         for post_pass in contract.post_passes():
             try:
-                fragment = post_pass(context)
+                fragment = post_pass(post_context)
             except Exception as exc:
                 diagnostics.append(
                     Diagnostic(
@@ -368,23 +566,36 @@ def scan(
     modules.sort(key=lambda entry: entry.path)
 
     elapsed_ms = int((time.perf_counter() - started) * 1000)
+    digest = inputs_hash_from_digests(
+        _hashed_inputs(sources, manifests),
+        options={
+            "include_tests": include_tests,
+            "max_locations": max_locations,
+            "no_values": no_values,
+        },
+    )
+    files_scanned = len(manifests) + len(sources)
+    previous = _previous_profile(target)
+    # ``--force`` always rewrites: it is how a user regenerates a profile that is
+    # stale for a reason ``inputs_hash`` cannot see (a scanner fix without a
+    # version bump, a hand-edited file).
+    unchanged = (
+        write
+        and not force
+        and previous is not None
+        and previous.get("inputs_hash") == digest
+        and previous.get("schema") == SCHEMA_VERSION
+    )
     profile = Profile(
         generated=Generated(
             at=utc_now(),
             scanner=SCANNER_VERSION,
             root=".",
-            files_scanned=len(contents),
+            files_scanned=files_scanned,
             files_skipped=discovery.skipped,
             duration_ms=elapsed_ms,
         ),
-        inputs_hash=inputs_hash(
-            ((relative, data) for relative, data in contents.items()),
-            options={
-                "include_tests": include_tests,
-                "max_locations": max_locations,
-                "no_values": no_values,
-            },
-        ),
+        inputs_hash=digest,
         framework=framework,
         modules=modules,
         dependencies=accumulator.dependency_entries(),
@@ -397,7 +608,7 @@ def scan(
         diagnostics=accumulator.diagnostic_entries(),
     )
     summary = Summary(
-        files_scanned=len(contents),
+        files_scanned=files_scanned,
         files_skipped=discovery.skipped,
         framework=framework.name if framework else None,
         framework_version=framework.version if framework else "",
@@ -410,12 +621,78 @@ def scan(
         out=_display_path(target, root),
         duration_ms=elapsed_ms,
         gitignore_hint=_needs_gitignore(root, target),
+        unchanged=unchanged,
+        parsed_files=len(parsed_files),
+        cached_files=len(cached_files),
     )
-    result = ScanResult(profile=profile, summary=summary, discovery=discovery)
+    result = ScanResult(
+        profile=profile,
+        summary=summary,
+        discovery=discovery,
+        parsed_files=sorted(parsed_files),
+        cached_files=sorted(cached_files),
+        cache_path=cache_path if use_cache else None,
+        run_diagnostics=run_diagnostics,
+    )
     if write:
-        result.path = write_profile(profile, target)
-        result.written = True
+        if not unchanged:
+            result.path = write_profile(profile, target)
+            result.written = True
+        else:
+            # An unchanged tree: the profile on disk already says this, and
+            # rewriting it would only move `generated.at` (FR-10).
+            result.path = target
+        if use_cache:
+            cache.save()
     return result
+
+
+def cache_path_for(root: Path, target: Path) -> Path:
+    """Where the cache of a scan of ``root`` writing ``target`` lives (FR-10).
+
+    Next to the profile. Inside the scanned repo that is the spec's
+    ``.migration/scan-cache.json``. Outside it (``--out /tmp/x/profile.json``)
+    one directory may serve several repos, so the name carries a digest of the
+    root and two services never prune each other's cache.
+    """
+    resolved = target.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        tag = hashlib.sha256(str(root).encode("utf-8")).hexdigest()[:12]
+        stem, _, suffix = CACHE_NAME.rpartition(".")
+        return resolved.parent / f"{stem}-{tag}.{suffix}"
+    return resolved.parent / CACHE_NAME
+
+
+def _hashed_inputs(
+    sources: list[_SourceState],
+    manifests: dict[str, bytes],
+) -> list[tuple[str, str]]:
+    """``(path, sha256)`` for every scanned file, sources and manifests (FR-9, FR-10).
+
+    A source file the cache vouched for contributes its stored ``sha256``, so
+    ``inputs_hash`` stays exactly what a full scan would compute. Unreadable
+    files are absent, as before: the hash is over what was really read.
+    """
+    rows: list[tuple[str, str]] = [
+        (relative, hashlib.sha256(data).hexdigest())
+        for relative, data in manifests.items()
+    ]
+    for state in sources:
+        if state.file.relative in manifests:
+            continue  # a manifest, hashed above
+        rows.append((state.file.relative, state.sha256))
+    return rows
+
+
+def _previous_profile(target: Path) -> dict | None:
+    """The profile already at ``target``, or ``None`` when there is none usable."""
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 # Source extensions stripped from a ``baseUrl`` entry: ``main.ts`` is importable
@@ -497,7 +774,16 @@ def _module_label(module_path: str) -> str:
 
 
 def _needs_gitignore(root: Path, target: Path) -> bool:
-    """First run in a repo that does not ignore ``.migration/`` (FR-1, not written)."""
+    """First run in a repo that does not ignore ``.migration/`` (FR-1, not written).
+
+    Only when the profile really lands inside the scanned repo: a scan with
+    ``--out /tmp/x/profile.json`` (how the AC-11 runs leave the work tree
+    untouched) writes nothing into the tree, so there is nothing to ignore.
+    """
+    try:
+        target.resolve().relative_to(root)
+    except ValueError:
+        return False
     if target.exists():
         return False
     ignore_file = root / ".gitignore"

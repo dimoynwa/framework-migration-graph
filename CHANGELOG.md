@@ -1,5 +1,118 @@
 # Changelog
 
+## [026.9-service-scanner] — 2026-11-07
+
+### New features
+
+- **Incremental scans (FR-10).** `.migration/scan-cache.json` stores, per source file, its
+  `(size, mtime_ns)`, content `sha256`, the module-environment digest, the extractor's identity
+  and the extractor's per-file facts. A re-scan parses only files whose stat moved *and* whose
+  content hash then differs; a file whose `(size, mtime_ns)` is unchanged is not even read. When
+  the whole input set is unchanged the profile is not rewritten at all and stdout ends with
+  `unchanged` (AC-9b). Manifests are always re-read, and post-passes (barrels, own packages) run
+  every time on the cached + fresh facts, so an incremental profile is byte-identical to a
+  `--force` one.
+- **The module environment is part of the cache key.** A source's facts also depend on what the
+  manifest readers learned about its module (own package names, the effective tsconfig path map,
+  declared / owned groupIds, detected frameworks), none of which live in the file's bytes.
+  Editing a `package.json` therefore invalidates that module's cached sources instead of leaving
+  stale facts behind.
+- **`--force`** ignores the cache and re-parses everything; **a scanner version or cache-schema
+  mismatch** drops the cache whole; **a corrupt cache** is one `cache_corrupt` diagnostic plus a
+  full scan — never a failed scan. The cache is written atomically (temp file + rename), and it
+  sits next to the profile, so `--out /tmp/x/profile.json` leaves the service work tree untouched.
+- **Parallel parsing (FR-10).** `--jobs N` (default: CPU count; `1` = in-process) parses source
+  files in a process pool. The parent does discovery, manifest reading, hashing and cache
+  decisions; a worker only runs extractors and returns the same JSON-ready encoding the cache
+  uses. Results are keyed by path, so **`--jobs 1` and `--jobs 8` are byte-identical** (AC-9c).
+  Under 32 pending files it parses in-process (a pool costs more than the work), and a pool that
+  cannot start falls back to in-process parsing instead of failing.
+- **Packaging (AC-10b).** The base dependencies are now exactly what the scanner needs —
+  `pydantic`, `pyyaml`, `tree-sitter*` — and the same set is named `[planner]`. The ingestion
+  stack (Neo4j, LangChain, embeddings, MCP, Streamlit) moved to `[ingest]`, which the dev group
+  and the Dockerfile install (`uv sync --no-dev --extra ingest`). A fresh venv with
+  `pip install '.[planner]'` runs `migration-scan` with no `neo4j` or `langchain*` installed.
+- **Summary line** gained the cache counts: `… (0.4 s, 3 parsed)` when some facts were reused,
+  `… unchanged` when nothing changed, and `parsed_files` / `cached_files` in `--json-summary`.
+
+### Tests
+
+- `tests/scanner/test_incremental.py` (24): the cache file and its location (`--out` elsewhere),
+  the JSON round-trip of every fact kind, AC-9b (unchanged → nothing parsed and the profile is not
+  rewritten; one edited file → one parse, profile equal to `--force`; a `touch` with no edit
+  reuses the facts; a deleted file leaves the cache; a manifest edit invalidates the module; an
+  option change rewrites; a corrupt cache → diagnostic + full scan; a foreign scanner version →
+  silent full scan), AC-9c (`--jobs 1` vs `--jobs 8`), the in-process threshold, the pool fallback,
+  and the CLI flags.
+- `tests/scanner/test_packaging.py` (5): the `[planner]` / `[ingest]` split, the entry point, the
+  wheel's packages, and — when a wheel can be built — AC-10b end to end in a throwaway venv.
+- Whole scanner suite: **688 passed, 1 skipped** (spec1–spec8 all green), plus the 025 shared-key
+  and canonicalization suites. The one skip is `test_packaging.py`'s wheel build, which needs
+  `uv`; AC-10b was verified by hand instead — a fresh `python -m venv` with
+  `pip install '.[planner]'` pulls only `pydantic`, `pyyaml` and the four `tree-sitter`
+  distributions (no `neo4j`, `langchain*`, `mcp`, `streamlit`, `torch`), and `migration-scan`
+  runs and scans a fixture in that venv. Earlier specs' tests: one assertion **added** to
+  `test_cli.py::test_out_flag_writes_where_asked` (with `--out` outside the repo there is no
+  `.migration/` to warn about in stderr); everything else is additive —
+  `Summary.parsed_files` / `cached_files`, `scan(jobs=, force=, use_cache=)` and two new test
+  modules.
+
+### Review fixes
+
+- **A worker that dies no longer hangs the scan.** The pool is `concurrent.futures` instead of
+  `multiprocessing.Pool`, which waited forever for a task lost with a crashed worker. The batches
+  that did not come back are re-parsed one file per process; the file that kills its worker again
+  is an `extractor_crash` diagnostic with no facts, not cached.
+- **`cache_corrupt` is a run diagnostic, not a profile fact.** It is printed on stderr and listed in
+  `--json-summary` as `run_diagnostics`. Before, a profile written after a corrupt cache kept the
+  diagnostic forever (the next scans were `unchanged`), while the summary said `0 diagnostics`.
+- **`--force` always rewrites the profile**, so a stale profile can be regenerated.
+- **`spawn` everywhere but Linux.** `fork` was chosen wherever it existed, macOS included, where it
+  is unsafe once the parent has threads (68 `DeprecationWarning`s in the suite).
+- **Cache per root.** With `--out` outside the repo the cache is `scan-cache-<root digest>.json`,
+  and every cache records its root: two services sharing an output directory no longer evict each
+  other. `CACHE_SCHEMA` → 2.
+- **Racy stat.** A file whose mtime is within 2 s of the caching scan's start is re-hashed instead
+  of trusted by `(size, mtime_ns)` alone.
+- **`--jobs` default** is the usable CPU count (`os.process_cpu_count()` / affinity), not the
+  host's.
+- `environment_digest` covers every `ModuleEnv` field through `dataclasses.fields` (a new field can
+  no longer be left out); `mypy` clean for `cache.py`, `parallel.py`, `scan.py`, `cli.py`; the
+  install docs name the real distribution, `migration-oracle[planner]`; the `pyproject.toml`
+  comments describe what `uv sync` and the Dockerfile really do.
+- Tests pinning the old behavior, changed on purpose: `test_force_ignores_the_cache_and_re_parses_every_file`
+  (now `written`, not `unchanged`), `test_a_corrupt_cache_is_a_diagnostic_and_a_full_scan`
+  (`run_diagnostics`, not the profile), `test_the_cache_lives_next_to_an_out_path_outside_the_repo`
+  (the root-digest name). Suite after the fixes: `tests/scanner` 688 passed and 1 skipped (the
+  `uv`-dependent wheel build), 763 tests green across the scanner and the 025 suites. One
+  user-visible consequence: the `.gitignore` hint is now printed only when something really
+  lands in the scanned repo, so `--out` elsewhere is silent.
+
+### AC-11 (timings)
+
+| Service | Cold (`--force`) | Warm (no change) | Budget |
+|---|---|---|---|
+| `paysafe-wallet-kyc` (1 447 Java) | **1.3 s** | **0.6–0.8 s** | < 30 s / < 3 s |
+| `paysafe-wac-web-login-fe` (709 TS) | **0.8 s** | **0.4 s** | < 30 s / < 3 s |
+
+Warm cost is discovery plus a `stat` per file, not parsing. Cache size: 6.6 MB for the Spring
+service (facts stored without a per-fact file path, restored from the entry key — that halving was
+a review fix) and 1.5 MB for the Angular one. Results in `ac11-spring.md` / `ac11-angular.md`.
+
+### Contract additions
+
+- `migration_planner/scanner/cache.py`: `CACHE_NAME`, `CACHE_SCHEMA`, `CachedFile`, `ScanCache`,
+  `encode_facts` / `decode_facts` (shared by the cache and the pool), `environment_digest`,
+  `extractor_id`.
+- `migration_planner/scanner/parallel.py`: `ParseJob`, `ParseOutcome`, `parse_file`,
+  `parse_parallel`, `default_jobs`, `MIN_FILES_FOR_POOL`, `CHUNK_SIZE`.
+- `scan(..., jobs=0, force=False, use_cache=True)`; `ScanResult.parsed_files` / `cached_files` /
+  `cache_path`.
+- `profile.atomic_write_text` — the atomic writer, now shared by the profile and the cache.
+- `profile.inputs_hash_from_digests` — `inputs_hash` over stored digests, so an unread (cached)
+  file still contributes what a full scan would compute.
+- CLI: `--jobs N`, and `--force` now does something.
+
 ## [026.8-service-scanner] — 2026-11-07
 
 ### New features

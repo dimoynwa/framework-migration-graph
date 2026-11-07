@@ -126,3 +126,68 @@ Re-run after test source sets became tests (spec1 FR-1 amended): the 38 `config[
 `src/integrationTest/resources/*` and every location in the 27 `src/integrationTest/java` files
 now carry `test: true`; keys, values and counts are unchanged (153 config, 636 symbols,
 643 members), profile 1 926 428 B. Suite: 721 passed.
+
+## spec9 — warm-scan timings (AC-11, 2026-11-07)
+
+Spec: `specs/026-service-scanner/spec9.md` (026.9, FR-10 incremental cache). Same service
+(`paysafe-wallet-kyc`, commit `e26f8946f`, 1 447 Java sources), clean git work tree, profile and
+cache written outside it (`--out /tmp/s9real/p.json`).
+
+| Run | Wall clock | `duration_ms` | Profile | Parsed |
+|---|---|---|---|---|
+| cold (`--force`) | **1.32 s** | 1 000 | 1 926 428 B (1.84 MB) | 1 448 |
+| warm (no change) | **0.75 s** | — (`unchanged`) | unchanged, not rewritten | 0 |
+| warm (2nd) | **0.64 s** | — (`unchanged`) | unchanged, not rewritten | 0 |
+
+- **< 30 s cold: passed** (1.3 s, down from 2.99 s in the spec8 run because `--jobs` defaults to
+  the CPU count now). **< 3 s warm: passed** (0.6–0.8 s).
+- Warm cost is discovery, not parsing: `git ls-files` 0.11 s + cache load 0.23 s + one `stat` per
+  file. Parsing is 0 files.
+
+### Incremental and `--jobs` checks
+
+| Check | Result |
+|---|---|
+| Re-scan, no change | `unchanged`, `parsed_files: 0`, `cached_files: 1448`, profile not rewritten |
+| Edit one `.java` file | `parsed_files: 1`, `cached_files: 1447`; profile equal to a `--force` scan except `at` / `duration_ms` |
+| `--jobs 1` vs `--jobs 8` (forced) | byte-identical profiles except `at` / `duration_ms`; 2.0 s vs 1.0 s reported duration |
+| Corrupt cache | `cache_corrupt` diagnostic, full scan, same facts |
+
+### Cache size
+
+`scan-cache.json` is 6.6 MB for 1 448 Java files. The encoding stores no file path per fact (an
+extractor only reports facts about the file it was given, so the path is restored from the entry
+key); doing so took the cache from 14 MB to 6.6 MB. It sits next to the profile, which is
+generated output and already `.gitignore`d — no new ignore rule.
+
+```bash
+S=/tmp/s9real; R=~/DevelopmentTools/paysafe-wallet-kyc
+time migration-scan $R --out $S/p.json --force    # cold
+time migration-scan $R --out $S/p.json            # → unchanged
+migration-scan $R --out $S/p.json --json-summary | jq '{parsed_files, cached_files, unchanged}'
+```
+
+### Packaging (AC-10b on this tree)
+
+`uv build --wheel`, then a fresh `uv venv` + `uv pip install migration_oracle-0.1.0-py3-none-any.whl[planner]`
+→ 11 packages (`migration-oracle`, `pydantic`, `pyyaml`, `tree-sitter`, `tree-sitter-java`,
+`tree-sitter-javascript`, `tree-sitter-typescript` and their dependencies). `migration-scan` ran on
+`tests/fixtures/scanner/angular-app` (exit 0, `angular 19.2.4`), and `neo4j`, `langchain`,
+`langchain_core`, `httpx`, `mcp`, `sentence_transformers`, `streamlit` were all
+`ModuleNotFoundError`. Automatable version: `tests/scanner/test_packaging.py`.
+
+### After the spec9 review fixes (2026-11-07)
+
+`spawn` workers on macOS (no more `fork`), `concurrent.futures` pool, cache named per root.
+Same commit, `--out /tmp/s9b/p.json`:
+
+| Run | Wall clock |
+|---|---|
+| cold `--force` (default `--jobs`, 12 CPUs) | 2.2–3.1 s |
+| cold `--force --jobs 1` | 2.8 s |
+| warm, no change | 1.3 s, `unchanged`, `parsed_files: 0` |
+
+`--jobs 1` and `--jobs 8` profiles byte-identical except `at` / `duration_ms`. On macOS the pool
+now gains little over `--jobs 1` for this size (`spawn` imports the grammars per worker); both
+budgets (< 30 s cold, < 3 s warm) still hold. The cache is `scan-cache-11ebf7f5c2a6.json` next to
+the profile. Service work tree untouched.

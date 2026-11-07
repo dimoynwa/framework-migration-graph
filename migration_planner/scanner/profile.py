@@ -509,10 +509,30 @@ def inputs_hash(
     and the scan options that change the output (``--max-locations``,
     ``--include-tests``, …), so a re-scan with other options is never
     reported ``unchanged`` (spec9)."""
-    digest = hashlib.sha256()
-    rows = sorted(
-        (path, hashlib.sha256(content).hexdigest()) for path, content in entries
+    return inputs_hash_from_digests(
+        (
+            (path, hashlib.sha256(content).hexdigest())
+            for path, content in entries
+        ),
+        scanner_version=scanner_version,
+        options=options,
     )
+
+
+def inputs_hash_from_digests(
+    entries: Iterable[tuple[str, str]],
+    scanner_version: str = SCANNER_VERSION,
+    options: dict[str, object] | None = None,
+) -> str:
+    """``inputs_hash`` from already-computed content digests.
+
+    The incremental cache stores each file's ``sha256``, so a file whose stat
+    did not move is not read at all — but the hash must still be the one a full
+    scan would compute, or a warm scan would report a change that is not there
+    and a `--force` scan would disagree with it (FR-10).
+    """
+    digest = hashlib.sha256()
+    rows = sorted(entries)
     for path, content_digest in rows:
         digest.update(f"{path}\0{content_digest}\n".encode("utf-8"))
     digest.update(f"scanner\0{scanner_version}\n".encode("utf-8"))
@@ -531,9 +551,17 @@ def default_profile_path(root: str | Path) -> Path:
 
 def write_profile(profile: Profile, path: str | Path) -> Path:
     """Write atomically: a crashed scan never leaves a half-written profile."""
+    return atomic_write_text(path, profile.to_json())
+
+
+def atomic_write_text(path: str | Path, payload: str) -> Path:
+    """Write ``payload`` to ``path`` through a temp file + rename (FR-9, FR-10).
+
+    Shared by the profile writer and the scan cache: both are files whose
+    half-written state would be worse than their absence.
+    """
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = profile.to_json()
     handle = tempfile.NamedTemporaryFile(
         mode="w",
         encoding="utf-8",
@@ -582,6 +610,9 @@ class Summary(BaseModel):
     duration_ms: int = 0
     unchanged: bool = False
     gitignore_hint: bool = False
+    #: Source files actually parsed this run, and reused from the cache (FR-10).
+    parsed_files: int = 0
+    cached_files: int = 0
 
     def text(self) -> str:
         """``scanned 4812 files · angular 19.2.0 · 61 deps · … (2.4 s)``."""
@@ -601,7 +632,14 @@ class Summary(BaseModel):
             f"{self.diagnostics} diagnostics",
         ]
         line = " · ".join(parts)
-        suffix = "unchanged" if self.unchanged else f"({self.duration_ms / 1000:.1f} s)"
+        if self.unchanged:
+            suffix = "unchanged"
+        else:
+            suffix = f"({self.duration_ms / 1000:.1f} s)"
+            # How much work the cache saved is the one thing a warm scan user
+            # wants to see; a cold scan prints it too, as parsed = all.
+            if self.cached_files:
+                suffix = f"({self.duration_ms / 1000:.1f} s, {self.parsed_files} parsed)"
         return f"{line} → {self.out} {suffix}".rstrip()
 
 
@@ -622,9 +660,11 @@ __all__ = [
     "TemplateEntry",
     "UsageEntry",
     "WildcardEntry",
+    "atomic_write_text",
     "choose_framework",
     "default_profile_path",
     "inputs_hash",
+    "inputs_hash_from_digests",
     "utc_now",
     "write_profile",
 ]

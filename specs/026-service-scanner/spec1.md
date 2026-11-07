@@ -28,6 +28,9 @@ Requirement IDs (FR-x, AC-x) are kept from the original single spec, so referenc
 | spec8 | Spring config files + Spring real-service check | FR-8a | AC-8a, AC-11 (Spring) | Spring repo: `config[]` with `cfg:application.properties#…`, secrets redacted | ~6.5 h |
 | spec9 | Incremental cache, process pool, packaging extras, final docs | FR-10 | AC-9b, AC-11 (timings) | warm re-scan prints `unchanged` in < 3 s | ~4 h |
 
+**All nine specs are implemented.** spec9 landed 2026-11-07; its implementation record, the
+AC-11 timings and the packaging result are in `spec9.md` and `ac11-*.md`.
+
 Order: spec1 → (spec2 → spec3 → spec4 → spec5) and (spec6 → spec7 → spec8) → spec9. The Angular
 and Java tracks are independent after spec1; spec7 needs spec6 (groupIds for FQCN usages).
 

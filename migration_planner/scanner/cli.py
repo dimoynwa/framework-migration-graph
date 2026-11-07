@@ -74,7 +74,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="ignore the incremental cache (no effect until spec9 lands)",
+        help="ignore the incremental cache and re-parse every source file",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=0,
+        metavar="N",
+        help="parse source files in N processes (default: the CPU count; "
+        "1 parses in this process)",
     )
     parser.add_argument(
         "--max-locations",
@@ -133,6 +141,14 @@ def _summary_payload(result: ScanResult) -> dict:
         "out": summary.out,
         "duration_ms": summary.duration_ms,
         "unchanged": summary.unchanged,
+        "parsed_files": summary.parsed_files,
+        "cached_files": summary.cached_files,
+        # Problems of this run, not of the repo (``cache_corrupt``): never in
+        # the profile, so they are reported here and on stderr.
+        "run_diagnostics": [
+            {"kind": item.kind, "file": item.file, "detail": item.detail}
+            for item in result.run_diagnostics
+        ],
         "scanner": SCANNER_VERSION,
     }
 
@@ -165,6 +181,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK if code == 0 else EXIT_USAGE
     if args.max_locations < 0:
         return _usage_error(parser, "--max-locations must be zero or greater")
+    if args.jobs < 0:
+        return _usage_error(parser, "--jobs must be zero or greater")
     root = Path(args.path).expanduser()
     if not root.exists():
         return _usage_error(parser, f"PATH does not exist: {args.path}")
@@ -179,11 +197,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             include_tests=args.include_tests,
             max_locations=args.max_locations,
             no_values=args.no_values,
+            jobs=args.jobs,
+            force=args.force,
         )
     except NoSupportedManifest as exc:
         print(str(exc), file=sys.stderr)
         return EXIT_NO_MANIFEST
 
+    for item in result.run_diagnostics:
+        print(f"warning: {item.kind}: {item.file}: {item.detail}", file=sys.stderr)
     if args.json_summary:
         print(json.dumps(_summary_payload(result), ensure_ascii=False, sort_keys=True))
     else:

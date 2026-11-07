@@ -6,26 +6,16 @@ build-backend = "hatchling.build"
 name = "migration-oracle"
 version = "0.1.0"
 requires-python = ">=3.11"
+# The **base** dependencies are what the planner needs, because the planner is
+# the part that installs in a service repo: `pip install .` (or `.[planner]`)
+# must give a working `migration-scan` with no Neo4j, no LangChain and no model
+# clients (026 spec9, AC-10b). Ingestion (extract → triage → research →
+# entities → populate) lives in the `[ingest]` extra. A development checkout gets
+# it through the dev group below (`uv sync`), and the Docker image asks for it
+# explicitly (`uv sync --frozen --no-dev --extra ingest`).
 dependencies = [
-    "neo4j>=5.0",
     "pydantic>=2.0",
-    "httpx>=0.27",
-    "beautifulsoup4>=4.12",
-    "anyio>=4.0",
-    "langchain>=0.2",
-    "langchain-community>=0.2",
-    "sentence-transformers>=3.0",
-    "mcp>=1.0",
-    "streamlit>=1.35",
-    "click>=8.1",
-    "rapidfuzz>=3.0",
-    "packaging>=24.0",
-    "structlog>=24.0",
-    "langchain-anthropic>=1.4.4",
-    "langchain-ollama>=1.1.0",
     "pyyaml>=6.0",
-    "langchain-openai>=1.0",
-    "tqdm>=4.66",
     # Parser for the scanner's TS / JS extraction (spec 026.3). Prebuilt wheels
     # for CPython 3.11+, so no compiler is needed.
     # <0.26: py-tree-sitter 0.26.0 segfaults in Node access on larger files
@@ -38,6 +28,40 @@ dependencies = [
     "tree-sitter-java>=0.23",
 ]
 
+[project.optional-dependencies]
+# Same set as the base dependencies, named: `pip install paysafe-migration[planner]`
+# is the documented way to install the scanner in a service repo, and it pulls
+# exactly `tree-sitter*`, `pyyaml` and `pydantic` (AC-10b).
+planner = [
+    "pydantic>=2.0",
+    "pyyaml>=6.0",
+    "tree-sitter>=0.25,<0.26",
+    "tree-sitter-typescript>=0.23",
+    "tree-sitter-javascript>=0.25",
+    "tree-sitter-java>=0.23",
+]
+# The ingestion stack: graph, embeddings, model clients, MCP server, UI.
+# Nothing here is needed to scan a service.
+ingest = [
+    "neo4j>=5.0",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "anyio>=4.0",
+    "langchain>=0.2",
+    "langchain-community>=0.2",
+    "langchain-anthropic>=1.4.4",
+    "langchain-ollama>=1.1.0",
+    "langchain-openai>=1.0",
+    "sentence-transformers>=3.0",
+    "mcp>=1.0",
+    "streamlit>=1.35",
+    "click>=8.1",
+    "rapidfuzz>=3.0",
+    "packaging>=24.0",
+    "structlog>=24.0",
+    "tqdm>=4.66",
+]
+
 [project.scripts]
 migration-oracle = "migration_oracle.cli:main"
 export-extract-populate-framework = "migration_oracle.cli:export_extract_populate_framework"
@@ -48,7 +72,15 @@ packages = ["migration_oracle", "migration_planner", "migration_keys"]
 
 [tool.uv]
 package = true
-dev-dependencies = [
+# A development checkout wants the whole stack, so the dev group pulls the
+# project's own `[ingest]` extra: `uv sync` / `uv run` keep the full ingestion
+# stack. `--no-dev` drops that group, which is why the Dockerfile adds
+# `--extra ingest`. A service repo installing `.[planner]` gets only the
+# scanner's dependencies (026 spec9, AC-10b).
+
+[dependency-groups]
+dev = [
+    "migration-oracle[ingest]",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "pytest-mock>=3.14",

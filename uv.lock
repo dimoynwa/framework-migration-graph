@@ -1559,6 +1559,16 @@ name = "migration-oracle"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
+    { name = "tree-sitter" },
+    { name = "tree-sitter-java" },
+    { name = "tree-sitter-javascript" },
+    { name = "tree-sitter-typescript" },
+]
+
+[package.optional-dependencies]
+ingest = [
     { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "click" },
@@ -1571,13 +1581,15 @@ dependencies = [
     { name = "mcp" },
     { name = "neo4j" },
     { name = "packaging" },
-    { name = "pydantic" },
-    { name = "pyyaml" },
     { name = "rapidfuzz" },
     { name = "sentence-transformers" },
     { name = "streamlit" },
     { name = "structlog" },
     { name = "tqdm" },
+]
+planner = [
+    { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "tree-sitter" },
     { name = "tree-sitter-java" },
     { name = "tree-sitter-javascript" },
@@ -1586,6 +1598,7 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "migration-oracle", extra = ["ingest"] },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-mock" },
@@ -1594,33 +1607,41 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anyio", specifier = ">=4.0" },
-    { name = "beautifulsoup4", specifier = ">=4.12" },
-    { name = "click", specifier = ">=8.1" },
-    { name = "httpx", specifier = ">=0.27" },
-    { name = "langchain", specifier = ">=0.2" },
-    { name = "langchain-anthropic", specifier = ">=1.4.4" },
-    { name = "langchain-community", specifier = ">=0.2" },
-    { name = "langchain-ollama", specifier = ">=1.1.0" },
-    { name = "langchain-openai", specifier = ">=1.0" },
-    { name = "mcp", specifier = ">=1.0" },
-    { name = "neo4j", specifier = ">=5.0" },
-    { name = "packaging", specifier = ">=24.0" },
+    { name = "anyio", marker = "extra == 'ingest'", specifier = ">=4.0" },
+    { name = "beautifulsoup4", marker = "extra == 'ingest'", specifier = ">=4.12" },
+    { name = "click", marker = "extra == 'ingest'", specifier = ">=8.1" },
+    { name = "httpx", marker = "extra == 'ingest'", specifier = ">=0.27" },
+    { name = "langchain", marker = "extra == 'ingest'", specifier = ">=0.2" },
+    { name = "langchain-anthropic", marker = "extra == 'ingest'", specifier = ">=1.4.4" },
+    { name = "langchain-community", marker = "extra == 'ingest'", specifier = ">=0.2" },
+    { name = "langchain-ollama", marker = "extra == 'ingest'", specifier = ">=1.1.0" },
+    { name = "langchain-openai", marker = "extra == 'ingest'", specifier = ">=1.0" },
+    { name = "mcp", marker = "extra == 'ingest'", specifier = ">=1.0" },
+    { name = "neo4j", marker = "extra == 'ingest'", specifier = ">=5.0" },
+    { name = "packaging", marker = "extra == 'ingest'", specifier = ">=24.0" },
     { name = "pydantic", specifier = ">=2.0" },
+    { name = "pydantic", marker = "extra == 'planner'", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "rapidfuzz", specifier = ">=3.0" },
-    { name = "sentence-transformers", specifier = ">=3.0" },
-    { name = "streamlit", specifier = ">=1.35" },
-    { name = "structlog", specifier = ">=24.0" },
-    { name = "tqdm", specifier = ">=4.66" },
+    { name = "pyyaml", marker = "extra == 'planner'", specifier = ">=6.0" },
+    { name = "rapidfuzz", marker = "extra == 'ingest'", specifier = ">=3.0" },
+    { name = "sentence-transformers", marker = "extra == 'ingest'", specifier = ">=3.0" },
+    { name = "streamlit", marker = "extra == 'ingest'", specifier = ">=1.35" },
+    { name = "structlog", marker = "extra == 'ingest'", specifier = ">=24.0" },
+    { name = "tqdm", marker = "extra == 'ingest'", specifier = ">=4.66" },
     { name = "tree-sitter", specifier = ">=0.25,<0.26" },
+    { name = "tree-sitter", marker = "extra == 'planner'", specifier = ">=0.25,<0.26" },
     { name = "tree-sitter-java", specifier = ">=0.23" },
+    { name = "tree-sitter-java", marker = "extra == 'planner'", specifier = ">=0.23" },
     { name = "tree-sitter-javascript", specifier = ">=0.25" },
+    { name = "tree-sitter-javascript", marker = "extra == 'planner'", specifier = ">=0.25" },
     { name = "tree-sitter-typescript", specifier = ">=0.23" },
+    { name = "tree-sitter-typescript", marker = "extra == 'planner'", specifier = ">=0.23" },
 ]
+provides-extras = ["planner", "ingest"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "migration-oracle", extras = ["ingest"] },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23" },
     { name = "pytest-mock", specifier = ">=3.14" },

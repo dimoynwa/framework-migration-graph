@@ -255,3 +255,40 @@ jq -r '.symbols[] | .key as $k | .locations[] | "\(.file):\(.line) \($k)"' \
 # 4. 025 keys the service really uses, against the profile
 #    (re-run the token-aware comparison from the table above on .migration/profile.json)
 ```
+
+## spec9 — warm-scan timings (AC-11, 2026-11-07)
+
+Spec: `specs/026-service-scanner/spec9.md` (026.9, FR-10 incremental cache). Same service, same
+checkout (`5308f9de`), profile written outside the work tree (`--out /tmp/s9ang2/p.json`) so the
+repo stayed untouched; the cache lives next to the profile.
+
+| Run | Wall clock | `duration_ms` | Profile | Parsed |
+|---|---|---|---|---|
+| cold (`--force`) | **0.78 s** | 400 | 451 552 B (441 KB) | all |
+| warm (no change) | **0.40 s** | — (`unchanged`) | unchanged, not rewritten | 0 |
+
+- **< 30 s cold: passed** (0.78 s). **< 3 s warm: passed** (0.40 s).
+- Summary line, warm: `scanned 709 files · angular 20.3.27 · 88 deps · 288 symbols · 71 members ·
+  166 config · 13 template tokens · 0 diagnostics → /tmp/s9ang2/p.json unchanged`.
+- `--json-summary` on the warm run: `parsed_files: 0`, `cached_files: 702`.
+
+### Incremental and `--jobs` checks
+
+| Check | Result |
+|---|---|
+| Re-scan, no change | `unchanged`, `parsed_files: 0`, profile file byte-identical (not rewritten) |
+| Edit one `.ts` file | `parsed_files: 1`; profile equal to a `--force` scan except `at` / `duration_ms` |
+| `--jobs 1` vs `--jobs 8` (forced) | byte-identical profiles except `at` / `duration_ms` |
+| Corrupt `.migration/scan-cache.json` | one `cache_corrupt` diagnostic, full scan, correct profile |
+
+```bash
+S=/tmp/s9ang2; R=~/DevelopmentTools/paysafe-wac-web-login-fe
+time migration-scan $R --out $S/p.json --force    # cold
+time migration-scan $R --out $S/p.json            # → unchanged
+migration-scan $R --out $S/p.json --json-summary | jq '{parsed_files, cached_files, unchanged}'
+```
+
+### After the spec9 review fixes (2026-11-07)
+
+Same checkout, `--out /tmp/s9b/a/p.json`, `spawn` workers on macOS: cold `--force` **1.39 s**,
+warm **0.35 s** (`unchanged`). Both budgets hold; work tree untouched.
