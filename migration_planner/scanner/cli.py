@@ -103,6 +103,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="print the summary as one JSON object",
     )
     parser.add_argument(
+        "--no-values",
+        dest="no_values",
+        action="store_true",
+        help="store no config values (value is null in every config entry), so "
+        "the profile can be attached to a CI job",
+    )
+    parser.add_argument(
         "--version",
         action="version",
         version=f"migration-scan {SCANNER_VERSION}",
@@ -171,6 +178,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             out=out,
             include_tests=args.include_tests,
             max_locations=args.max_locations,
+            no_values=args.no_values,
         )
     except NoSupportedManifest as exc:
         print(str(exc), file=sys.stderr)

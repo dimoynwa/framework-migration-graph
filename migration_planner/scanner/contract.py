@@ -226,6 +226,11 @@ class ManifestContext:
     # Absolute scan root, so a reader can follow a reference that leaves the
     # module but stays inside the repo (``tsconfig`` ``extends``, spec2).
     scan_root: Path | None = None
+    # Whether any module of the repo has a Maven or Gradle build file. Spring
+    # config files are only read in a Java module (spec8 FR-8a); a repo's
+    # shared ``config/application.yml`` belongs to ``.``, which often has no
+    # build file of its own, so the reader needs the repo-wide answer too.
+    repo_has_java_build: bool = True
 
     def by_kind(self, *kinds: str) -> tuple[ManifestFile, ...]:
         return tuple(manifest for manifest in self.files if manifest.kind in kinds)
@@ -270,6 +275,12 @@ class ManifestFacts:
     # from ``ModuleEnv.group_ids``, so a dependency on a sibling module
     # (``com.acme:lib``) never makes the service's own code look external.
     own_group_ids: list[str] = field(default_factory=list)
+    # The module's Spring ``application*`` / ``bootstrap*`` files, scan-root
+    # relative (spec8 → ``modules[].spring_config_files``). Their *presence* is a
+    # fact some rules are about (a ``bootstrap.yml`` needs
+    # ``spring-cloud-starter-bootstrap`` since Spring Boot 2.4), separate from the
+    # property keys they set.
+    spring_config_files: list[str] = field(default_factory=list)
 
 
 # --- source extractors -----------------------------------------------------

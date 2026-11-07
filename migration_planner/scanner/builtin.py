@@ -19,6 +19,7 @@ from migration_planner.scanner import (
     java,
     maven,
     npm_manifests,
+    spring_config,
     templates,
     ts,
     ts_resolve,
@@ -30,6 +31,7 @@ MANIFEST_READERS: dict[str, contract.ManifestReader] = {
     **dict.fromkeys(npm_manifests.MANIFEST_KINDS, npm_manifests.read_npm_manifests),
     **dict.fromkeys(maven.MANIFEST_KINDS, maven.read_maven_manifests),
     **dict.fromkeys(gradle.MANIFEST_KINDS, gradle.read_gradle_manifests),
+    **dict.fromkeys(spring_config.MANIFEST_KINDS, spring_config.read_spring_config),
 }
 
 # ``{discovery language tag: extractor}`` — spec3 TS / JS, spec5 Angular

@@ -164,7 +164,10 @@ migration-scan [PATH] [--out FILE] [--force] [--max-locations N] [--include-test
 - `--max-locations` (default `20`) caps locations per symbol. `count` is always exact; it counts
   distinct `(file, line)` sites (two uses of one key on one line are one site, since a location
   has no column).
-- Tests (`*.spec.ts`, `*.test.ts`, `src/test/java/**`, `src/test/**`) are included by default,
+- Tests (`*.spec.ts`, `*.test.ts`, `src/test/java/**`, `src/test/**`, and every Gradle test
+  source set `src/<name>Test/**` — `src/integrationTest`, `src/componentTest`,
+  `src/acceptanceTest`, `src/apiTest`, … — plus Maven's `src/it/**`; amended 2026-11-07) are
+  included by default,
   since many rules are test-only (`TestBed.get`, `@MockBean`). Each location records
   `test: true|false`. `--no-include-tests` drops test files at discovery.
 - `--force` is accepted now; it only has an effect once the cache lands (spec9).

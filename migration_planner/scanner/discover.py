@@ -121,7 +121,14 @@ _JS_LANGUAGES = frozenset({"js", "jsx", "mjs", "cjs"})
 
 # Test file patterns (FR-1: tests are included by default and flagged).
 _TEST_FILE_RE = re.compile(r"\.(?:spec|test)\.[cm]?[jt]sx?$")
-_TEST_DIR_RE = re.compile(r"(?:^|/)(?:src/test|__tests__)/")
+# ``src/test`` and every Gradle test source set named ``<name>Test`` —
+# ``src/integrationTest``, ``src/componentTest``, ``src/acceptanceTest``,
+# ``src/apiTest``, ``src/functionalTest``: test code and test config all the
+# same. The capital ``T`` keeps ``src/latest/`` out. ``src/it`` is Maven's
+# (maven-failsafe / maven-invoker) integration-test directory.
+_TEST_DIR_RE = re.compile(
+    r"(?:^|/)(?:src/(?:test|it|[a-z][A-Za-z0-9]*Test)|__tests__)/"
+)
 
 _SPRING_CONFIG_RE = re.compile(
     r"^(?:application|bootstrap)[\w.-]*\.(?:properties|ya?ml)$"
@@ -237,7 +244,7 @@ def classify_source(name: str) -> str | None:
 
 
 def is_test_path(relative: str) -> bool:
-    """``*.spec.ts``, ``*.test.ts``, ``src/test/**`` (FR-1)."""
+    """``*.spec.ts``, ``*.test.ts``, ``src/test/**``, ``src/it/**``, ``src/<name>Test/**`` (FR-1)."""
     return bool(_TEST_FILE_RE.search(relative) or _TEST_DIR_RE.search(relative))
 
 

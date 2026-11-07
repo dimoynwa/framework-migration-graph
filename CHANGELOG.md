@@ -1,5 +1,113 @@
 # Changelog
 
+## [026.8-service-scanner] — 2026-11-07
+
+### New features
+
+- **Spring configuration (FR-8a).** `migration_planner/scanner/spring_config.py` turns every
+  `application*` / `bootstrap*` file of a Java module into `config[]` facts. One entry per
+  occurrence, never merged by key, so the same key in two profiles, modules or files stays two
+  facts and a matcher can tell "set only in test" from "set in production" (AC-8a).
+- **Canonical keys.** Every Spring property canonicalizes to `cfg:application.properties#…` —
+  the one file name rules use (025 FR-2.6) — whichever file really holds it; `config[].file`
+  keeps the real path. Relaxed binding turns `authenticationDatabase` into
+  `authentication-database`, while a segment after a **map-valued prefix** keeps its case:
+  `logging.level.com.Foo.BarService`, `spring.jpa.properties.*`, `spring.kafka.*.properties.*`,
+  `management.metrics.tags.*`, `spring.cloud.gateway.routes[*].metadata.*` (AC-8a). The prefix
+  list, `canonical_key`, `is_secret_key` and `redact_value` live in the new
+  `migration_keys/spring.py`, which 025 imports too, so a rule's key and a service's key cannot
+  drift.
+- **Profiles, kinds, tests.** The profile comes from the file name (`application-prod.yml` →
+  `prod`, else `default`) or from a YAML document's `spring.config.activate.on-profile` (and the
+  legacy `spring.profiles`); `kind` is `application` or `bootstrap`; `src/test/` gives
+  `test: true`. `modules[].spring_config_files` lists every such file of the module, bootstrap
+  included, because some rules are about a file's presence (a `bootstrap.yml` needs
+  `spring-cloud-starter-bootstrap` since Boot 2.4).
+- **Java properties parser (no dependency).** `=`, `:` and whitespace separators, `#` / `!`
+  comments, `\` continuation (a physical line joins the logical one, and its line number is the
+  first physical line) and `\uXXXX` escapes. A line with no key is an `unparsed_property`
+  diagnostic, never a silent drop.
+- **YAML via PyYAML's compose step.** `line` is the key's own mark, not its document's. Nested
+  maps flatten to `a.b.c`, lists to `key[0].sub`, anchors and `<<` merge keys are applied (a key
+  written in the document wins), multi-document files split by `---`, an empty map or list is a
+  key with an empty value, and an unparsable file is one `yaml_parse_error` while the module's
+  other files are still read.
+- **Secrets never reach the profile (FR-8a).** A value is `"<redacted>"` when the key's last
+  segment names a credential (`password`, `passwd`, `secret`, `token`, `credential`, `api-key`,
+  `apikey`, `private-key`, `client-secret`, …) or the value is a URL with user info
+  (`jdbc:postgresql://user:pass@host/db`). A placeholder (`${DB_PASSWORD}`, `${PORT:8080}`) is
+  kept exactly as written — a reference, never resolved. Other values are truncated to 200
+  characters; lists and maps become keys only. A suffix is not a token:
+  `app.tokens-per-second` is not a secret.
+- **`--no-values` (FR-8a, FR-1, FR-9).** `scan(..., no_values=True)` and the CLI flag store no
+  config value at all — `value` is `null` in **every** `config[]` entry, npm and Maven ones
+  included, because the accumulator applies it rather than one reader. It is part of
+  `inputs_hash`, so a re-scan with the flag is never reported `unchanged` (spec9).
+
+### AC-11 (Spring half)
+
+Run on `paysafe-wallet-kyc` (1 447 Java sources, Spring Boot 4.0.6, a Spring Cloud Config service
+whose properties are mostly in `bootstrap*.yml`): 1 459 files in **2.99 s**, profile 1.84 MB,
+**153 / 153** leaf property keys of the seven config files in the profile under the canonical key,
+10 / 10 sampled import sites correct, and no literal secret in the profile. The one budget
+finding: 1.84 MB is close to the 2 MB limit, and it is driven by Java usage locations, not
+config — a `--max-locations` question for spec9. Written up in
+`specs/026-service-scanner/ac11-spring.md`.
+
+### Review fixes
+
+- **`spring.profiles.active` no longer sets a document's profile.** It activates a profile; the
+  default document of an `application.yml` that sets it stayed under `local` before.
+- **The profile key is matched in canonical form** (`spring.config.activate.onProfile`), and the
+  legacy `spring.profiles` also counts as a list (`spring.profiles[0]`).
+- **Multi-document `.properties`**: `#---` / `!---` splits the file, each document with its own
+  `spring.config.activate.on-profile`.
+- **A comment line ending in `\`** no longer swallows the next property.
+- **025 builds Spring Boot property keys with `canonical_key`**, so a rule's camelCase property and
+  the service's kebab-case one share a key. The entity `name` is still byte-for-byte as written
+  (025 FR-2.7). Canonical JSONL written before this change keeps the old key until it is
+  regenerated.
+- **Only Java modules** are read: an npm module's `application.yml` in a Java repo, or any in a repo
+  with no Java build, is not Spring config. New `ManifestContext.repo_has_java_build`.
+- **`token-uri` and friends keep their value**: a secret word followed by a qualifier such as
+  `uri`, `url`, `seconds`, `name` is a setting about the secret (`NON_SECRET_SUFFIXES`).
+- `mypy` clean for `spring_config.py` and `migration_keys/spring.py`.
+- **Gradle test source sets are tests** (spec1 FR-1 amended): every `src/<name>Test/` —
+  `src/integrationTest`, `src/componentTest`, `src/acceptanceTest`, `src/apiTest` — and Maven's
+  `src/it/` (maven-failsafe / maven-invoker) give
+  `test: true` for sources and config, and `--no-include-tests` drops them. The Spring reader now
+  uses the discovery rule instead of its own `src/test` check.
+
+### Never silent
+
+- An unparsable YAML is one `yaml_parse_error` with the loader's problem and line; an unreadable
+  file is an `unreadable_file`; a `.properties` line with no key is an `unparsed_property`.
+  None of them fails a scan.
+
+### Tests
+
+- `tests/scanner/test_spring_config.py` (76 tests): AC-8a (one entry per occurrence, never merged by key; the canonical key with relaxed binding and the map-prefix exceptions that keep their case; profile from the file name and from `spring.config.activate.on-profile`; `bootstrap` kind; the `test` flag), the properties parser (three separators, `#` / `!` comments, `\` continuation with its first-physical-line number, `\uXXXX`), the YAML compose step (a key's own mark, indexed list entries, anchors, `<<` merge keys, `---` documents), the secret rules (credential words, userinfo URLs, `NON_SECRET_SUFFIXES`, a placeholder kept as written) and `--no-values` including its effect on `inputs_hash`.
+- New fixture `tests/fixtures/scanner/spring-config/`: `application.properties`, `application-prod.yml`, `bootstrap.yml`, a `src/test/resources/application.yml` and a broken `config/application-broken.yml` for the `yaml_parse_error` case.
+- Additive tests in two earlier specs' files for the amended FR-1: `test_discover.py` gains the `src/<name>Test/` and `src/it/` source sets with their negatives, `test_java.py` one Gradle `src/componentTest` case. No earlier assertion changed.
+- Whole scanner suite passes: 652 passed in `tests/scanner`, 9 in `test_shared_keys.py` (incl. the new canonical-key test), 65 in the 025 canonicalization files — 726 passed, no spec1–spec7 regressions.
+- CLI smoke on the fixture: 33 config entries under `cfg:application.properties#`, `spring.datasource.password` and a userinfo JDBC URL `<redacted>`, `app.tokens-per-second` not redacted, one `yaml_parse_error`; with `--no-values` the same 33 entries in the same order with `value: null` and a different `inputs_hash`.
+
+### Contract additions
+
+- `ManifestFacts.spring_config_files` — the module's `application*` / `bootstrap*` files,
+  scan-root relative, reaching `modules[].spring_config_files`.
+- `FactAccumulator(no_values=…)` — the scan-wide `--no-values` option; `scan()` and `cli.main`
+  pass it through, and `inputs_hash` records it.
+- `migration_keys/spring.py`: `SPRING_CONFIG_FILE`, `SPRING_MAP_PREFIXES`, `SECRET_WORDS`,
+  `REDACTED`, `MAX_VALUE_LENGTH`, `canonical_key`, `is_secret_key`, `has_userinfo_url`,
+  `redact_value`, `kebab`, `split_index`, `map_prefix_length`.
+- `ManifestContext.repo_has_java_build: bool` — whether any module has a Maven / Gradle build file.
+- `migration_keys.spring.NON_SECRET_SUFFIXES`.
+- `migration_oracle/pipeline/canonical/normalize.py` keys a Spring Boot property with
+  `canonical_key` (new test `test_shared_keys.py::test_a_spring_boot_property_key_is_in_canonical_form`).
+- `migration_oracle/pipeline/canonical/profiles.py` takes its Spring config file from
+  `migration_keys.spring.SPRING_CONFIG_FILE` (same value, one source).
+
 ## [026.7-service-scanner] — 2026-11-07
 
 ### New features

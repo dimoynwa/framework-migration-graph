@@ -64,6 +64,9 @@ def _manifest_contexts(discovery: DiscoveryResult) -> dict[str, ManifestContext]
     ``modules[].manifests`` records (FR-3).
     """
     by_module: dict[str, list[ManifestFile]] = {}
+    repo_has_java_build = any(
+        file.kind in _JAVA_BUILD_KINDS for file in discovery.manifests
+    )
     for module in discovery.modules:
         by_module[module.path] = []
     for file in discovery.manifests:
@@ -83,9 +86,16 @@ def _manifest_contexts(discovery: DiscoveryResult) -> dict[str, ManifestContext]
                 sorted(by_module.get(module.path, []), key=lambda item: item.name)
             ),
             scan_root=discovery.root,
+            repo_has_java_build=repo_has_java_build,
         )
         for module in discovery.modules
     }
+
+
+#: Manifest kinds that make a module a Java module (spec6, spec8).
+_JAVA_BUILD_KINDS: frozenset[str] = frozenset(
+    {"pom.xml", "build.gradle", "build.gradle.kts"}
+)
 
 
 def _registered_readers():
@@ -122,6 +132,7 @@ def scan(
     out: str | Path | None = None,
     include_tests: bool = True,
     max_locations: int = 20,
+    no_values: bool = False,
     write: bool = True,
 ) -> ScanResult:
     """Scan one repo and build its profile.
@@ -129,6 +140,10 @@ def scan(
     Raises :class:`NoSupportedManifest` when the tree has no manifest the
     scanner understands (FR-1 exit code 2). Every other problem is recorded in
     ``diagnostics``: one unparsable file never fails a scan.
+
+    ``no_values`` stores no config value at all (spec8 ``--no-values``): the key
+    is the fact a matcher compares, the value is what must not reach a CI
+    artifact.
     """
     started = time.perf_counter()
     root = Path(path).expanduser().resolve()
@@ -137,7 +152,7 @@ def scan(
         raise NoSupportedManifest(f"no supported manifest under {root}")
 
     target = Path(out) if out is not None else default_profile_path(root)
-    accumulator = FactAccumulator(max_locations=max_locations)
+    accumulator = FactAccumulator(max_locations=max_locations, no_values=no_values)
     diagnostics: list[Diagnostic] = list(discovery.diagnostics)
 
     contents, read_diagnostics = _read_bytes(discovery.files)
@@ -151,6 +166,7 @@ def scan(
     declared_roots: dict[str, ModuleEntry] = {}
     module_group_ids: dict[str, set[str]] = {}
     own_group_ids: set[str] = set()
+    spring_config_files: dict[str, set[str]] = {}
     for module_path, context in sorted(contexts.items()):
         present = {manifest.kind for manifest in context.files}
         module_own_packages: set[str] = set()
@@ -198,6 +214,10 @@ def scan(
                     facts.group_ids
                 )
             own_group_ids.update(facts.own_group_ids)
+            if facts.spring_config_files:
+                spring_config_files.setdefault(module_path, set()).update(
+                    facts.spring_config_files
+                )
             if facts.path_map is not None and path_map is None:
                 path_map = facts.path_map
         environments[module_path] = ModuleEnv(
@@ -332,6 +352,7 @@ def scan(
             ),
             angular_projects=sorted(angular_projects.get(module.path, ())),
             own_packages=list(module_packages.get(module.path, ())),
+            spring_config_files=sorted(spring_config_files.get(module.path, ())),
         )
         for module in discovery.modules
     ]
@@ -358,7 +379,11 @@ def scan(
         ),
         inputs_hash=inputs_hash(
             ((relative, data) for relative, data in contents.items()),
-            options={"include_tests": include_tests, "max_locations": max_locations},
+            options={
+                "include_tests": include_tests,
+                "max_locations": max_locations,
+                "no_values": no_values,
+            },
         ),
         framework=framework,
         modules=modules,

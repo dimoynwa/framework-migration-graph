@@ -37,8 +37,9 @@ migration-scan [PATH] [--out FILE] [--force] [--max-locations N]
 | `--out FILE` | `PATH/.migration/profile.json` | Where the profile goes. |
 | `--max-locations N` | `20` | Locations stored per symbol. `count` is always exact. |
 | `--include-tests` | on | Test files are scanned and each location is flagged `test: true`. |
-| `--no-include-tests` | — | Drop `*.spec.ts`, `*.test.ts`, `src/test/**` at discovery. |
+| `--no-include-tests` | — | Drop `*.spec.ts`, `*.test.ts`, `src/test/**` and every test source set `src/<name>Test/**` (`src/integrationTest`, `src/componentTest`, …) and Maven's `src/it/**` at discovery. |
 | `--json-summary` | off | Print the summary as one JSON object instead of the line. |
+| `--no-values` | off | Store no config value: `value` is `null` in every `config[]` entry, so a profile can be attached to a CI job (026.8). |
 | `--force` | off | Accepted now; it only has an effect once the incremental cache lands (spec9). |
 
 stdout is always one line, with every count printed even when zero:
@@ -216,7 +217,7 @@ unchanged tree differ only in `generated.at` (and the measured `duration_ms`).
 | `templates` | **026.5** |
 | Maven / Gradle `dependencies`, `cfg:pom.xml` / `cfg:build.gradle` `config` | **026.6** |
 | `symbols`, `members`, `wildcard_imports` (Java) | **026.7** |
-| Spring `config`, `modules[].spring_config_files` | spec8 |
+| Spring `config`, `modules[].spring_config_files` | **026.8** |
 | Incremental cache, `--jobs`, `[planner]` extra | spec9 |
 
 A section whose spec has not landed yet is an empty list, so the schema is stable throughout.
@@ -613,7 +614,9 @@ still not a member: only its name is under the wildcard.
 
 ### Tests and errors
 
-- `src/test/java/**` locations carry `test: true`, like every other spec's.
+- `src/test/java/**` and `src/<name>Test/java/**` (`integrationTest`, `componentTest`,
+  `acceptanceTest`, `apiTest`, …) and Maven's `src/it/java/**` locations carry `test: true`, like
+  every other spec's.
 - A partial parse keeps every fact that did parse and adds one `partial_parse_error` with the
   line of the first error; a file where nothing parses is one `parse_error`. Neither fails a scan
   (AC-5.4).
@@ -624,6 +627,104 @@ jq '[.symbols[] | select(.key | startswith("maven:org.springframework"))] | leng
 jq '.members[] | select(.key | test("RequestMapping"))' .migration/profile.json
 grep -rn "^import org.springframework" src/main/java | shuf -n 10   # spot-check against the profile
 ```
+
+## Spring configuration (026.8)
+
+`migration_planner/scanner/spring_config.py` turns every `application*` / `bootstrap*` file of a
+Java module into `config[]` facts. A module is Java when it has a `pom.xml` / `build.gradle(.kts)`,
+or when the repo has one somewhere and the module is `.` or not an npm package — so a shared
+`config/application.yml` at the root is read even next to a tooling `package.json`, while an
+Angular module's `application.yml` is not. Many Spring Boot rules are property renames or default
+changes (`spring.data.mongodb.*` → `spring.mongodb.*`), so *which properties the service sets* is
+part of its profile.
+
+### What becomes a fact
+
+One entry per occurrence, never merged by key:
+
+```json
+{ "key": "cfg:application.properties#spring.data.mongodb.authentication-database",
+  "value": "admin", "file": "src/main/resources/application-prod.yml",
+  "module": ".", "profile": "prod", "kind": "application", "test": false,
+  "line": 7, "raw_key": "spring.data.mongodb.authenticationDatabase" }
+```
+
+| Field | Meaning |
+|---|---|
+| `key` | The canonical form under the **one file name rules use**, `cfg:application.properties#…`, whichever file really holds it (025 FR-2.6). |
+| `file` | The real path, so a matcher can say "set only in `src/test`". |
+| `profile` | From the file name (`application-prod.yml` → `prod`, else `default`), or from a document's `spring.config.activate.on-profile` / legacy `spring.profiles` (also `spring.profiles[0]`), matched in canonical form so `onProfile` counts. `spring.profiles.active` does **not** change the profile: it activates one, and its document is still the default one. |
+| `kind` | `application` or `bootstrap`. |
+| `test` | `true` under `src/test/`, Maven's `src/it/`, or a test source set `src/<name>Test/` (`src/integrationTest/resources`). |
+| `line` | The line the key is written on (a YAML key's own mark, not its document's). |
+| `raw_key` | The written form when canonicalization changed it. |
+
+The same key in two profiles, modules or files is **two entries**: `spring.datasource.url` in
+`application-prod.yml` and in `src/test/resources/application.yml` are different facts, and a
+matcher can tell "set only in test" from "set in production".
+
+`modules[].spring_config_files` lists every such file of the module, `bootstrap*` included —
+some rules are about the file's presence (a `bootstrap.yml` needs
+`spring-cloud-starter-bootstrap` since Spring Boot 2.4).
+
+### Parsing
+
+- **`.properties`** — Java's format, with its own small parser: `=`, `:` or whitespace
+  separators, `#` / `!` comments, `\` line continuation and `\uXXXX` escapes. A comment line
+  never continues, even when it ends in `\`. `#---` / `!---` on its own line (no leading
+  whitespace) splits the file into documents, as `---` does in YAML (Boot 2.4+). A line with no
+  key at all is an `unparsed_property` diagnostic rather than a silent drop.
+- **`.yml` / `.yaml`** — PyYAML's `compose` step, because the marks are what the profile needs:
+  `line` is the key's real line. Nested maps flatten to `a.b.c`, lists to `key[0].sub`, anchors
+  and `<<` merge keys are applied (a key written in the document wins), multi-document files are
+  one document per `---`, and an empty map or list is a key with an empty value. An unparsable
+  file is one `yaml_parse_error` and the module's other files are still read.
+
+### Canonical keys (Spring relaxed binding)
+
+Property-name segments become lower-case kebab-case:
+
+| Written | Canonical |
+|---|---|
+| `spring.data.mongodb.authenticationDatabase` | `spring.data.mongodb.authentication-database` |
+| `server.SERVER_PORT` | `server.server-port` |
+| `logging.level.com.Foo.BarService` | unchanged — `logging.level` is a **map prefix**, so what follows is a logger name |
+| `spring.jpa.properties.hibernate.dialect` | unchanged (`spring.jpa.properties.*`) |
+| `management.metrics.tags.Application` | unchanged (`management.metrics.tags.*`) |
+| `spring.cloud.gateway.routes[0].metadata.Connect-Timeout` | unchanged (`…routes[*].metadata.*`) |
+
+The map-prefix list is `SPRING_MAP_PREFIXES` in `migration_keys/spring.py`, next to
+`canonical_key`, `is_secret_key` and `redact_value` — the same module 025 imports: 025's Spring
+Boot normalizer builds a property's key with `canonical_key` too (the entity's `name` stays as
+written), so a rule written `authenticationDatabase` and a service setting
+`authentication-database` meet on one key.
+
+### Secrets never reach the profile
+
+| Case | Stored |
+|---|---|
+| The key's last segment names a credential (`password`, `passwd`, `secret`, `token`, `credential`, `api-key`, `apikey`, `private-key`, `client-secret`, …) | `"<redacted>"` |
+| The value contains a URL with user info (`jdbc:postgresql://user:pass@host/db`) | `"<redacted>"` |
+| The value is a placeholder (`${DB_PASSWORD}`, `${PORT:8080}`) | kept exactly as written — a reference, never resolved |
+| Anything else | the scalar, truncated to 200 characters |
+| `--no-values` | `null`, in every `config[]` entry of every reader |
+
+A suffix is not a token: `app.tokens-per-second` is not a secret. A secret word followed by a
+qualifier that makes the key a setting *about* the secret is not a secret either:
+`token-uri`, `access-token-validity-seconds`, `secret-header-name` keep their value
+(`NON_SECRET_SUFFIXES`), while `hmac-secret-key` stays redacted. Lists and maps are recorded as
+keys only. `--no-values` is applied by the profile accumulator, not by one reader, so it covers
+npm and Maven values too, and it is part of `inputs_hash`.
+
+```bash
+migration-scan /path/to/spring-service --force
+jq '[.config[] | select(.key | startswith("cfg:application.properties#"))] | length' .migration/profile.json
+jq '.config[] | select(.value == "<redacted>") | .key' .migration/profile.json
+grep -c "<known secret>" .migration/profile.json   # → 0
+```
+
+The AC-11 result on a real service (timings, size, the 153/153 property-key check, the secret
+check, the 10 import sites) is in `specs/026-service-scanner/ac11-spring.md`.
 
 ## Canonical keys
 
@@ -656,7 +757,8 @@ changes.
   (Maven `<modules>` / Gradle `include`), and `group_ids` (Maven groupIds, for spec7's
   fully-qualified usages). One reader registered for several manifest kinds runs once per module
   with all of them — which is how one Gradle reader handles the build script, the settings
-  script, the version catalog and `gradle.properties` together.
+  script, the version catalog and `gradle.properties` together. A reader may also return
+  `spring_config_files` (026.8), the module's `application*` / `bootstrap*` files.
 - **Source extractors** receive one file (path, bytes, module, `test` flag, and the module's
   `ModuleEnv`, which now also carries `group_ids`) and return per-file facts. They are pure
   functions of the file content, so spec9 can cache them and run them in a process pool.
@@ -684,6 +786,7 @@ migration_planner/            planner: runs in a service repo
     ts_resolve.py             barrels, aliases, workspace entry points (026.4)
     templates.py              Angular template tokens, .html + inline (026.5)
     java.py                   Java imports, usages, wildcards, own packages (026.7)
+    spring_config.py          application*/bootstrap* → config keys, secrets (026.8)
     profile.py                pydantic profile model, merge, atomic writer
     scan.py                   the one scan loop
     contract.py               extractor contract + registry
@@ -691,6 +794,7 @@ migration_planner/            planner: runs in a service repo
 migration_keys/               pure key builders + Angular data (shared with ingestion)
   keys.py
   angular.py
+  spring.py                   Spring canonical form, map prefixes, redaction
   specifiers.py               package-of-specifier and own-code rules
 ```
 
@@ -732,4 +836,12 @@ jq '.wildcard_imports | map({key, names})' .migration/profile.json
 jq '[.symbols[], .members[] | select(.key | startswith("maven:com.acme"))] | length' .migration/profile.json  # → 0
 ```
 
-Spring `config[]` (properties and YAML) stays empty until spec8.
+After 026.8 `config[]` holds the Spring properties too. Compare a key with the service's own
+file, and check that a credential is redacted:
+
+```bash
+jq '[.config[] | select(.key | startswith("cfg:application.properties#"))] | length' .migration/profile.json
+jq -r '.config[] | select(.value == "<redacted>") | .key' .migration/profile.json
+jq -r '.modules[].spring_config_files[]' .migration/profile.json
+grep -rn "spring.datasource.url" src/main/resources/application*.yml   # the key must be in the profile
+```

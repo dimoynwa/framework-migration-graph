@@ -1,0 +1,11 @@
+# A bootstrap file: its keys are recorded like any other, and the file itself is
+# listed in modules[].spring_config_files (it needs spring-cloud-starter-bootstrap
+# since Spring Boot 2.4).
+spring:
+  application:
+    name: config-svc
+  cloud:
+    config:
+      uri: http://config-server.internal:8888
+      username: ${CONFIG_USER}
+      password: ${CONFIG_PASSWORD}

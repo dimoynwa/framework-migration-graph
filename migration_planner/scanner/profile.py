@@ -224,10 +224,16 @@ class FactAccumulator:
 
     Counting happens here, before ``--max-locations`` is applied, so ``count``
     is always exact and ``truncated`` says whether locations were dropped.
+
+    ``no_values`` (spec8) applies to **every** ``config[]`` entry, from every
+    reader, which is why it is enforced here and not in a reader: a flag that
+    only silenced Spring values would still leak an npm ``engines`` value or a
+    Maven property into an artifact.
     """
 
-    def __init__(self, *, max_locations: int = 20) -> None:
+    def __init__(self, *, max_locations: int = 20, no_values: bool = False) -> None:
         self.max_locations = max(0, max_locations)
+        self.no_values = no_values
         self.dependencies: list[DependencyEntry] = []
         self.config: list[ConfigEntry] = []
         self.diagnostics: list[DiagnosticEntry] = []
@@ -267,7 +273,7 @@ class FactAccumulator:
         self.config.append(
             ConfigEntry(
                 key=config.key,
-                value=config.value,
+                value=None if self.no_values else config.value,
                 file=config.file,
                 module=config.module,
                 line=config.line,

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from migration_planner.scanner.discover import (
     MAX_FILE_BYTES,
     MAX_JS_FIRST_LINE,
@@ -210,6 +212,38 @@ def test_classifiers_directly() -> None:
     assert is_test_path("src/a.test.tsx") is True
     assert is_test_path("src/test/java/A.java") is True
     assert is_test_path("src/main/java/A.java") is False
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/integrationTest/java/A.java",
+        "src/componentTest/resources/application.yml",
+        "src/acceptanceTest/java/A.java",
+        "src/apiTest/resources/bootstrap-api-test.yml",
+        "svc/src/functionalTest/java/A.java",
+        "src/it/java/com/acme/AIT.java",
+        "src/it/resources/application.yml",
+    ],
+)
+def test_a_gradle_test_source_set_is_a_test_path(relative: str) -> None:
+    """Every ``src/<name>Test/`` source set is test code, like ``src/test/``."""
+    assert is_test_path(relative) is True
+
+
+@pytest.mark.parametrize(
+    "relative",
+    [
+        "src/main/java/com/acme/IntegrationTest.java",
+        "src/latest/java/A.java",
+        "src/main/java/com/acme/apiTest/A.java",
+        "src/Test/java/A.java",
+        "src/main/java/com/acme/it/A.java",
+        "src/items/A.java",
+    ],
+)
+def test_a_main_path_that_mentions_test_is_not_a_test_path(relative: str) -> None:
+    assert is_test_path(relative) is False
 
 
 def test_unreadable_file_becomes_a_diagnostic(make_repo) -> None:

@@ -151,3 +151,31 @@ def test_wildfly_maven_keys_still_come_from_the_shared_builder() -> None:
     )
 
     assert occurrences[0].key == maven_key("org.jboss.Foo")
+
+
+def test_a_spring_boot_property_key_is_in_canonical_form() -> None:
+    """The rule's key is the one the 026 scanner writes; the name stays as written."""
+    from migration_keys.spring import canonical_key
+
+    occurrences = _occurrences(
+        AffectedEntity(
+            kind=EntityKind.PROPERTY,
+            name="spring.data.mongodb.authenticationDatabase",
+            role=EntityRole.REMOVED,
+        ),
+        AffectedEntity(
+            kind=EntityKind.PROPERTY,
+            name="logging.level.com.Foo.BarService",
+            role=EntityRole.REMOVED,
+        ),
+        framework="spring-boot",
+    )
+
+    assert [occurrence.key for occurrence in occurrences] == [
+        "cfg:application.properties#spring.data.mongodb.authentication-database",
+        "cfg:application.properties#logging.level.com.Foo.BarService",
+    ]
+    assert occurrences[0].name == "spring.data.mongodb.authenticationDatabase"
+    assert canonical_key(occurrences[0].name) == (
+        occurrences[0].key.split("#", 1)[1]
+    )

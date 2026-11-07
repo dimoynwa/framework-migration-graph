@@ -709,6 +709,31 @@ def test_a_test_source_records_test_true(spring_java: Path) -> None:
     )
 
 
+def test_a_gradle_test_source_set_records_test_true(make_repo) -> None:
+    """``src/integrationTest/java`` is test code (FR-1), like ``src/test/java``."""
+    repo = make_repo(
+        {
+            "pom.xml": (
+                "<project><groupId>com.acme</groupId><artifactId>svc</artifactId>"
+                "<version>1</version><dependencies><dependency>"
+                "<groupId>org.springframework.boot</groupId>"
+                "<artifactId>spring-boot-starter-test</artifactId>"
+                "<version>3.3.4</version></dependency></dependencies></project>"
+            ),
+            "src/componentTest/java/com/acme/ACT.java": (
+                "package com.acme;\n"
+                "import org.springframework.boot.test.mock.mockito.MockBean;\n"
+                "class ACT { @MockBean Object service; }\n"
+            ),
+        }
+    )
+
+    _, _, symbols, _, _ = _scan(repo)
+
+    entry = symbols["maven:org.springframework.boot.test.mock.mockito.MockBean"]
+    assert {location["test"] for location in entry["locations"]} == {True}
+
+
 def test_a_main_source_records_test_false(spring_java: Path) -> None:
     _, _, symbols, _, _ = _scan(spring_java)
 

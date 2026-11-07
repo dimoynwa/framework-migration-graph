@@ -3,7 +3,10 @@ verification (FR-3).
 
 Pure functions: the batch on disk is not rewritten, canonicalization runs at
 populate time. Spring Boot / WildFly profiles are a no-op apart from computing
-``key`` — names stay byte-for-byte as written.
+``key`` — names stay byte-for-byte as written. A Spring Boot property's key is
+in Spring's canonical (relaxed-binding) form, the one the 026 scanner writes
+for the property a service sets, so the two meet whatever case the rule text
+used.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ from dataclasses import dataclass, field
 
 from migration_keys.angular import DIAGNOSTIC_RE
 from migration_keys.keys import cfg_key, diag_key, maven_key, npm_key, syntax_key
+from migration_keys.spring import canonical_key as spring_canonical_key
 from migration_oracle.models.entities import (
     AffectedEntity,
     CanonicalEntity,
@@ -108,7 +112,11 @@ def _normalize_maven(occurrence: AffectedEntity, profile: FrameworkProfile) -> N
         key = maven_key(name)
     elif kind == EntityKind.PROPERTY:
         file = profile.config_file
-        key = cfg_key(file, name)
+        # ``spring.data.mongodb.authenticationDatabase`` in a rule and
+        # ``authentication-database`` in a service are one property (026.8
+        # FR-8a), so the key — never the name — takes the canonical form.
+        dotted = spring_canonical_key(name) if profile.key == "spring-boot" else name
+        key = cfg_key(file, dotted)
     elif kind == EntityKind.DEPENDENCY:
         package = name
         symbol = ""

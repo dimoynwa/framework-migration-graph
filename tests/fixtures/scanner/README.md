@@ -110,3 +110,19 @@ multi-module tree whose parent pom holds what a child inherits.
   is `test: true` (AC-5.3), with the static-import members `assertThat` / `verify` / `when`.
 - `src/main/java/com/acme/shop/service/` — the repo's own package the controller and its
   wildcard entries must never report as external.
+
+`tests/fixtures/scanner/spring-config/` covers spec 026.8 (FR-8a, AC-8a):
+
+- `src/main/resources/application.properties` — both separators (`=`, `:`) and a whitespace one,
+  `#` / `!` comments, a `\` continuation line and a `\u00e9` escape; a `spring.datasource.url`
+  with user info and a `spring.datasource.password` (both `<redacted>`), a
+  `${DB_USER}` placeholder kept as written, `authenticationDatabase` (→ `authentication-database`)
+  and `logging.level.com.acme.shop.web.CatalogController` (a map prefix, case kept).
+- `src/main/resources/application-prod.yml` — a nested map, a list (`app.features[]`), a
+  map-valued prefix (`spring.jpa.properties.*`, `…routes[0].metadata.*`) and a second document
+  with `spring.config.activate.on-profile: staging`, so one file yields two profiles.
+- `src/main/resources/bootstrap.yml` — `kind: bootstrap` entries with `${CONFIG_USER}` /
+  `${CONFIG_PASSWORD}` placeholders, and the file listed in `modules[].spring_config_files`.
+- `src/test/resources/application.yml` — every entry `test: true`, including an empty list.
+- `config/application-broken.yml` — an unparsable YAML: one `yaml_parse_error` and the rest of
+  the module is still read.

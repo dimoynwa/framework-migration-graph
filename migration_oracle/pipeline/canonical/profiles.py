@@ -21,6 +21,7 @@ from migration_keys.angular import (
     ANGULAR_SYNTAX_TOKENS,
 )
 from migration_keys.keys import config_file_for_key
+from migration_keys.spring import SPRING_CONFIG_FILE
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,10 @@ ANGULAR_PROFILE = FrameworkProfile(
 SPRING_BOOT_PROFILE = FrameworkProfile(
     key="spring-boot",
     ecosystem="maven",
-    config_file="application.properties",
+    # Every Spring property canonicalizes under this one file name, so a rule's
+    # key and the service's key (026.8 FR-8a) compare equal whichever file the
+    # property is really in.
+    config_file=SPRING_CONFIG_FILE,
 )
 
 WILDFLY_PROFILE = FrameworkProfile(

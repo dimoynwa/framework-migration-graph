@@ -1,0 +1,8 @@
+# src/test/: every entry is test: true, so a matcher can tell "set only in test"
+# from "set in production".
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb
+    password: ""
+app:
+  features: []
